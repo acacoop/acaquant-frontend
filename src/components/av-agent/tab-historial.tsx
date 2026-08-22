@@ -117,66 +117,51 @@ export function TabHizo({ acciones }: { acciones: Accion[] }) {
 
 // ── TAB 4: lo ya decidido (y cómo deshacerlo) ──────────────────────────────
 
+// ⚠️ REDISEÑADA 2026-08-22 (§0.cv — user: *«en YA DECIDIDO la vista está muy
+// mal… no entiendo HISTORIAL de qué si ya es una vista entera de historial, ni
+// el valor de ESPERANDO QUE PUEDA APLICARLAS, si se actualiza, si tiene alguna
+// funcionalidad»*). Tres cambios de fondo:
+//   1. UNA columna, en el orden en que uno pregunta: qué falta que pase →
+//      qué descartaste (lo único con botón) → el registro de todo lo demás.
+//   2. Cada bloque DICE qué es y si se mueve solo — un tablero cuyo
+//      funcionamiento hay que adivinar no es un tablero.
+//   3. «HISTORIAL» adentro del historial se renombró a REGISTRO DE RESPUESTAS.
 export function TabDecidido({ data, designorar }: {
   data: Vista;
   designorar: (ticker: string) => void;
 }) {
-  // Lo contestado que todavía NO surtió efecto va PRIMERO y a lo ancho: es la
-  // pregunta que el user se hace al volver ("¿qué pasó con las altas que
-  // contesté?"), y estaba solo como una línea gris en el historial.
   const pend = data.pendientes ?? [];
   const porResp: Record<string, Pendiente[]> = {};
   for (const p of pend) (porResp[p.respuesta ?? "?"] ??= []).push(p);
   const votos = data.votos ?? [];
   return (
     <div className="flex flex-col gap-5">
-      {/* LO VOTADO deja huella ACÁ (user, 2026-08-22: «voy tachando cosas y
-          nada pasa a historial… ni siquiera queda registrado en ningún
-          lado»). El voto apaga la fila en ENCONTRÓ; sin esta lista, el rastro
-          de qué contestaste no vivía en ninguna pantalla. */}
-      {votos.length > 0 && (
-        <section>
-          <div className="flex items-baseline gap-2 mb-1">
-            <h3 className={TITULO}>VOTASTE</h3>
-            <span className={SUB}>{votos.length} · lo que contestaste sobre el agente</span>
-          </div>
-          <table className="w-full text-[11px]">
-            <tbody>
-              {votos.map((v, i) => (
-                <tr key={i} className="border-b border-[var(--t-border)]/40">
-                  <td className="py-0.5 pr-2 font-mono text-[var(--t-text)]">{v.caso}</td>
-                  <td className="py-0.5 pr-2 text-[var(--t-text-muted)]">
-                    {v.causa.replaceAll("_", " ")}
-                  </td>
-                  <td className="py-0.5 pr-2 whitespace-nowrap"
-                      style={{ color: v.acierta ? "var(--t-pos)" : "var(--t-neg)" }}>
-                    {v.origen === "utilidad"
-                      ? (v.acierta ? "✔ te sirve" : "✖ es ruido")
-                      : (v.acierta ? "✔ acertó" : "✖ no acertó")}
-                  </td>
-                  <td className="py-0.5 pr-2 text-[var(--t-text-dim)] truncate max-w-[24ch]"
-                      title={v.nota}>{v.nota}</td>
-                  <td className="py-0.5 text-right text-[var(--t-text-dim)] whitespace-nowrap">
-                    {fechaHora(v.creado_at)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      )}
+      <p className="text-[10px] text-[var(--t-text-dim)] -mb-2">
+        Tus decisiones y qué pasó con cada una. <b>Nada de acá pide trabajo</b>:
+        lo único que se puede tocar es DESHACER un descarte. El resto se
+        actualiza solo.
+      </p>
+
+      {/* 1 ── LO CONTESTADO QUE EL AGENTE TODAVÍA NO PUDO EJECUTAR. Va primero
+          porque es lo único que va a CAMBIAR de acá: cuando el agente gane esa
+          habilidad, las procesa solas y pasan al registro de abajo. */}
       {pend.length > 0 && (
         <section className="border border-[var(--t-tint-amber)] bg-[var(--t-surface)] px-3 py-2">
-          <div className="flex items-baseline gap-2 mb-1">
-            <h3 className={TITULO}>ESPERANDO QUE PUEDA APLICARLAS</h3>
-            <span className={SUB}>{pend.length} · ya las contestaste</span>
+          <div className="flex items-baseline gap-2 mb-1 flex-wrap">
+            <h3 className={TITULO}>CONTESTADAS, SIN EJECUTAR TODAVÍA</h3>
+            <span className={SUB}>{pend.length}</span>
           </div>
+          <p className="text-[9px] text-[var(--t-text-dim)] mb-1">
+            Tu respuesta quedó guardada; el agente aún no tiene la habilidad
+            para ejecutarla solo. <b>Se mueve solo</b>: cuando la gane, las
+            procesa y cada una baja al registro con su fecha de aplicación.
+          </p>
           {Object.entries(porResp).map(([resp, filas]) => (
             <div key={resp} className="mt-1">
               <div className="text-[10px] text-[var(--t-text)]">
                 <strong className="uppercase tracking-widest">{resp}</strong>
                 <span className="text-[var(--t-text-dim)]"> ({filas.length}): </span>
-                <span className="tabular-nums">
+                <span className="tabular-nums break-words">
                   {filas.map((f) => f.ticker).sort().join(", ")}
                 </span>
               </div>
@@ -190,11 +175,18 @@ export function TabDecidido({ data, designorar }: {
           ))}
         </section>
       )}
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+      {/* 2 ── LO DESCARTADO, con su deshacer. Es la lista DURABLE de papeles
+          que dijiste que no interesan al contestar una pregunta de alta —
+          distinta del IGNORAR de LA LISTA, que es un snooze del día y vence
+          solo (§0.cv). */}
       <section>
-        <div className="flex items-baseline gap-2 mb-1">
+        <div className="flex items-baseline gap-2 mb-1 flex-wrap">
           <h3 className={TITULO}>NO TE INTERESAN</h3>
-          <span className={SUB}>{data.ignorados.length} · no los vuelvo a proponer</span>
+          <span className={SUB}>
+            {data.ignorados.length} · papeles descartados al contestar «no nos
+            interesa» — no se vuelven a proponer hasta que los deshagas
+          </span>
         </div>
         {data.ignorados.length === 0 ? (
           <p className="text-[10px] text-[var(--t-text-muted)]">Ninguno todavía.</p>
@@ -214,7 +206,7 @@ export function TabDecidido({ data, designorar }: {
                       title={ig.motivo}>
                   {ig.motivo}
                 </span>
-                {/* Sin este botón, `ignorar` es irreversible desde la app → la
+                {/* Sin este botón, el descarte es irreversible desde la app → la
                     respuesta segura pasa a ser no contestar nada, y el canal de
                     preguntas entero deja de usarse. */}
                 <button
@@ -229,10 +221,14 @@ export function TabDecidido({ data, designorar }: {
         )}
       </section>
 
+      {/* 3 ── EL REGISTRO. Solo lectura, append-only: cada respuesta a una
+          pregunta del agente, con quién y cuándo, y si ya se aplicó. */}
       <section>
-        <div className="flex items-baseline gap-2 mb-1">
-          <h3 className={TITULO}>HISTORIAL</h3>
-          <span className={SUB}>{data.decididas.length} respuestas</span>
+        <div className="flex items-baseline gap-2 mb-1 flex-wrap">
+          <h3 className={TITULO}>REGISTRO DE RESPUESTAS</h3>
+          <span className={SUB}>
+            {data.decididas.length} · cada pregunta que contestaste, y si ya se aplicó
+          </span>
         </div>
         {data.decididas.length === 0 ? (
           <p className="text-[10px] text-[var(--t-text-muted)]">Todavía no contestaste nada.</p>
@@ -261,7 +257,46 @@ export function TabDecidido({ data, designorar }: {
           </div>
         )}
       </section>
-    </div>
+
+      {/* 4 ── LO VOTADO deja huella ACÁ (user, 2026-08-22: «voy tachando cosas
+          y nada pasa a historial»). El voto apaga la pregunta en ENCONTRÓ; sin
+          esta lista el rastro no vivía en ninguna pantalla. Va último porque
+          es el registro que menos se consulta. */}
+      {votos.length > 0 && (
+        <section>
+          <div className="flex items-baseline gap-2 mb-1 flex-wrap">
+            <h3 className={TITULO}>VOTASTE</h3>
+            <span className={SUB}>
+              {votos.length} · tus juicios sobre los diagnósticos (entrenan al agente)
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px]">
+              <tbody>
+                {votos.map((v, i) => (
+                  <tr key={i} className="border-b border-[var(--t-border)]/40">
+                    <td className="py-0.5 pr-2 font-mono text-[var(--t-text)]">{v.caso}</td>
+                    <td className="py-0.5 pr-2 text-[var(--t-text-muted)]">
+                      {v.causa.replaceAll("_", " ")}
+                    </td>
+                    <td className="py-0.5 pr-2 whitespace-nowrap"
+                        style={{ color: v.acierta ? "var(--t-pos)" : "var(--t-neg)" }}>
+                      {v.origen === "utilidad"
+                        ? (v.acierta ? "✔ te sirve" : "✖ es ruido")
+                        : (v.acierta ? "✔ acertó" : "✖ no acertó")}
+                    </td>
+                    <td className="py-0.5 pr-2 text-[var(--t-text-dim)] truncate max-w-[24ch]"
+                        title={v.nota}>{v.nota}</td>
+                    <td className="py-0.5 text-right text-[var(--t-text-dim)] whitespace-nowrap">
+                      {fechaHora(v.creado_at)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

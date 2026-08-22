@@ -308,6 +308,11 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
   const nRuido = useMemo(
     () => data.hallazgos.filter((h) => h.es_ruido).length,
     [data.hallazgos]);
+  // Lo snoozeado POR HOY (§0.cv). Se cuenta a la vista, como el ruido: un
+  // filtro que esconde sin decir cuánto esconde es truncar en silencio.
+  const nIgnorados = useMemo(
+    () => data.hallazgos.filter((h) => h.ignorado).length,
+    [data.hallazgos]);
 
   const preFiltrados = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -332,6 +337,9 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
       // ticker de algo que descartaste, lo encontrás igual — que es lo que
       // hace reversible la decisión desde la app.
       if (!verRuido && !t) hs = hs.filter((h) => !h.es_ruido);
+      // Lo IGNORADO POR HOY no se lista (vuelve solo mañana si el detector lo
+      // re-ve); la búsqueda sí lo encuentra, como a los otros cortes.
+      if (!t) hs = hs.filter((h) => !h.ignorado);
       if (t) {
         hs = hs.filter((h) =>
           h.ticker.toLowerCase().includes(t) ||
@@ -383,7 +391,7 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
   // descartado. Va en el recuento y en la submétrica de LA LISTA — el número
   // del menú tiene que decir por qué entrarías, no cuántas filas hay.
   const nPorHacer = data.hallazgos.filter(
-    (h) => !h.atendido && !h.es_ruido).length;
+    (h) => !h.atendido && !h.es_ruido && !h.ignorado).length;
   // ⚠️ **EL DESPLEGABLE CUENTA LO MISMO QUE EL MENÚ** (user, 2026-08-22: *«LA
   // LISTA dice 58 pero en el filtro tiene 89… no tienen lógica, no hay
   // relación»*). El menú dice «por resolver» y el desplegable contaba TODO
@@ -393,7 +401,8 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
   const nPorHacerPorTipo = useMemo(() => {
     const n: Record<string, number> = {};
     for (const t of tipos)
-      n[t] = porTipo[t].filter((h) => !h.atendido && !h.es_ruido).length;
+      n[t] = porTipo[t].filter(
+        (h) => !h.atendido && !h.es_ruido && !h.ignorado).length;
     return n;
   }, [porTipo, tipos]);
   // Los SUJETOS cuyo arreglo ya se APLICÓ (no solo votado): es lo que hace que
@@ -724,6 +733,16 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
             </button>
           )}
 
+          {/* LO IGNORADO POR HOY. No hay toggle porque no hay nada que decidir:
+              vence solo — mañana, si el detector lo re-ve, vuelve. Se cuenta
+              para que el corte no sea silencioso. */}
+          {nIgnorados > 0 && (
+            <span className="text-[9px] uppercase tracking-widest px-2 py-1 text-[var(--t-text-dim)]"
+                  title="Los sacaste de la lista por hoy. Si mañana el detector los vuelve a ver, reaparecen solos.">
+              {nIgnorados} ignorados por hoy
+            </span>
+          )}
+
           {(q.trim() || filtro !== "todos" || reglaOk !== "todas") && (
             <button
               onClick={() => { setFiltro("todos"); setQ(""); setRegla("todas"); }}
@@ -972,10 +991,13 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
                   </div>
                   {/* IGNORAR vive en TODA fila, no solo donde hay una acción: el
                       valor de la lista depende de poder sacarle lo que no importa.
-                      Reversible desde la tab DECIDIDO. */}
+                      ⚠️ **ES UN SNOOZE DEL DÍA, no una blacklist** (§0.cv — user:
+                      «si lo ignoro quiero que salga de ENCONTRAR, NO que entre en
+                      una blacklist de cosas que nunca más me van a interesar»).
+                      Si mañana el detector lo re-ve, vuelve solo. */}
                   <button
                     onClick={() => ignorar(h.ticker)}
-                    title="No me interesa: no vuelve a aparecer (reversible en DECIDIDO)"
+                    title="Lo saca de la lista por HOY. Si mañana el detector lo vuelve a ver, reaparece solo — no es una blacklist."
                     className="text-[9px] uppercase tracking-widest px-1.5 py-0.5 self-center border border-transparent text-[var(--t-text-dim)] hover:border-[var(--t-neg)] hover:text-[var(--t-neg)]"
                   >
                     Ignorar
@@ -1097,6 +1119,14 @@ export function Voto({ h }: { h: Hallazgo }) {
   // no se está midiendo eso.
   const [estado, setEstado] = useState<"" | "si" | "no" | "listo" | "error">(
     h.ya_votado || (probada && !observacion) ? "listo" : "");
+  // ⚠️ **«¿TE SIRVE VERLO?» SE ELIMINÓ** (user, 2026-08-22: *«el ME SIRVE
+  // VERLO no le encuentro el sentido — todo me sirve ver, el agente ya
+  // muestra en función de lo que le estoy pidiendo»*). Tenía razón: en una
+  // observación no hay diagnóstico que juzgar, y preguntar por gusto genera
+  // votos que no miden nada. Para sacar una fila de la vista está IGNORAR
+  // (snooze del día); los votos «es ruido» viejos siguen valiendo. El
+  // ¿ACERTÓ EL DIAGNÓSTICO? de las filas con diagnóstico se queda: ese sí
+  // entrena la compuerta de autonomía.
   const [motivo, setMotivo] = useState("");
   const [causa, setCausa] = useState("");
   const [msg, setMsg] = useState(
@@ -1160,6 +1190,10 @@ export function Voto({ h }: { h: Hallazgo }) {
     }
   }, [h.ticker, h.regla, h.tipo, h.dominio_eval, observacion, motivo, causa,
       escribir]);
+
+  // Después de los hooks (regla de React): a una observación no se le
+  // pregunta nada — ver el comentario de arriba.
+  if (observacion) return null;
 
   if (estado === "listo") {
     return (
@@ -1388,6 +1422,11 @@ export function AccionCadena({ h, sim, simular, modo }: {
     ? (r.chequeos as Paso[])
     : Array.isArray(r?.pasos) ? (r.pasos as Paso[]) : [];
   const veredicto = r?.veredicto as Veredicto | undefined;
+  // ⚠️ **UN DESENLACE «VIEJO» CIERRA, no deja el botón** (§0.cv — user: «dice
+  // que no detecta nada roto… y dice que no hace falta un arreglo, pero igual
+  // te deja arreglar»). El backend ya cerró el objeto (`_cerrar_si_viejo`);
+  // acá se esconde ARREGLAR y se dice qué pasó.
+  const viejo = veredicto?.desenlace?.clase === "viejo";
   // **UNA sola fuente decide si se puede aplicar: el veredicto del backend.**
   // Acá convivían dos condiciones distintas (`aplicable`, que miraba la rama, y
   // `bloqueado`, que miraba los pasos) y se contradecían entre sí: GD46 mostraba
@@ -1459,13 +1498,20 @@ export function AccionCadena({ h, sim, simular, modo }: {
           {corriendo ? "…" : copy.simular}
         </button>
       )}
-      {ok && puedeAplicar && !aplicado && (
+      {ok && puedeAplicar && !aplicado && !viejo && (
         <button
           onClick={() => simular(h.ticker, curva, true, extra, modo)}
           className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)]"
         >
           {copy.aplicar}
         </button>
+      )}
+      {ok && viejo && (
+        <span className="w-full text-[10px] text-[var(--t-pos)]">
+          ✔ Quedó VIEJO: el agente re-corrió la detección, dio limpia y lo
+          cerró solo — la fila sale de la lista al refrescar. Queda en el
+          historial; si vuelve a romperse, reaparece como VOLVIÓ.
+        </span>
       )}
       {/* Un botón que DESAPARECE no explica nada: el que mira no sabe si falta
           cargar algo o si el agente lo frenó. Cuando la cadena bloquea, en su

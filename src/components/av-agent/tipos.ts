@@ -85,6 +85,9 @@ export type Hallazgo = {
   // leía nadie: la fila quedaba exactamente donde estaba, que es la peor
   // versión posible de un botón porque parece que hizo algo.
   es_ruido?: boolean;
+  // Lo sacaste de la lista POR HOY con IGNORAR (§0.cv): snooze, no blacklist.
+  // Mañana, si el detector lo re-ve, el backend lo reabre y esto viene false.
+  ignorado?: boolean;
   // EL NOMBRE PARA LA PANTALLA. Para un bono es el ticker; para un chequeo es
   // su título humano («Patas en dólares que nadie pide»), que ya venía en la
   // evidencia y no lo leía nadie. Lo resuelve el BACKEND para que las dos
@@ -198,6 +201,8 @@ export type Vista = {
   // oculta es lo mismo que truncar en silencio.
   atendidos?: number;
   es_ruido?: number;
+  // Cuántas sacaste de la vista POR HOY (mañana vuelven si se re-detectan).
+  ignorados_hoy?: number;
 };
 
 // EL TABLERO. Las fuentes usan el MISMO vocabulario de estados que el pre-flight

@@ -268,6 +268,13 @@ export function Chequeos({ pasos, veredicto, calculo }: {
 }) {
   const [ver, setVer] = useState<"" | "prueba" | "contexto" | "aprender">("");
   const [verCalculo, setVerCalculo] = useState(false);
+  // ⚠️ **LOS PASOS / CONTEXTO / PARA APRENDER SON DEL AGENTE, NO DEL USER**
+  // (2026-08-22: *«¿para qué los pasos, contexto, para aprender?? eso es
+  // interno para el agente. Lo que yo quiero ver es: ¿está ok? → arreglar;
+  // ¿no está ok? → el motivo exacto»*). Todo eso queda detrás de UN pliegue,
+  // cerrado por default: el que entrena al agente lo abre; el que barre la
+  // lista ve la orden, la traba y nada más.
+  const [interno, setInterno] = useState(false);
 
   // El RESUMEN lo cuenta el backend (`veredicto.conteo`) — contarlo acá otra vez
   // sería la tercera copia del mismo criterio, que es cómo nacieron las dos
@@ -346,9 +353,17 @@ export function Chequeos({ pasos, veredicto, calculo }: {
             </span>
           )}
           <div className="min-w-0">
-            <span className="text-[10px] font-semibold" style={{ color: des.color }}>
-              {des.icono} {d.titulo}
-            </span>
+            {/* ⚠️ El título del desenlace NO se repite si ya nombra la traba
+                («No cierra del todo: X» arriba de un bloque que arranca con
+                «X») — era la primera de las tres repeticiones del caso NDT25
+                (user: «dice que no cierra, que coincide con 1816, lo vuelve a
+                repetir abajo…»). La orden ya dice qué hacer; el bloque de la
+                traba ya dice cuál es. */}
+            {!(traba && d.titulo.includes(traba.titulo)) && (
+              <span className="text-[10px] font-semibold" style={{ color: des.color }}>
+                {des.icono} {d.titulo}
+              </span>
+            )}
             <span className="ml-1.5 text-[10px] text-[var(--t-text-muted)]">
               <Marcado t={d.que_hacer} />
             </span>
@@ -390,10 +405,21 @@ export function Chequeos({ pasos, veredicto, calculo }: {
         </div>
       )}
 
-      {/* ── 4. LO DEMÁS, PLEGADO Y SEPARADO POR NATURALEZA. ─────────────────
-          Nada se esconde: se deja de competir por el lugar. Una por vez, como
-          el menú de SKILLS. */}
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+      {/* ── 4. LO DEMÁS ES DEL AGENTE Y VA DETRÁS DE UN PLIEGUE. ────────────
+          Cerrado por default: la persona ve la orden + la traba; los pasos,
+          el contexto, las lecciones y los contadores son el razonamiento del
+          agente y se abren solo si alguien los quiere auditar. */}
+      <div className="mt-1.5">
+        <button
+          onClick={() => setInterno((v) => !v)}
+          className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
+        >
+          {interno ? "▾" : "▸"} detalle interno del agente
+          <span className="ml-1 tabular-nums opacity-70">{pasos.length}</span>
+        </button>
+      </div>
+      {interno && (
+      <div className="mt-1 flex flex-wrap items-center gap-1.5">
         {([["prueba", "los pasos", pruebas.length],
            ["contexto", "contexto", contexto.length],
            ["aprender", "para aprender", aprender.length]] as
@@ -426,10 +452,11 @@ export function Chequeos({ pasos, veredicto, calculo }: {
           </button>
         )}
       </div>
+      )}
 
       {/* CÓMO SE CALCULÓ. Una tasa sin su memoria de cálculo no se puede
           auditar: solo se puede creer o no creer. */}
-      {verCalculo && (calculo?.length ?? 0) > 0 && (
+      {interno && verCalculo && (calculo?.length ?? 0) > 0 && (
         <div className="mt-1 border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
           {calculo!.map((i) => (
             <div key={i.campo} className="grid grid-cols-[110px_1fr] gap-2 px-2 py-1 items-baseline">
@@ -450,7 +477,7 @@ export function Chequeos({ pasos, veredicto, calculo }: {
         </div>
       )}
 
-      {ver !== "" && (
+      {interno && ver !== "" && (
         <ol className="mt-1 border-l border-[var(--t-border)] pl-2 space-y-1">
           {(ver === "prueba" ? pruebas : ver === "contexto" ? contexto : aprender)
             .map((p) => {
