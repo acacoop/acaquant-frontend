@@ -161,6 +161,13 @@ export type Vista = {
   // días no lo es.
   seguimiento?: {
     en_prueba: number; aguantaron: number;
+    // AGRUPADO POR CAUSA: un lote que arregló 133 patas es UNA fila de
+    // seguimiento (misma causa, mismo reloj), no 133. El backend agrupa —
+    // dos criterios de agrupado (uno acá, uno allá) es cómo nacen las
+    // contradicciones.
+    por_causa?: { regla: string; n: number; dias_min: number; dias_max: number;
+                  hitos: number; de: number;
+                  proximo_hito_en_dias: number | null; sujetos: string[] }[];
     proximos: { clave: string; sujeto: string; regla: string; titulo: string;
                 dias: number; hitos: number; de: number; confianza: number;
                 proximo_hito_en_dias: number | null; aguanto: boolean }[];
@@ -169,7 +176,10 @@ export type Vista = {
   // guardaba desde hace días y esta pantalla seguía ordenando por severidad —
   // o sea igual que ANTES de tener memoria.
   que_importa?: {
-    abiertos: number; piden_algo: number;
+    // `abiertos` son PROBLEMAS. Los avisos/preguntas del agente también son
+    // objetos con ciclo pero no son problemas: van contados aparte
+    // (`comunicaciones`) para que el número concilie con lo que se ve.
+    abiertos: number; piden_algo: number; comunicaciones?: number;
     por_banda: Record<string, number>;
     filas: { clave: string; sujeto: string; regla: string; titulo: string;
              severidad: string; veces: number; dias_abierto: number;

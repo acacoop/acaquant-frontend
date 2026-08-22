@@ -82,6 +82,18 @@ export function VigilanciaAbierta({ cent, marcarVisto }: {
 
   const enLista = verVistos ? [...sinVer, ...yaVistos] : sinVer;
   return (
+    <div className="flex flex-col gap-2">
+    {/* QUÉ ES esta sub-tab (user, 2026-08-22: «en VIGILANCIA no se entiende
+        tampoco por qué 130»). Es OTRA fuente que LA LISTA, con otro reloj:
+        por eso los números no coinciden ni tienen por qué. */}
+    <p className="text-[10px] text-[var(--t-text-dim)]">
+      Esto lo ve el <b>monitor en vivo</b> (late cada 30s en rueda: precios ·
+      tasas · salud) y es <b>acumulado</b> — cada fila queda abierta hasta que
+      el monitor deja de verla, y ahí pasa sola a «se arregló solo». No es LA
+      LISTA (esa es la relevada nocturna contra 1816): un mismo bono puede
+      estar en las dos, y acá se suman cosas que la relevada no mira (jobs,
+      frescura). «Visto» solo lo saca de <i>sin ver</i>; no lo cierra.
+    </p>
     <div className="border border-[var(--t-border)] px-3 py-2">
       <div
         className="w-full flex flex-wrap items-baseline gap-2 text-left"
@@ -183,6 +195,7 @@ export function VigilanciaAbierta({ cent, marcarVisto }: {
           )}
         </div>
       )}
+    </div>
     </div>
   );
 }
@@ -359,6 +372,18 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
   // del menú tiene que decir por qué entrarías, no cuántas filas hay.
   const nPorHacer = data.hallazgos.filter(
     (h) => !h.atendido && !h.es_ruido).length;
+  // ⚠️ **EL DESPLEGABLE CUENTA LO MISMO QUE EL MENÚ** (user, 2026-08-22: *«LA
+  // LISTA dice 58 pero en el filtro tiene 89… no tienen lógica, no hay
+  // relación»*). El menú dice «por resolver» y el desplegable contaba TODO
+  // (atendidos y descartados incluidos): dos números para la misma lista, sin
+  // decir por qué difieren. Ahora los dos cuentan el mismo universo — lo
+  // atendido vive en ¿AGUANTAN? y lo descartado tiene su propio contador.
+  const nPorHacerPorTipo = useMemo(() => {
+    const n: Record<string, number> = {};
+    for (const t of tipos)
+      n[t] = porTipo[t].filter((h) => !h.atendido && !h.es_ruido).length;
+    return n;
+  }, [porTipo, tipos]);
   // Los SUJETOS cuyo arreglo ya se APLICÓ (no solo votado): es lo que hace que
   // el informe masivo no vuelva a ofrecer lo que ya hiciste, ni siquiera
   // después de recargar. Sale del objeto, vía `hallazgos[].atendido`.
@@ -379,15 +404,31 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
   // recargar la página no lo revive. `verCerrado` es solo el «ver de nuevo»
   // de esta sesión de pantalla.
   const [verCerrado, setVerCerrado] = useState(false);
+  // ⚠️ **EL ERROR SE MUESTRA, no se traga** (user, 2026-08-22: *«el botón de
+  // cerrar tampoco hace algo»*). El catch silencioso convertía un backend sin
+  // la columna `visto_at` (deploy sin schema) en un botón que "no hace nada":
+  // el peor bug posible, porque no deja ni una pista de dónde buscar.
+  const [errCerrar, setErrCerrar] = useState("");
   const cerrarInforme = useCallback(async () => {
     if (!run) return;
     try {
-      await escribir(`/api/ia/av-agent/masivo/visto?run_id=${run.id}`,
-                     undefined, []);
+      // El backend puede rechazar con HTTP 200 + `ok:false` (run corriendo,
+      // id inexistente): también es un error para la pantalla.
+      const res = await escribir<{ ok: boolean; error?: string }>(
+        `/api/ia/av-agent/masivo/visto?run_id=${run.id}`, undefined, []);
+      if (!res?.ok) {
+        setErrCerrar(`no pude cerrar el informe: ${res?.error || "sin motivo"}`);
+        return;
+      }
       const r = await leer<RunMasivo>("/api/ia/av-agent/masivo");
       if (r?.id) setRun(r);
       setVerCerrado(false);
-    } catch { /* si no se pudo marcar, el informe se queda — mejor de más */ }
+      setErrCerrar("");
+    } catch (e) {
+      // El informe se queda (mejor de más), pero el porqué queda A LA VISTA.
+      setErrCerrar(`no pude cerrar el informe: ${
+        e instanceof Error ? e.message : String(e)}`);
+    }
   }, [run, escribir, leer]);
 
   const planos = useMemo(
@@ -500,8 +541,13 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
           // adentro 17 ya estaban hechos: el contador prometía más trabajo del
           // que había. La lista de trabajo cuenta trabajo.
           ["lista", "LA LISTA", nPorHacer, "para resolver"],
+          // ⚠️ «de N abiertos» son PROBLEMAS abiertos en la memoria del agente
+          // (todas las fuentes: relevada, controles, monitor en vivo) — por eso
+          // puede ser más grande que LA LISTA, que es solo la última relevada.
+          // Los avisos y preguntas ya NO cuentan acá (user: «¿256 QUÉ???»).
           ["importa", "QUÉ PIDE ALGO", data.que_importa?.piden_algo ?? 0,
-           data.que_importa ? `de ${data.que_importa.abiertos} abiertos` : "sin datos"],
+           data.que_importa
+             ? `de ${data.que_importa.abiertos} problemas abiertos` : "sin datos"],
           // ⚠️ **LO YA HECHO VIVE ACÁ** (§0.bq). El user: *«si algo ya está
           // hecho tiene que salir de acá y en todo caso pasar a esto de que se
           // controla si se volvió a romper»*. Exacto: lo que atendiste no es
@@ -592,10 +638,10 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
             onChange={(e) => { setFiltro(e.target.value); setRegla("todas"); }}
             className="bg-transparent border border-[var(--t-border)] px-2 py-1 text-[10px] text-[var(--t-text)] outline-none focus:border-[var(--t-accent)]"
           >
-            <option value="todos">Todo ({data.hallazgos.length})</option>
+            <option value="todos">Todo ({nPorHacer} por resolver)</option>
             {tipos.map((t) => (
               <option key={t} value={t}>
-                {TIPO_CHIP[t] ?? t.replace(/_/g, " ")} ({porTipo[t].length})
+                {TIPO_CHIP[t] ?? t.replace(/_/g, " ")} ({nPorHacerPorTipo[t] ?? 0})
               </option>
             ))}
           </select>
@@ -714,6 +760,12 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
           <InformeMasivo run={run} simular={simular} sims={sims}
                          yaHecho={yaHecho}
                          cerrar={run.estado !== "corriendo" ? cerrarInforme : undefined} />
+        )}
+        {errCerrar && (
+          <p className="text-[10px] text-[var(--t-neg)]">
+            ⚠ {errCerrar} — probable deploy sin el schema: correr el deploy
+            completo (sin --sin-schema) y reintentar.
+          </p>
         )}
 
         {visibles.length === 0 && (
@@ -1883,7 +1935,7 @@ export function QueImporta({ q }: { q: NonNullable<Vista["que_importa"]> }) {
         title="Un problema que volvió después de arreglarse informa más que uno nuevo: alguien ya lo dio por resuelto y volvió igual."
       >
         <span className="text-[10px] text-[var(--t-text)]">
-          de {q.abiertos} abiertos, <b>{q.piden_algo}</b> piden algo
+          de {q.abiertos} problemas abiertos, <b>{q.piden_algo}</b> piden algo
         </span>
         {hay.map((b) => (
           <span key={b} className="text-[9px] tabular-nums"
@@ -1892,6 +1944,21 @@ export function QueImporta({ q }: { q: NonNullable<Vista["que_importa"]> }) {
           </span>
         ))}
       </div>
+      {/* QUÉ UNIVERSO cuenta este número (user, 2026-08-22: «58 de 256?? ¿256
+          qué???»). Es la MEMORIA del agente completa —relevada nocturna,
+          controles, monitor en vivo— así que es más grande que LA LISTA, que
+          es solo la foto de la última relevada. Y lo que el agente DIJO
+          (avisos, preguntas) ya no cuenta como problema: se concilia acá. */}
+      <p className="mt-1 text-[9px] text-[var(--t-text-dim)]">
+        Cuenta TODO lo que el agente recuerda abierto (relevada + controles +
+        monitor en vivo), por eso es más que LA LISTA, que es solo la última
+        relevada.
+        {(q.comunicaciones ?? 0) > 0 && (
+          <> Aparte hay {q.comunicaciones} avisos y preguntas del agente sin
+          atender — no son problemas de la base y viven en AHORA y en la
+          cabecera.</>
+        )}
+      </p>
       {abierto && (
         <div className="mt-2 flex flex-col gap-0.5">
           {q.filas.map((f) => (
@@ -1964,7 +2031,40 @@ export function Seguimiento({ s }: { s: NonNullable<Vista["seguimiento"]> }) {
           </span>
         )}
       </div>
-      {abierto && s.proximos.length > 0 && (
+      {/* ⚠️ **UNA FILA POR CAUSA, no una por caso** (user, 2026-08-22: «¿168
+          en prueba?? no tiene lógica»). Un lote que arregló 133 patas es UN
+          arreglo con un solo reloj: mostrarlo 133 veces tapa a los arreglos
+          distintos. El agrupado lo hace el BACKEND (`por_causa`) — el mismo
+          criterio para cualquier pantalla que lo lea. */}
+      {abierto && (s.por_causa?.length ?? 0) > 0 && (
+        <div className="mt-2 flex flex-col gap-0.5">
+          {s.por_causa!.map((g) => (
+            <div key={g.regla}
+                 className="grid grid-cols-[190px_1fr_auto] gap-2 items-baseline text-[10px]">
+              <span className="text-[var(--t-text)] truncate" title={g.regla}>
+                {g.regla.replace(/_/g, " ")}
+                {g.n > 1 && <b className="text-[var(--t-text-muted)]"> ×{g.n}</b>}
+              </span>
+              <span className="text-[var(--t-text-dim)] truncate"
+                    title={g.sujetos.join(", ")}>
+                {g.sujetos.slice(0, 4).join(" · ")}{g.n > 4 ? " …" : ""}
+              </span>
+              <span className="text-[var(--t-text-muted)] tabular-nums">
+                {/* Los hitos cumplidos, y CUÁNDO es el próximo control: sin
+                    eso, «2/6» no dice si la novedad llega mañana o en tres
+                    semanas. */}
+                {g.hitos}/{g.de}
+                {g.proximo_hito_en_dias !== null
+                  ? ` · próximo a los ${g.proximo_hito_en_dias}d`
+                  : ""}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {/* El detalle caso por caso solo si el backend todavía no manda el
+          agrupado (deploy desparejo): mejor la lista vieja que nada. */}
+      {abierto && !(s.por_causa?.length) && s.proximos.length > 0 && (
         <div className="mt-2 flex flex-col gap-0.5">
           {s.proximos.map((x) => (
             <div key={x.clave}
@@ -1976,9 +2076,6 @@ export function Seguimiento({ s }: { s: NonNullable<Vista["seguimiento"]> }) {
                 {x.regla.replace(/_/g, " ")}
               </span>
               <span className="text-[var(--t-text-muted)] tabular-nums">
-                {/* Los hitos cumplidos, y CUÁNDO es el próximo control: sin
-                    eso, «2/6» no dice si la novedad llega mañana o en tres
-                    semanas. */}
                 {x.hitos}/{x.de}
                 {x.proximo_hito_en_dias !== null
                   ? ` · próximo a los ${x.proximo_hito_en_dias}d`
