@@ -8,7 +8,7 @@ import { Modo, Simular, Hallazgo, Vista, FilaInforme,
          RunMasivo, Centinela, TIPO_LABEL, SUJETO_LARGO, TIPO_CHIP,
          ORDEN_TIPO, SEV_TINT, fechaHora, TITULO, SUB,
          Paso, Veredicto, Insumo, EST_MASIVO, ORDEN_MASIVO,
-         edad, SEV_COLOR, BANDA_TXT, BANDA_COLOR, cuando } from "@/components/av-agent/tipos";
+         edad, SEV_COLOR, cuando } from "@/components/av-agent/tipos";
 
 // ── TAB 2: lo que encontró ─────────────────────────────────────────────────
 
@@ -37,30 +37,35 @@ export function Hechos({ filas }: { filas: Hallazgo[] }) {
           esperando que el detector confirme
         </span>
       </div>
+      {/* ⚠️ DOS RENGLONES POR FILA, nada en columnas fijas (user, 2026-08-22:
+          «los datos están partidos, no se pueden ver»): la grilla
+          `190px_150px_1fr_auto` cortaba el motivo a un renglón truncado y en
+          pantallas angostas tiraba el estado fuera del borde. Arriba la
+          identidad (sujeto · regla · estado), abajo el motivo ENTERO. */}
       <div className="mt-1 border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
         {filas.map((h, i) => (
-          <div key={`${h.ticker}-${h.regla}-${i}`}
-               className="grid grid-cols-[190px_150px_1fr_auto] items-baseline gap-2 px-2 py-1">
-            <span className="text-[11px] font-bold text-[var(--t-text)] leading-tight"
-                  title={h.ticker}>
-              {h.nombre || h.ticker}
-            </span>
-            <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)] truncate"
-                  title={h.regla}>
-              {h.regla.replace(/_/g, " ")}
-            </span>
-            <span className="text-[10px] text-[var(--t-text-muted)] leading-snug min-w-0 truncate"
-                  title={h.motivo}>
+          <div key={`${h.ticker}-${h.regla}-${i}`} className="px-2 py-1">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <span className="text-[11px] font-bold text-[var(--t-text)] leading-tight"
+                    title={h.ticker}>
+                {h.nombre || h.ticker}
+              </span>
+              <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)]"
+                    title={h.regla}>
+                {h.regla.replace(/_/g, " ")}
+              </span>
+              <span className="text-[9px] uppercase tracking-widest whitespace-nowrap"
+                    style={{ color: h.atendido === "aplicado"
+                      ? "var(--t-pos)" : "var(--t-text-dim)" }}
+                    title={h.atendido === "aplicado"
+                      ? "Se aplicó el arreglo: el dato cambió."
+                      : "Lo votaste, pero el dato no se tocó — no había botón o no lo apretaste."}>
+                {h.atendido === "aplicado" ? "✔ arreglado" : "votado"}
+              </span>
+            </div>
+            <div className="text-[10px] text-[var(--t-text-muted)] leading-snug break-words">
               {h.motivo}
-            </span>
-            <span className="text-[9px] uppercase tracking-widest whitespace-nowrap"
-                  style={{ color: h.atendido === "aplicado"
-                    ? "var(--t-pos)" : "var(--t-text-dim)" }}
-                  title={h.atendido === "aplicado"
-                    ? "Se aplicó el arreglo: el dato cambió."
-                    : "Lo votaste, pero el dato no se tocó — no había botón o no lo apretaste."}>
-              {h.atendido === "aplicado" ? "✔ arreglado" : "votado"}
-            </span>
+            </div>
           </div>
         ))}
       </div>
@@ -233,7 +238,14 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
   // cada una arrancaba plegada — o sea que la pantalla mostraba tres títulos y
   // ningún contenido. Un menú horizontal muestra las cuatro de una y se mira
   // UNA por vez, que es como se consulta.
-  const [sub, setSub] = useState<"lista" | "importa" | "aguantan" | "vigilancia">("lista");
+  // ⚠️ Acá hubo una cuarta sub-tab, QUÉ PIDE ALGO (la memoria completa
+  // priorizada por causa). Se ELIMINÓ el 2026-08-22 (§0.cu): era LA LISTA
+  // contada de nuevo con otros números («¿dónde hay 179 problemas?») y sin un
+  // solo botón — una pantalla en la que no se puede actuar ni decidir no
+  // tiene que existir. Lo que aportaba (días abierto, ×veces, VOLVIÓ) ya
+  // viaja EN cada fila de LA LISTA; el sustrato (`que_importa`) sigue en el
+  // payload para `diag_modal` y los hitos.
+  const [sub, setSub] = useState<"lista" | "aguantan" | "vigilancia">("lista");
   const [filtro, setFiltro] = useState<string>("todos");
   // La BÚSQUEDA es el otro camino: cuando uno ya sabe el ticker, filtrar por tipo
   // es el paso de más. Matchea sujeto, regla y motivo — los tres son cosas que
@@ -541,13 +553,6 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
           // adentro 17 ya estaban hechos: el contador prometía más trabajo del
           // que había. La lista de trabajo cuenta trabajo.
           ["lista", "LA LISTA", nPorHacer, "para resolver"],
-          // ⚠️ «de N abiertos» son PROBLEMAS abiertos en la memoria del agente
-          // (todas las fuentes: relevada, controles, monitor en vivo) — por eso
-          // puede ser más grande que LA LISTA, que es solo la última relevada.
-          // Los avisos y preguntas ya NO cuentan acá (user: «¿256 QUÉ???»).
-          ["importa", "QUÉ PIDE ALGO", data.que_importa?.piden_algo ?? 0,
-           data.que_importa
-             ? `de ${data.que_importa.abiertos} problemas abiertos` : "sin datos"],
           // ⚠️ **LO YA HECHO VIVE ACÁ** (§0.bq). El user: *«si algo ya está
           // hecho tiene que salir de acá y en todo caso pasar a esto de que se
           // controla si se volvió a romper»*. Exacto: lo que atendiste no es
@@ -556,10 +561,17 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
           // ⚠️ El número son CAUSAS en prueba, no casos (user: «¿213?? no
           // tiene lógica»): el lote que arregló 133 patas es UN arreglo con
           // un solo reloj. Los casos van en el pie, que es contexto.
+          // ⚠️ Y el PIE dice la MISMA cuenta que el número (user, 2026-08-22:
+          // «dice que hay un total pero muestra menos»): el 51 era 12 arreglos
+          // + 39 atendidos y el pie hablaba de 176 casos — tres números que no
+          // se tocaban. El pie ahora nombra los DOS sumandos, que son
+          // exactamente las dos tablas que se ven al entrar.
           ["aguantan", "¿AGUANTAN?",
            (data.seguimiento?.por_causa?.length
              ?? data.seguimiento?.en_prueba ?? 0) + (data.atendidos ?? 0),
-           `${data.seguimiento?.en_prueba ?? 0} casos en prueba`],
+           `${data.seguimiento?.por_causa?.length
+              ?? data.seguimiento?.en_prueba ?? 0} arreglos + ${
+              data.atendidos ?? 0} atendidos`],
           ["vigilancia", "VIGILANCIA", cent?.abiertos.length ?? 0,
            (cent?.sin_ver ?? 0) > 0 ? `${cent?.sin_ver} sin ver` : "todo visto"],
         ] as [typeof sub, string, number, string][]).map(([k, label, n, pie]) => (
@@ -580,18 +592,6 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
         ))}
       </div>
 
-      {sub === "importa" && (data.que_importa
-        ? <QueImporta q={data.que_importa}
-                      irALista={(rg, suj) => {
-                        // EL PUENTE: de la prioridad al banco de trabajo. Una
-                        // causa te deja en LA LISTA filtrada por esa regla; un
-                        // sujeto, buscado — que es donde están los botones.
-                        setSub("lista");
-                        setFiltro("todos");
-                        setRegla(rg || "todas");
-                        setQ(suj || "");
-                      }} />
-        : <p className="text-[11px] text-[var(--t-text-muted)]">Sin datos todavía.</p>)}
       {sub === "aguantan" && (
         <div className="flex flex-col gap-4">
           {/* QUÉ ES esta sub-tab, dicho arriba de todo (user, 2026-08-22: «no
@@ -1965,156 +1965,36 @@ export function InformeMasivo({ run, simular, sims, yaHecho, cerrar }: {
   );
 }
 
-export function QueImporta({ q, irALista }: {
-  q: NonNullable<Vista["que_importa"]>;
-  // EL PUENTE al banco de trabajo: (regla, sujeto) → LA LISTA filtrada.
-  // Esta sub-tab NO tiene botones propios A PROPÓSITO: es la priorización;
-  // el trabajo se hace en LA LISTA, y sin este salto eran dos mundos.
-  irALista: (regla: string, sujeto: string) => void;
-}) {
-  // ⚠️ **SIN PLIEGUE PROPIO.** Antes era una caja colapsable apilada arriba de
-  // la lista; ahora es el contenido de una sub-tab, y una sub-tab que además
-  // hay que desplegar son dos clics para ver lo que ya elegiste ver.
-  const abierto = true;
-  // Las bandas se muestran en el orden de la prioridad, no en el del objeto:
-  // que `volvio` aparezca tercero porque JSON lo puso ahí sería raro de leer.
-  const orden = ["volvio", "estancado", "arrastra", "nuevo"];
-  const hay = orden.filter((b) => (q.por_banda[b] ?? 0) > 0);
-  return (
-    <div className="border border-[var(--t-border)] px-3 py-2">
-      <div
-        className="w-full flex flex-wrap items-baseline gap-2 text-left"
-        title="Un problema que volvió después de arreglarse informa más que uno nuevo: alguien ya lo dio por resuelto y volvió igual."
-      >
-        <span className="text-[10px] text-[var(--t-text)]">
-          de {q.abiertos} problemas abiertos, <b>{q.piden_algo}</b> piden algo
-        </span>
-        {hay.map((b) => (
-          <span key={b} className="text-[9px] tabular-nums"
-                style={{ color: BANDA_COLOR[b] }}>
-            {q.por_banda[b]} {BANDA_TXT[b]}
-          </span>
-        ))}
-      </div>
-      {/* QUÉ UNIVERSO cuenta este número (user, 2026-08-22: «58 de 256?? ¿256
-          qué???»). Es la MEMORIA del agente completa —relevada nocturna,
-          controles, monitor en vivo— así que es más grande que LA LISTA, que
-          es solo la foto de la última relevada. Y lo que el agente DIJO
-          (avisos, preguntas) ya no cuenta como problema: se concilia acá. */}
-      <p className="mt-1 text-[9px] text-[var(--t-text-dim)]">
-        Cuenta TODO lo que el agente recuerda abierto (relevada + controles +
-        monitor en vivo), por eso es más que LA LISTA, que es solo la última
-        relevada. <b>Acá no se trabaja: se elige por dónde empezar</b> — clic
-        en una causa y quedás en LA LISTA filtrada, con los botones. Una fila
-        sale de acá cuando su detector deja de verla (pasa a ¿AGUANTAN?) o
-        cuando la descartás.
-        {(q.comunicaciones ?? 0) > 0 && (
-          <> Aparte hay {q.comunicaciones} avisos y preguntas del agente sin
-          atender — no son problemas de la base y viven en AHORA y en la
-          cabecera.</>
-        )}
-      </p>
-      {/* ── EL RESUMEN POR CAUSA — es el que manda ──────────────────────────
-          54 filas donde 30 son la misma causa no son 54 decisiones (user:
-          «un número altísimo y no se puede hacer nada»). El grupo dice cuánto
-          pesa cada causa Y es el puente al lugar donde se arregla. */}
-      {abierto && (q.por_causa?.length ?? 0) > 0 && (
-        <div className="mt-2 border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
-          {q.por_causa!.map((g) => (
-            <button key={g.regla}
-                    onClick={() => irALista(g.regla, "")}
-                    title="Abre LA LISTA filtrada por esta causa"
-                    className="w-full grid grid-cols-[220px_60px_1fr_auto] gap-2 items-baseline px-2 py-1 text-left hover:bg-[var(--t-surface)]">
-              <span className="text-[10px] font-semibold text-[var(--t-text)] truncate">
-                {g.regla.replace(/_/g, " ")}
-              </span>
-              <span className="text-[10px] tabular-nums text-[var(--t-text-muted)]">
-                ×{g.n}
-              </span>
-              <span className="text-[9px] text-[var(--t-text-dim)] truncate">
-                {g.sujetos.slice(0, 3).join(" · ")}{g.n > 3 ? " …" : ""}
-              </span>
-              <span className="text-[9px] tabular-nums whitespace-nowrap"
-                    style={{ color: BANDA_COLOR[g.peor_banda] }}>
-                {g.piden > 0 ? `${g.piden} piden algo` : BANDA_TXT[g.peor_banda] ?? g.peor_banda}
-                {" · hasta "}{Math.round(g.dias_max)}d →
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-      {abierto && q.filas.length > 0 && q.filas.length < q.abiertos && (
-        <p className="mt-2 text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
-          las {q.filas.length} filas más urgentes (de {q.abiertos}) — el resumen
-          de arriba sí está completo
-        </p>
-      )}
-      {abierto && (
-        <div className="mt-1 flex flex-col gap-0.5">
-          {q.filas.map((f) => (
-            <div key={f.clave}
-                 className="grid grid-cols-[110px_150px_1fr_auto] gap-2 items-baseline text-[10px]">
-              <button onClick={() => irALista("", f.sujeto)}
-                      title="Buscarlo en LA LISTA"
-                      className="text-left text-[var(--t-text)] truncate hover:text-[var(--t-accent)]">
-                {f.sujeto}
-              </button>
-              <span className="text-[var(--t-text-dim)] truncate uppercase tracking-wide text-[9px]"
-                    title={f.regla}>
-                {f.regla.replace(/_/g, " ")}
-              </span>
-              <span className="text-[var(--t-text-muted)] truncate" title={f.titulo}>
-                {f.titulo}
-              </span>
-              <span className="tabular-nums whitespace-nowrap text-[9px]"
-                    style={{ color: BANDA_COLOR[f.banda] }}>
-                {BANDA_TXT[f.banda] ?? f.banda}
-                {" · "}{Math.round(f.dias_abierto)}d
-                {f.veces > 1 ? ` ×${f.veces}` : ""}
-              </span>
-            </div>
-          ))}
-          {/* ⚠️ **«SIGUE ROTO» Y «NADIE LO MIRÓ» NO SON LO MISMO**, y hasta acá
-              se veían idénticos: los dos son una fila abierta. Si el detector
-              volvió a correr y a éste no lo refrescó, es que no lo evaluó. */}
-          {q.sin_mirar.length > 0 && (
-            <div className="mt-2 pt-2 border-t border-[var(--t-border)]">
-              <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
-                sigue abierto pero nadie lo volvió a mirar ({q.sin_mirar.length})
-              </span>
-              {q.sin_mirar.map((x) => (
-                <div key={x.clave} className="text-[10px] text-[var(--t-text-muted)]">
-                  {x.sujeto} · {x.regla.replace(/_/g, " ")}
-                  {" · "}<span className="text-[var(--t-text-dim)]">
-                    {x.origen} no lo re-evalúa hace {Math.round(x.horas_sin_reevaluar)}h
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-          {q.filas.length === 0 && (
-            <p className="text-[10px] text-[var(--t-text-dim)]">
-              Nada abierto.
-            </p>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
+// ⚠️ Acá vivió `QueImporta`, la pantalla de QUÉ PIDE ALGO (la memoria del
+// agente completa, priorizada por causa). Se ELIMINÓ el 2026-08-22 (§0.cu):
+// contaba OTRO universo que LA LISTA («¿dónde hay 179 problemas?»), no tenía
+// un solo botón, y lo que aportaba por fila (banda, días abierto, ×veces,
+// VOLVIÓ) ya viaja EN cada fila de LA LISTA. Una pantalla en la que no se
+// puede actuar ni decidir no tiene que existir. El sustrato del backend
+// (`que_importa`) sigue en el payload: lo leen `diag_modal` y los hitos.
 
 export function Seguimiento({ s }: { s: NonNullable<Vista["seguimiento"]> }) {
   const abierto = true;   // es una sub-tab: ya la elegiste, no la pliegues
+  // QUÉ causa está desplegada mostrando TODOS sus casos (user, 2026-08-22:
+  // «dice que hay un total pero muestra menos» — los sujetos cortados en «…»
+  // sin forma de verlos eran exactamente eso). El backend manda la lista
+  // completa; acá se trunca solo VISUALMENTE y el clic la abre entera.
+  const [ver, setVer] = useState<string | null>(null);
   return (
     <div className="border border-[var(--t-border)] px-3 py-2">
       <div
         className="w-full flex flex-wrap items-baseline gap-2 text-left"
         title="Un arreglo se da por bueno cuando el problema no vuelve, no cuando se escribe. Cada hito que pasa suma confianza."
       >
+        {/* LA CUENTA COMPLETA EN UNA FRASE: N arreglos (las filas de abajo)
+            que cubren M casos (el pie del menú). Antes decía solo «176 en
+            prueba» y abajo había 12 filas — dos números sin puente. */}
         {s.en_prueba > 0 && (
           <span className="text-[10px] text-[var(--t-text)]">
-            {s.en_prueba} en prueba
+            {s.por_causa?.length
+              ? <><b>{s.por_causa.length}</b> arreglos en prueba, cubren{" "}
+                 <b>{s.en_prueba}</b> casos</>
+              : <>{s.en_prueba} en prueba</>}
           </span>
         )}
         {s.aguantaron > 0 && (
@@ -2127,30 +2007,46 @@ export function Seguimiento({ s }: { s: NonNullable<Vista["seguimiento"]> }) {
           en prueba?? no tiene lógica»). Un lote que arregló 133 patas es UN
           arreglo con un solo reloj: mostrarlo 133 veces tapa a los arreglos
           distintos. El agrupado lo hace el BACKEND (`por_causa`) — el mismo
-          criterio para cualquier pantalla que lo lea. */}
+          criterio para cualquier pantalla que lo lea.
+          ⚠️ Y NADA EN COLUMNAS FIJAS: la grilla `190px_1fr_auto` cortaba la
+          regla a la mitad y tiraba los hitos fuera del borde (user: «los
+          datos están partidos, no se pueden ver»). Cada fila envuelve. */}
       {abierto && (s.por_causa?.length ?? 0) > 0 && (
-        <div className="mt-2 flex flex-col gap-0.5">
+        <div className="mt-2 border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
           {s.por_causa!.map((g) => (
-            <div key={g.regla}
-                 className="grid grid-cols-[190px_1fr_auto] gap-2 items-baseline text-[10px]">
-              <span className="text-[var(--t-text)] truncate" title={g.regla}>
-                {g.regla.replace(/_/g, " ")}
-                {g.n > 1 && <b className="text-[var(--t-text-muted)]"> ×{g.n}</b>}
-              </span>
-              <span className="text-[var(--t-text-dim)] truncate"
-                    title={g.sujetos.join(", ")}>
-                {g.sujetos.slice(0, 4).join(" · ")}{g.n > 4 ? " …" : ""}
-              </span>
-              <span className="text-[var(--t-text-muted)] tabular-nums">
-                {/* Los hitos cumplidos, y CUÁNDO es el próximo control: sin
-                    eso, «2/6» no dice si la novedad llega mañana o en tres
-                    semanas. */}
-                {g.hitos}/{g.de}
-                {g.proximo_hito_en_dias !== null
-                  ? ` · próximo a los ${g.proximo_hito_en_dias}d`
-                  : ""}
-              </span>
-            </div>
+            <button key={g.regla} type="button"
+                    onClick={() => setVer(ver === g.regla ? null : g.regla)}
+                    title={ver === g.regla
+                      ? "Plegar los casos"
+                      : "Clic: ver TODOS los casos de este arreglo"}
+                    className="w-full text-left px-2 py-1 hover:bg-[var(--t-surface)]">
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[10px] min-w-0">
+                <span className="font-semibold text-[var(--t-text)]">
+                  {g.regla.replace(/_/g, " ")}
+                </span>
+                {g.n > 1 && (
+                  <span className="tabular-nums text-[var(--t-text-muted)]">
+                    ×{g.n} casos
+                  </span>
+                )}
+                <span className="text-[var(--t-text-muted)] tabular-nums whitespace-nowrap">
+                  {/* Los hitos cumplidos, y CUÁNDO es el próximo control: sin
+                      eso, «2/6» no dice si la novedad llega mañana o en tres
+                      semanas. */}
+                  hitos {g.hitos}/{g.de}
+                  {g.proximo_hito_en_dias !== null
+                    ? ` · próximo a los ${g.proximo_hito_en_dias}d`
+                    : ""}
+                </span>
+              </div>
+              <div className={`text-[9px] text-[var(--t-text-dim)] min-w-0 ${
+                ver === g.regla ? "whitespace-normal break-words" : "truncate"}`}>
+                {ver === g.regla
+                  ? g.sujetos.join(" · ")
+                  : <>{g.sujetos.slice(0, 4).join(" · ")}
+                      {g.n > 4 ? ` … +${g.n - 4} (clic para verlos)` : ""}</>}
+              </div>
+            </button>
           ))}
         </div>
       )}
@@ -2160,14 +2056,14 @@ export function Seguimiento({ s }: { s: NonNullable<Vista["seguimiento"]> }) {
         <div className="mt-2 flex flex-col gap-0.5">
           {s.proximos.map((x) => (
             <div key={x.clave}
-                 className="grid grid-cols-[110px_1fr_auto] gap-2 items-baseline text-[10px]">
-              <span className="text-[var(--t-text)] truncate" title={x.sujeto}>
+                 className="flex flex-wrap items-baseline gap-x-2 text-[10px] min-w-0">
+              <span className="text-[var(--t-text)]" title={x.sujeto}>
                 {x.sujeto}
               </span>
-              <span className="text-[var(--t-text-dim)] truncate" title={x.titulo}>
+              <span className="text-[var(--t-text-dim)]" title={x.titulo}>
                 {x.regla.replace(/_/g, " ")}
               </span>
-              <span className="text-[var(--t-text-muted)] tabular-nums">
+              <span className="text-[var(--t-text-muted)] tabular-nums whitespace-nowrap">
                 {x.hitos}/{x.de}
                 {x.proximo_hito_en_dias !== null
                   ? ` · próximo a los ${x.proximo_hito_en_dias}d`
