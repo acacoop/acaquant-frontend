@@ -77,7 +77,8 @@ export type DatosReporte = {
   };
   metricas: {
     total: number;
-    por_clase: { cartera: string; label: string; total: number; filas: Fila[] }[];
+    por_clase: { cartera: string; label: string; total: number;
+                 ponderacion: number | null; filas: Fila[] }[];
     por_emisor: Fila[]; por_calificacion: Fila[];
   };
 };
@@ -418,23 +419,39 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
           <div className="grid grid-cols-3 gap-6">
             <div>
               <TituloBloque>Por clase de activo</TituloBloque>
-              {datos.metricas.por_clase.map((b) => (
-                <div key={b.cartera} className="mb-2">
-                  <div className="flex items-baseline gap-2 text-[9px] font-semibold border-b border-neutral-300 py-0.5">
-                    <span>{b.label}</span>
-                    <span className="ml-auto tabular-nums">{fmt0(b.total)}</span>
+              {/* Mismo criterio que la pantalla: cada cartera es un bloque con
+                  aire alrededor, y la que tiene UNA sola clase se colapsa en un
+                  renglón — repetir la misma cifra dos veces («Cartera HD» y
+                  debajo «HD 100,0%») es lo que hacía dudar de si eran dos cosas
+                  distintas. */}
+              {datos.metricas.por_clase.filter((b) => b.filas.length).map((b) => {
+                const unica = b.filas.length === 1 ? b.filas[0] : null;
+                return (
+                  <div key={b.cartera} className="mb-3">
+                    <div className="flex items-baseline gap-2 text-[9px] font-semibold border-b border-neutral-400 py-0.5">
+                      <span>{b.label}</span>
+                      {unica && (
+                        <span className="font-normal text-neutral-500">
+                          · {etiquetaHoja(unica.clave, "Sin clase")}
+                        </span>
+                      )}
+                      <span className="ml-auto tabular-nums">{fmt0(b.total)}</span>
+                      <span className="w-10 text-right tabular-nums text-neutral-500">
+                        {fmtPct(b.ponderacion)}
+                      </span>
+                    </div>
+                    {!unica && <TablaHoja filas={b.filas} vacio="Sin clase" sangria />}
                   </div>
-                  <TablaHoja filas={b.filas} />
-                </div>
-              ))}
+                );
+              })}
             </div>
             <div>
               <TituloBloque>Por emisor</TituloBloque>
-              <TablaHoja filas={datos.metricas.por_emisor} />
+              <TablaHoja filas={datos.metricas.por_emisor} vacio="Sin emisor" />
             </div>
             <div>
               <TituloBloque>Por calificación</TituloBloque>
-              <TablaHoja filas={datos.metricas.por_calificacion} />
+              <TablaHoja filas={datos.metricas.por_calificacion} vacio="Sin calificación" />
             </div>
           </div>
         </Hoja>
@@ -602,14 +619,23 @@ function DatoHoja({ label, valor, sub }: { label: string; valor: string; sub?: s
   );
 }
 
-function TablaHoja({ filas }: { filas: Fila[] }) {
+/** El maestro escribe «-» cuando el campo está vacío, y un guión suelto en una
+ *  lista de emisores no se entiende. Se dice qué falta. */
+function etiquetaHoja(clave: string, vacio: string): string {
+  const c = (clave || "").trim();
+  return c === "" || c === "-" || c === "—" ? vacio : c;
+}
+
+function TablaHoja({ filas, vacio, sangria = false }: {
+  filas: Fila[]; vacio: string; sangria?: boolean;
+}) {
   if (!filas.length) return <p className="text-[9px] text-neutral-500">Sin filas.</p>;
   return (
     <table className="w-full text-[9px]">
       <tbody className="tabular-nums">
         {filas.map((f) => (
           <tr key={f.clave} className="border-b border-neutral-200">
-            <td className="py-0.5">{f.clave}</td>
+            <td className={`py-0.5 ${sangria ? "pl-3" : ""}`}>{etiquetaHoja(f.clave, vacio)}</td>
             <td className="py-0.5 text-right">{fmt0(f.monto)}</td>
             <td className="py-0.5 text-right w-12 text-neutral-500">{fmtPct(f.share)}</td>
           </tr>
