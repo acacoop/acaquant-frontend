@@ -26,7 +26,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   Cell,
-  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -318,9 +317,14 @@ export function CarterasInformeView({ idCuenta, nombreCuenta, tab }: {
 
 function TabResumen({ data, usd }: { data: Vista; usd: boolean }) {
   const a = data.resumen.actual;
+  // La torta solo dibuja lo que suma: una cartera en negativo (efectivo en
+  // descubierto) no es una porción de nada. El PORCENTAJE que se muestra es la
+  // `ponderacion` que ya viene del backend —la misma que imprime el cuadro de al
+  // lado— y no uno calculado acá: dos números que deberían ser el mismo,
+  // calculados en dos lugares, es la forma de que un día no coincidan.
   const torta = useMemo(
     () => a.carteras.filter((c) => c.monto > 0)
-      .map((c) => ({ name: c.label, value: c.monto, cartera: c.cartera })),
+      .map((c) => ({ name: c.label, value: c.monto, cartera: c.cartera, pond: c.ponderacion })),
     [a.carteras],
   );
   return (
@@ -345,31 +349,54 @@ function TabResumen({ data, usd }: { data: Vista; usd: boolean }) {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
         <Panel titulo={`Composición al ${fmtFechaCorta(a.fecha)}`}>
-          <div className="h-[300px] p-2">
+          <div className="h-[300px] p-2 flex items-center gap-3">
             {torta.length === 0 ? (
-              <div className="h-full grid place-items-center text-[11px] text-[var(--t-text-muted)]">
+              <div className="h-full w-full grid place-items-center text-[11px] text-[var(--t-text-muted)]">
                 Sin posiciones con valuación.
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={torta} dataKey="value" nameKey="name" innerRadius="52%" outerRadius="80%"
-                       paddingAngle={1} stroke="var(--t-panel)">
-                    {torta.map((t, i) => (
-                      <Cell key={t.cartera} fill={carteraColor(t.cartera, i)} />
-                    ))}
-                  </Pie>
-                  <Legend verticalAlign="middle" align="right" layout="vertical"
-                          wrapperStyle={{ fontSize: 11 }} />
-                  <Tooltip
-                    contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border-2)", fontSize: 11 }}
-                    formatter={(v, n) => {
-                      const m = Number(v);
-                      return [`${fmt0(m)} (${fmtPct(a.valuacion_ars ? m / a.valuacion_ars : null)})`, String(n)];
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              <>
+                <div className="flex-1 min-w-0 h-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={torta} dataKey="value" nameKey="name" innerRadius="52%" outerRadius="80%"
+                           paddingAngle={1} stroke="var(--t-panel)">
+                        {torta.map((t, i) => (
+                          <Cell key={t.cartera} fill={carteraColor(t.cartera, i)} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border-2)", fontSize: 11 }}
+                        formatter={(v, n) => {
+                          const m = Number(v);
+                          return [`${fmt0(m)} (${fmtPct(a.valuacion_ars ? m / a.valuacion_ars : null)})`, String(n)];
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                {/* La leyenda es HTML propio y no el <Legend> de recharts. Dos
+                    motivos: la librería la ordena por cómo quedaron dibujados
+                    los sectores y no por el orden del cuadro de al lado —dos
+                    listas de lo mismo, una al lado de la otra y en distinto
+                    orden, hacen que alguien lea mal el informe—, y así la
+                    leyenda es IDÉNTICA a la de la hoja del reporte, que ya no
+                    puede usar la de la librería. El porcentaje es la
+                    `ponderacion` que viene del backend: la misma que imprime la
+                    tabla, no una cuenta hecha acá. */}
+                <ul className="shrink-0 pr-2 text-[11px] leading-relaxed">
+                  {torta.map((t, i) => (
+                    <li key={t.cartera} className="flex items-baseline gap-2">
+                      <span className="inline-block w-2.5 h-2.5 shrink-0"
+                            style={{ background: carteraColor(t.cartera, i) }} />
+                      <span className="text-[var(--t-text)]">{t.name}</span>
+                      <span className="ml-auto pl-3 tabular-nums font-semibold text-[var(--t-text-dim)]">
+                        {fmtPct(t.pond)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
           </div>
         </Panel>
@@ -456,7 +483,12 @@ function Cuadro({ titulo, bloque, usd }: { titulo: string; bloque: Bloque; usd: 
 // Anchos FIJOS compartidos por TODOS los cuadros de cartera. Sin esto cada tabla
 // se dimensiona con su propio contenido y las mismas columnas arrancan en
 // lugares distintos en cada cuadro — cuatro tablas sueltas en vez de un informe.
-const COLS_ACTIVOS = ["14%", "14%", "6%", "10%", "7%", "9%", "8%", "10%", "6%", "9%", "7%"];
+// TICKER se lleva el 25%: los FCI vienen con el nombre completo del fondo
+// («FCI Balanz Capital Estrategia III - Clase A») y con el 14% que tenía antes
+// quedaban todos cortados en el mismo lugar, o sea ilegibles justo en la cartera
+// donde el ticker ES el nombre. Lo que sobraba salió de PNL y GAN %, que ya no
+// se muestran acá.
+const COLS_ACTIVOS = ["25%", "14%", "7%", "11%", "8%", "10%", "9%", "10%", "6%"];
 
 // La tab NO tiene panel de auditoría (2026-08-21). Lo tuvo una versión y se
 // sacó: esta vista es la CARTERA y los títulos que hay adentro. El PnL boleto
@@ -518,20 +550,22 @@ function TabActivos({ data, usd, idCuenta }: {
                 <th className="text-right px-2 py-1 font-medium">Precio</th>
                 <th className="text-right px-2 py-1 font-medium">Valuación</th>
                 <th className="text-right px-2 py-1 font-medium">% Cart.</th>
-                <th className="text-right px-2 py-1 font-medium">PnL</th>
-                <th className="text-right px-2 py-1 font-medium">Gan %</th>
               </tr>
             </thead>
             <tbody className="tabular-nums">
               {b.filas.length === 0 && (
-                <tr><td colSpan={11} className="px-2 py-3 text-center text-[var(--t-text-muted)]">
+                <tr><td colSpan={9} className="px-2 py-3 text-center text-[var(--t-text-muted)]">
                   Sin títulos en esta cartera.
                 </td></tr>
               )}
+              {/* PNL y GAN % NO se muestran en esta tabla (2026-08-22). No se
+                  borraron: el backend los sigue mandando por fila y el export a
+                  Excel los sigue llevando — lo que se sacó es el ruido de la
+                  pantalla. Esta vista contesta QUÉ TIENE la cartera y cuánto
+                  vale; cuánto se ganó con cada título es la pregunta de PNL
+                  TÍTULOS, que tiene el detalle boleto por boleto al lado. */}
               {b.filas.map((f) => {
                 const val = usd ? f.valuacion_usd : f.valuacion;
-                const pnl = usd ? f.pnl_usd : f.pnl;
-                const gan = usd ? f.gan_pct_usd : f.gan_pct;
                 return (
                   <tr key={f.unidad}
                       onContextMenu={(e) => {
@@ -552,12 +586,6 @@ function TabActivos({ data, usd, idCuenta }: {
                     <td className="px-2 py-1 text-right">{fmt2(f.precio, 2)}</td>
                     <td className="px-2 py-1 text-right">{fmt0(val)}</td>
                     <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">{fmtPct(f.share_cartera)}</td>
-                    <td className={`px-2 py-1 text-right ${pnl == null ? "" : pnl < 0 ? "text-[var(--t-neg)]" : pnl > 0 ? "text-[var(--t-pos)]" : ""}`}>
-                      {fmt0(pnl)}
-                    </td>
-                    <td className={`px-2 py-1 text-right ${gan == null ? "" : gan < 0 ? "text-[var(--t-neg)]" : gan > 0 ? "text-[var(--t-pos)]" : ""}`}>
-                      {gan == null ? "—" : fmt2(gan, 1) + "%"}
-                    </td>
                   </tr>
                 );
               })}
