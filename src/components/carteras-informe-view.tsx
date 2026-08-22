@@ -531,40 +531,57 @@ function TabActivos({ data, usd, idCuenta }: {
           cartera, así que van al cuadro «Sin cartera» y no entran a ninguna métrica por cartera.
         </div>
       )}
-      {data.detalle.bloques.map((b) => (
-        <Panel key={b.cartera || "_sin"} titulo={b.label}
-               extra={
-                 <span className="text-[11px] text-white tabular-nums">
-                   {fmt0(usd ? b.total_usd : b.total)} · {fmtPct(b.ponderacion)}
-                 </span>
-               }>
-          <table className="w-full text-[11px] table-fixed">
-            <colgroup>{COLS_ACTIVOS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
-            <thead>
-              <tr className="text-[9px] uppercase text-[var(--t-text-muted)] bg-[var(--t-surface)]">
-                <th className="text-left px-2 py-1 font-medium">Ticker</th>
-                <th className="text-left px-2 py-1 font-medium">Emisor</th>
-                <th className="text-center px-2 py-1 font-medium">Calif.</th>
-                <th className="text-center px-2 py-1 font-medium">Clase Act.</th>
-                <th className="text-center px-2 py-1 font-medium">Venc.</th>
-                <th className="text-right px-2 py-1 font-medium">Cantidad</th>
-                <th className="text-right px-2 py-1 font-medium">Precio</th>
-                <th className="text-right px-2 py-1 font-medium">Valuación</th>
-                <th className="text-right px-2 py-1 font-medium">% Cart.</th>
+      {/* UNA sola tabla, no un cuadro por cartera (2026-08-22).
+          Antes cada cartera era un panel con su barra azul y su fila de
+          encabezados: con seis carteras eso son seis barras azules y seis veces
+          los mismos nombres de columna, y lo que se repite deja de leerse. Ahora
+          los nombres de columna van UNA vez arriba, en el azul, y la fila gris
+          que antes los repetía pasa a decir de qué cartera es lo que sigue.
+          Efecto lateral que importa: las columnas quedan alineadas de punta a
+          punta, así se pueden comparar dos títulos de carteras distintas sin
+          mover la vista. */}
+      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] overflow-auto">
+        <table className="w-full text-[11px] table-fixed">
+          <colgroup>{COLS_ACTIVOS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
+          <thead className="sticky top-0 z-10">
+            <tr className="bg-[var(--t-brand)] text-white">
+              <th className="text-left px-2 py-1.5 font-semibold tracking-wide">Ticker</th>
+              <th className="text-left px-2 py-1.5 font-semibold tracking-wide">Emisor</th>
+              <th className="text-center px-2 py-1.5 font-semibold tracking-wide">Calif.</th>
+              <th className="text-center px-2 py-1.5 font-semibold tracking-wide">Clase Act.</th>
+              <th className="text-center px-2 py-1.5 font-semibold tracking-wide">Venc.</th>
+              <th className="text-right px-2 py-1.5 font-semibold tracking-wide">Cantidad</th>
+              <th className="text-right px-2 py-1.5 font-semibold tracking-wide">Precio</th>
+              <th className="text-right px-2 py-1.5 font-semibold tracking-wide">Valuación</th>
+              <th className="text-right px-2 py-1.5 font-semibold tracking-wide">% Cart.</th>
+            </tr>
+          </thead>
+          {data.detalle.bloques.map((b, iCart) => (
+            <tbody key={b.cartera || "_sin"} className="tabular-nums">
+              {/* La fila de la cartera: gris, a todo el ancho y con la barra de
+                  color al costado — el mismo color de la torta y de MÉTRICAS. */}
+              <tr>
+                <td colSpan={9}
+                    className="px-2 py-1.5 bg-[var(--t-surface)] border-y border-[var(--t-border)] border-l-2"
+                    style={{ borderLeftColor: carteraColor(b.cartera, iCart) }}>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-[11px] font-semibold text-[var(--t-text)] tracking-wide">
+                      {b.label}
+                    </span>
+                    <span className="ml-auto tabular-nums font-semibold">
+                      {fmt0(usd ? b.total_usd : b.total)}
+                    </span>
+                    <span className="w-14 text-right tabular-nums text-[var(--t-text-dim)]">
+                      {fmtPct(b.ponderacion)}
+                    </span>
+                  </div>
+                </td>
               </tr>
-            </thead>
-            <tbody className="tabular-nums">
               {b.filas.length === 0 && (
                 <tr><td colSpan={9} className="px-2 py-3 text-center text-[var(--t-text-muted)]">
                   Sin títulos en esta cartera.
                 </td></tr>
               )}
-              {/* PNL y GAN % NO se muestran en esta tabla (2026-08-22). No se
-                  borraron: el backend los sigue mandando por fila y el export a
-                  Excel los sigue llevando — lo que se sacó es el ruido de la
-                  pantalla. Esta vista contesta QUÉ TIENE la cartera y cuánto
-                  vale; cuánto se ganó con cada título es la pregunta de PNL
-                  TÍTULOS, que tiene el detalle boleto por boleto al lado. */}
               {b.filas.map((f) => {
                 const val = usd ? f.valuacion_usd : f.valuacion;
                 return (
@@ -575,7 +592,7 @@ function TabActivos({ data, usd, idCuenta }: {
                         setCtx({ x: e.clientX, y: e.clientY, pos: f });
                       }}
                       title="Click derecho para operar este título"
-                      className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]">
+                      className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]">
                     <td className="px-2 py-1 text-[var(--t-text)] truncate" title={f.unidad}>{f.ticker}</td>
                     <td className="px-2 py-1 text-[var(--t-text-dim)] truncate" title={f.emisor}>{f.emisor}</td>
                     <td className="px-2 py-1 text-center text-[var(--t-text-dim)]">{f.calificacion}</td>
@@ -591,9 +608,9 @@ function TabActivos({ data, usd, idCuenta }: {
                 );
               })}
             </tbody>
-          </table>
-        </Panel>
-      ))}
+          ))}
+        </table>
+      </div>
 
       {ctx && (
         <div
