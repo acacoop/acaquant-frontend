@@ -483,7 +483,12 @@ function Cuadro({ titulo, bloque, usd }: { titulo: string; bloque: Bloque; usd: 
 // Anchos FIJOS compartidos por TODOS los cuadros de cartera. Sin esto cada tabla
 // se dimensiona con su propio contenido y las mismas columnas arrancan en
 // lugares distintos en cada cuadro — cuatro tablas sueltas en vez de un informe.
-const COLS_ACTIVOS = ["14%", "14%", "6%", "10%", "7%", "9%", "8%", "10%", "6%", "9%", "7%"];
+// TICKER se lleva el 25%: los FCI vienen con el nombre completo del fondo
+// («FCI Balanz Capital Estrategia III - Clase A») y con el 14% que tenía antes
+// quedaban todos cortados en el mismo lugar, o sea ilegibles justo en la cartera
+// donde el ticker ES el nombre. Lo que sobraba salió de PNL y GAN %, que ya no
+// se muestran acá.
+const COLS_ACTIVOS = ["25%", "14%", "7%", "11%", "8%", "10%", "9%", "10%", "6%"];
 
 // La tab NO tiene panel de auditoría (2026-08-21). Lo tuvo una versión y se
 // sacó: esta vista es la CARTERA y los títulos que hay adentro. El PnL boleto
@@ -545,20 +550,22 @@ function TabActivos({ data, usd, idCuenta }: {
                 <th className="text-right px-2 py-1 font-medium">Precio</th>
                 <th className="text-right px-2 py-1 font-medium">Valuación</th>
                 <th className="text-right px-2 py-1 font-medium">% Cart.</th>
-                <th className="text-right px-2 py-1 font-medium">PnL</th>
-                <th className="text-right px-2 py-1 font-medium">Gan %</th>
               </tr>
             </thead>
             <tbody className="tabular-nums">
               {b.filas.length === 0 && (
-                <tr><td colSpan={11} className="px-2 py-3 text-center text-[var(--t-text-muted)]">
+                <tr><td colSpan={9} className="px-2 py-3 text-center text-[var(--t-text-muted)]">
                   Sin títulos en esta cartera.
                 </td></tr>
               )}
+              {/* PNL y GAN % NO se muestran en esta tabla (2026-08-22). No se
+                  borraron: el backend los sigue mandando por fila y el export a
+                  Excel los sigue llevando — lo que se sacó es el ruido de la
+                  pantalla. Esta vista contesta QUÉ TIENE la cartera y cuánto
+                  vale; cuánto se ganó con cada título es la pregunta de PNL
+                  TÍTULOS, que tiene el detalle boleto por boleto al lado. */}
               {b.filas.map((f) => {
                 const val = usd ? f.valuacion_usd : f.valuacion;
-                const pnl = usd ? f.pnl_usd : f.pnl;
-                const gan = usd ? f.gan_pct_usd : f.gan_pct;
                 return (
                   <tr key={f.unidad}
                       onContextMenu={(e) => {
@@ -579,12 +586,6 @@ function TabActivos({ data, usd, idCuenta }: {
                     <td className="px-2 py-1 text-right">{fmt2(f.precio, 2)}</td>
                     <td className="px-2 py-1 text-right">{fmt0(val)}</td>
                     <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">{fmtPct(f.share_cartera)}</td>
-                    <td className={`px-2 py-1 text-right ${pnl == null ? "" : pnl < 0 ? "text-[var(--t-neg)]" : pnl > 0 ? "text-[var(--t-pos)]" : ""}`}>
-                      {fmt0(pnl)}
-                    </td>
-                    <td className={`px-2 py-1 text-right ${gan == null ? "" : gan < 0 ? "text-[var(--t-neg)]" : gan > 0 ? "text-[var(--t-pos)]" : ""}`}>
-                      {gan == null ? "—" : fmt2(gan, 1) + "%"}
-                    </td>
                   </tr>
                 );
               })}
