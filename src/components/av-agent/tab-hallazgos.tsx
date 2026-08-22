@@ -1508,9 +1508,9 @@ export function AccionCadena({ h, sim, simular, modo }: {
       )}
       {ok && viejo && (
         <span className="w-full text-[10px] text-[var(--t-pos)]">
-          ✔ Quedó VIEJO: el agente re-corrió la detección, dio limpia y lo
-          cerró solo — la fila sale de la lista al refrescar. Queda en el
-          historial; si vuelve a romperse, reaparece como VOLVIÓ.
+          ✔ Quedó VIEJO: el agente re-corrió la detección y dio limpia. La
+          fila queda ATENDIDA (sale de la lista al refrescar) y la cierra el
+          detector cuando deje de verla — no vuelve a molestar mientras tanto.
         </span>
       )}
       {/* Un botón que DESAPARECE no explica nada: el que mira no sabe si falta

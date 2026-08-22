@@ -405,6 +405,30 @@ export function Chequeos({ pasos, veredicto, calculo }: {
         </div>
       )}
 
+      {/* ── 3b. LO QUE SE PUEDE HACER, NUNCA DETRÁS DEL PLIEGUE ─────────────
+          (user, 2026-08-22: *«para ver una solución tenés que hacer clic en
+          detalle interno, tocar contexto, ver qué propone… el botón estaba
+          súper escondido»*). El pliegue de abajo esconde el RAZONAMIENTO;
+          esconder también la ACCIÓN fue el error del round anterior. Todo
+          paso que trae un panel de acción se muestra acá, siempre — salvo el
+          de la traba, que ya lo mostró arriba. */}
+      {pasos.filter((p) => p.hacer && !(traba && p.clave === traba.clave))
+        .map((p) => (
+        <div key={p.clave} className="mt-1 border-l-2 pl-2 py-0.5"
+             style={{ borderColor: "var(--t-accent)" }}>
+          <span className="text-[10px] font-semibold text-[var(--t-text)]">
+            {p.titulo}
+          </span>
+          {p.tabla && (
+            <span className="ml-1.5 text-[9px] font-mono text-[var(--t-text-dim)]">
+              {p.tabla}
+            </span>
+          )}
+          <Prosa t={p.detalle} />
+          <PanelHacer h={p.hacer!} />
+        </div>
+      ))}
+
       {/* ── 4. LO DEMÁS ES DEL AGENTE Y VA DETRÁS DE UN PLIEGUE. ────────────
           Cerrado por default: la persona ve la orden + la traba; los pasos,
           el contexto, las lecciones y los contadores son el razonamiento del
@@ -534,10 +558,10 @@ export function Chequeos({ pasos, veredicto, calculo }: {
                     ✎ queda en AVISOS: {p.aviso}
                   </p>
                 )}
-                {/* El panel de acción NO se repite si ya está arriba en la
-                    traba: dos botones idénticos en la misma pantalla es la
-                    duda de «¿cuál aprieto?» que no tiene por qué existir. */}
-                {p.hacer && !esTraba && <PanelHacer h={p.hacer} />}
+                {/* El panel de acción NO se repite acá: TODO paso con `hacer`
+                    ya se muestra arriba, fuera del pliegue (sección 3b) — dos
+                    botones idénticos en la misma pantalla es la duda de «¿cuál
+                    aprieto?» que no tiene por qué existir. */}
               </div>
             </li>
             );
