@@ -826,7 +826,14 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
                 // path o una tabla: en la columna de 72px entraba «job:merc» y
                 // las filas quedaban indistinguibles. Misma tabla, primera
                 // columna más ancha.
-                const sujetoLargo = SUJETO_LARGO.has(h.tipo);
+                // ⚠️ **SE DERIVA DEL DATO, no de una lista de tipos** (user,
+                // 2026-08-22: «los títulos cortados a la mitad, no se
+                // entienden» — `dato_partido` mostraba «simbolo_m…» porque no
+                // estaba en la lista a mano, y cada tipo nuevo volvía a caer
+                // en la columna angosta). Un ticker es corto y sin separadores;
+                // todo lo demás es un nombre y necesita el ancho.
+                const sujetoLargo = SUJETO_LARGO.has(h.tipo)
+                  || h.ticker.length > 8 || /[_:.]/.test(h.ticker);
                 return (
                 /* La COLUMNA DE HORA (§0.br) entra al final, angosta y con
                    ancho fijo: así las horas quedan alineadas y se puede barrer

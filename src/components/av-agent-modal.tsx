@@ -521,7 +521,13 @@ function ModalImpl() {
                   y no compite con lo que sí se mira todos los días. */}
               {([
                 ["ahora", "AHORA", nAhora],
-                ["hallazgos", "ENCONTRÓ", data.hallazgos.length],
+                // ⚠️ El MISMO número que LA LISTA («por resolver»): el tab
+                // decía 94 y adentro 67, y la diferencia (atendidos +
+                // descartados) no se explicaba en ningún lado (user: «ENCONTRÓ
+                // sigue mostrando datos que no son los que luego se ven
+                // abajo»). Un contador de tab promete trabajo: cuenta trabajo.
+                ["hallazgos", "ENCONTRÓ", data.hallazgos.filter(
+                  (h) => !h.atendido && !h.es_ruido).length],
                 ["historial", "HISTORIAL",
                   (data.acciones ?? []).length + data.decididas.length],
               ] as [Tab, string, number][]).map(([k, label, n]) => (
