@@ -31,7 +31,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { fetchJson } from "@/lib/fetch-json";
+// LA CAPA DE DATOS (src/components/av-agent/datos.tsx) es el ÚNICO lugar del
+// modal que habla con la red — acá no se importa fetch-json (lo garantiza
+// eslint). Tres verbos: leer (GET) · llamar (POST que calcula) · escribir
+// (POST que muta y DECLARA qué recursos relee). Ver el porqué en el header de
+// ese archivo y en docs/AV_AGENT.md §0.cj.
+import { DatosProvider, useDatos, useRecurso } from "@/components/av-agent/datos";
 
 // ── Contrato GET /api/ia/av-agent/vista ────────────────────────────────────
 // La firma de `simular`, **escrita UNA vez**. Estaba duplicada en tres lugares
@@ -523,10 +528,29 @@ function fechaHora(iso: string | null): string {
 const TITULO = "text-[10px] font-semibold tracking-widest text-[var(--t-accent)]";
 const SUB = "text-[10px] text-[var(--t-text-dim)]";
 
+// El export es el PROVIDER + la implementación: la capa tiene que envolver
+// también al botón de la barra (el centinela se pollea con el modal cerrado).
 export function AvAgentModal() {
+  return (
+    <DatosProvider>
+      <ModalImpl />
+    </DatosProvider>
+  );
+}
+
+function ModalImpl() {
+  const { datos, errores, recargar, leer, llamar, escribir } = useDatos();
   const [open, setOpen] = useState(false);
-  const [data, setData] = useState<Vista | null>(null);
+  // Los RECURSOS del servidor viven en la capa (sobreviven a cualquier
+  // desmontaje y tienen UN dueño); acá quedan solo los alias tipados.
+  const data = (datos.vista ?? null) as Vista | null;
+  const ctrl = (datos.control ?? null) as Control | null;
+  const cent = (datos.centinela ?? null) as Centinela | null;
+  const agenda = (datos.agenda ?? null) as AgendaVista | null;
+  // Errores de ESCRITURA (estado de pantalla). El de LECTURA de la vista viene
+  // de la capa: 403 = no es admin → el botón se apaga solo (gate estructural).
   const [error, setError] = useState("");
+  const errorVista = errores.vista ?? "";
   const [tab, setTab] = useState<Tab>("ahora");
   const [subHist, setSubHist] = useState("hizo");
   const [enviando, setEnviando] = useState<number | null>(null);
@@ -534,14 +558,6 @@ export function AvAgentModal() {
   // Simulaciones por ticker. `null` = corriendo. El resultado se guarda para que
   // uno pueda mirar el número antes de aplicar — que es todo el punto de E2.
   const [sims, setSims] = useState<Record<string, Record<string, unknown> | null>>({});
-  // El TABLERO. Va en su propio estado y su propio request: es lo único de la
-  // pantalla que tiene que seguir sirviendo cuando `/vista` falla — si el agente
-  // está roto, el tablero que dice POR QUÉ no puede caerse con él.
-  const [ctrl, setCtrl] = useState<Control | null>(null);
-
-  // EL CENTINELA. Se pollea SIEMPRE —esté el modal abierto o no— porque el
-  // círculo de la barra tiene que decir la verdad sin que nadie abra nada.
-  const [cent, setCent] = useState<Centinela | null>(null);
 
   // VOLVER A MIRAR. El botón vive al lado de «última revisión hace 22 h» a
   // propósito: el reclamo y la solución tienen que estar en el mismo lugar.
@@ -552,67 +568,32 @@ export function AvAgentModal() {
     setRelevando(true);
     setRelevAviso("censando 1816… ~1 min");
     try {
-      const r = await fetchJson<{ ok: boolean; error?: string; aviso?: string }>(
-        "/api/ia/av-agent/relevar", { method: "POST" });
+      const r = await llamar<{ ok: boolean; error?: string; aviso?: string }>(
+        "/api/ia/av-agent/relevar");
       if (!r.ok) { setRelevAviso(r.error ?? "no se pudo"); setRelevando(false); }
     } catch (e) {
       setRelevAviso(e instanceof Error ? e.message : String(e));
       setRelevando(false);
     }
-  }, []);
+  }, [llamar]);
 
-  const cargarCentinela = useCallback(async () => {
-    try {
-      setCent(await fetchJson<Centinela>("/api/ia/av-agent/centinela"));
-    } catch {
-      // Un poll que falla no apaga el círculo por su cuenta: lo apaga el LATIDO
-      // viejo. Confundir «no pude preguntar» con «está muerto» daría una alarma
-      // cada vez que se corta el wifi.
-    }
-  }, []);
+  // EL CENTINELA se pollea SIEMPRE —esté el modal abierto o no— porque el
+  // círculo de la barra tiene que decir la verdad sin que nadie abra nada.
+  // Un poll que falla no apaga el círculo por su cuenta (la capa conserva el
+  // dato viejo): lo apaga el LATIDO viejo. Confundir «no pude preguntar» con
+  // «está muerto» daría una alarma cada vez que se corta el wifi.
+  const cargarCentinela = useCallback(() => recargar("centinela"), [recargar]);
 
   const marcarVisto = useCallback(async (claves: string[]) => {
     try {
-      await fetchJson("/api/ia/av-agent/centinela/visto", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ claves }),
-      });
+      await escribir("/api/ia/av-agent/centinela/visto", { claves },
+                     ["centinela"]);
     } catch { /* ignorado: el próximo poll trae el estado real */ }
-    await cargarCentinela();
-  }, [cargarCentinela]);
+  }, [escribir]);
 
-  const cargarControl = useCallback(async () => {
-    try {
-      setCtrl(await fetchJson<Control>("/api/ia/av-agent/control"));
-    } catch {
-      setCtrl(null);
-    }
-  }, []);
-
-  // LA AGENDA (tab CONTROL). Se carga al abrir junto con el resto: el contador
-  // de atrasados vive en la barra de tabs, así que tiene que existir antes de
-  // que alguien entre a la tab — si se cargara al entrar, el número aparecería
-  // recién después de haber ido a buscarlo, que es cuando ya no sirve.
-  const [agenda, setAgenda] = useState<AgendaVista | null>(null);
-  const cargarAgenda = useCallback(async () => {
-    try {
-      setAgenda(await fetchJson<AgendaVista>("/api/ia/av-agent/agenda"));
-    } catch {
-      setAgenda(null);
-    }
-  }, []);
-
-  const cargar = useCallback(async () => {
-    try {
-      setData(await fetchJson<Vista>("/api/ia/av-agent/vista"));
-      setError("");
-    } catch (e) {
-      // 403 = no es admin → el botón se apaga solo (gate estructural, mismo
-      // criterio que el briefing: si el backend dice que no, no hay UI).
-      setError(e instanceof Error ? e.message : String(e));
-    }
-  }, []);
+  const cargarControl = useCallback(() => recargar("control"), [recargar]);
+  const cargarAgenda = useCallback(() => recargar("agenda"), [recargar]);
+  const cargar = useCallback(() => recargar("vista"), [recargar]);
 
   // Mientras releva, se pregunta si terminó. Cuando termina, se recarga la vista
   // sola: pedir «volver a mirar» y tener que apretar ↻ después sería la mitad
@@ -622,7 +603,7 @@ export function AvAgentModal() {
     let vivo = true;
     const id = setInterval(async () => {
       try {
-        const e = await fetchJson<{ si: boolean }>("/api/ia/av-agent/relevar");
+        const e = await leer<{ si: boolean }>("/api/ia/av-agent/relevar");
         if (!vivo || e.si) return;
         clearInterval(id);
         setRelevando(false);
@@ -631,7 +612,7 @@ export function AvAgentModal() {
       } catch { /* el próximo tick reintenta */ }
     }, 4000);
     return () => { vivo = false; clearInterval(id); };
-  }, [relevando, cargar]);
+  }, [relevando, cargar, leer]);
 
   // Una sola carga al montar, para tener el contador en la barra sin abrir nada.
   // El tablero viene con ella: **la PARADA tiene que verse en la barra**, no
@@ -667,7 +648,7 @@ export function AvAgentModal() {
 
   const mirarPendientes = useCallback(async () => {
     try {
-      const r = await fetchJson<{ pendientes?: SaludRoto[] }>(
+      const r = await leer<{ pendientes?: SaludRoto[] }>(
         "/api/ia/av-agent/salud/pendientes");
       const p = r.pendientes ?? [];
       setRotos(p);
@@ -683,7 +664,7 @@ export function AvAgentModal() {
     } catch {
       /* 403 (no admin) o backend caído: la barra sigue andando, sin interrumpir */
     }
-  }, [cargar]);
+  }, [cargar, leer]);
 
   useEffect(() => {
     void mirarPendientes();
@@ -693,102 +674,72 @@ export function AvAgentModal() {
 
   const entendido = useCallback(async () => {
     try {
-      await fetchJson("/api/ia/av-agent/salud/vistos", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: rotos.map((r) => r.id) }),
-      });
+      await escribir("/api/ia/av-agent/salud/vistos",
+                     { ids: rotos.map((r) => r.id) }, []);
     } catch {
       /* si falla, vuelve a avisar en el próximo poll — que es lo correcto */
     }
     setRotos([]);
-  }, [rotos]);
+  }, [rotos, escribir]);
 
   const responder = useCallback(async (id: number, respuesta: string) => {
     setEnviando(id);
     try {
-      await fetchJson("/api/ia/av-agent/responder", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, respuesta, nota: notas[id] || "" }),
-      });
-      await cargar();
+      await escribir("/api/ia/av-agent/responder",
+                     { id, respuesta, nota: notas[id] || "" }, ["vista"]);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setEnviando(null);
     }
-  }, [cargar, notas]);
+  }, [escribir, notas]);
 
   const setParada = useCallback(async (activa: boolean, motivo: string) => {
     try {
-      const r = await fetchJson<{ ok: boolean; error?: string }>(
-        "/api/ia/av-agent/control/parada", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ activa, motivo }),
-        });
+      const r = await escribir<{ ok: boolean; error?: string }>(
+        "/api/ia/av-agent/control/parada", { activa, motivo }, ["control"]);
       if (r.ok === false) setError(r.error ?? "no se pudo cambiar la parada");
       else setError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-    await cargarControl();
-  }, [cargarControl]);
+  }, [escribir]);
 
   const resolverAviso = useCallback(async (id: number, deshacer: boolean) => {
     try {
-      await fetchJson("/api/ia/av-agent/aviso", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, deshacer }),
-      });
-      await cargar();
+      await escribir("/api/ia/av-agent/aviso", { id, deshacer }, ["vista"]);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [cargar]);
+  }, [escribir]);
 
   const completarAviso = useCallback(async (id: number, valor: string) => {
     try {
-      await fetchJson("/api/ia/av-agent/aviso/completar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, valor }),
-      });
-      await cargar();
+      await escribir("/api/ia/av-agent/aviso/completar", { id, valor },
+                     ["vista"]);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [cargar]);
+  }, [escribir]);
 
   // «No me interesa» desde CUALQUIER hallazgo. Antes solo se podía ignorar
   // contestando una pregunta del agente, y solo valía para los faltantes.
   const ignorar = useCallback(async (ticker: string) => {
     try {
-      await fetchJson("/api/ia/av-agent/ignorar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticker }),
-      });
-      await cargar();
+      await escribir("/api/ia/av-agent/ignorar", { ticker }, ["vista"]);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [cargar]);
+  }, [escribir]);
 
   const designorar = useCallback(async (ticker: string) => {
     try {
       // POST y no DELETE: el proxy catch-all de /api/ia expone solo GET y POST.
-      await fetchJson("/api/ia/av-agent/designorar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticker }),
-      });
-      await cargar();
+      await escribir("/api/ia/av-agent/designorar", { ticker }, ["vista"]);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [cargar]);
+  }, [escribir]);
 
   // `extra` lleva los datos que el user tipeó EN la cadena (hoy: el CER de
   // emisión). Viajan igual a SIMULAR y a APLICAR, así que lo que se aplica es
@@ -835,31 +786,30 @@ export function AvAgentModal() {
       ? (aplicar ? "aplicar-arreglo" : "simular-arreglo")
       : (aplicar ? "aplicar-alta" : "simular");
     try {
-      const r = await fetchJson<Record<string, unknown>>(
-        `/api/ia/av-agent/${ruta}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          // SALUD habla de un CHEQUEO, no de un ticker: el sujeto del hallazgo es
-          // el id del cron. El campo `ticker` del hallazgo lo transporta (ver el
-          // comentario de `detectar_salud` en el backend).
-          body: JSON.stringify(modo === "salud"
-            ? { chequeo_id: ticker }
-            : modo === "apuntar"
-            // El backend NO escribe sin `aplicar`: sin él devuelve qué haría.
-            ? { ticker, aplicar }
-            : (modo === "sin_precio" || modo === "pata" || modo === "espejo")
-            ? { ticker }
-            : { ticker, curva_1816: curva1816, ...extra }),
-        });
+      // SALUD habla de un CHEQUEO, no de un ticker: el sujeto del hallazgo es
+      // el id del cron. El campo `ticker` del hallazgo lo transporta (ver el
+      // comentario de `detectar_salud` en el backend).
+      const body = modo === "salud"
+        ? { chequeo_id: ticker }
+        : modo === "apuntar"
+        // El backend NO escribe sin `aplicar`: sin él devuelve qué haría.
+        ? { ticker, aplicar }
+        : (modo === "sin_precio" || modo === "pata" || modo === "espejo")
+        ? { ticker }
+        : { ticker, curva_1816: curva1816, ...extra };
+      // Simular CALCULA (llamar); aplicar MUTA y por contrato relee la vista.
+      const url = `/api/ia/av-agent/${ruta}`;
+      const r = aplicar
+        ? await escribir<Record<string, unknown>>(url, body, ["vista"])
+        : await llamar<Record<string, unknown>>(url, body);
       setSims((s) => ({ ...s, [ticker]: r }));
-      if (aplicar) await cargar();
       return r as ResSim;
     } catch (e) {
       const err = { ok: false, error: String(e) };
       setSims((s) => ({ ...s, [ticker]: err }));
       return err;
     }
-  }, [cargar]);
+  }, [llamar, escribir]);
 
   const porTipo = useMemo(() => {
     const g: Record<string, Hallazgo[]> = {};
@@ -869,7 +819,7 @@ export function AvAgentModal() {
 
   // Sin datos (403 del backend / API caída) el botón NO se monta: un botón que
   // abre un modal vacío es peor que no tenerlo.
-  if (!data && error) return null;
+  if (!data && errorVista) return null;
 
   const nPreg = (data?.preguntas.length ?? 0) + (data?.decisiones.length ?? 0);
   // Lo que espera una decisión: lo nuevo del centinela + las preguntas + los
@@ -1154,8 +1104,7 @@ export function AvAgentModal() {
               {tab === "hallazgos" && (
                 <TabHallazgos porTipo={porTipo} data={data} sims={sims}
                               simular={simular} ignorar={ignorar}
-                              cent={cent} marcarVisto={marcarVisto}
-                              recargar={cargar} />
+                              cent={cent} marcarVisto={marcarVisto} />
               )}
               {/* HISTORIAL: lo que ya pasó. No se acciona, así que no merece dos
                   tabs — se lee de arriba abajo y listo. */}
@@ -1468,24 +1417,18 @@ function TabAgenda({ v, recargar }: {
 }
 
 function TabSkills() {
-  const [v, setV] = useState<SkillsVista | null>(null);
-  // LA MEDICIÓN, al lado del catálogo. Va acá y no en una tab nueva a propósito:
-  // SKILLS es «lo que el agente sabe hacer», y **cuánto acierta es un atributo de
-  // eso**, no un tablero aparte. Separarlos dejaría el catálogo prometiendo
+  // El catálogo y LA MEDICIÓN son recursos de la capa: se cargan la primera
+  // vez y sobreviven al cambio de tab (antes cada visita los volvía a pedir y
+  // el desmontaje los tiraba). Si una lectura falla la tab queda vacía, no
+  // rota — la capa conserva el error aparte.
+  //
+  // La medición va al lado del catálogo y no en una tab nueva a propósito:
+  // SKILLS es «lo que el agente sabe hacer», y **cuánto acierta es un atributo
+  // de eso**, no un tablero aparte. Separarlos dejaría el catálogo prometiendo
   // capacidades sin decir cuáles funcionan.
-  const [ev, setEv] = useState<EvalResumen | null>(null);
+  const { dato: v } = useRecurso<SkillsVista>("skills");
+  const { dato: ev } = useRecurso<EvalResumen>("evaluacion");
   const [dom, setDom] = useState<string>("");
-
-  useEffect(() => {
-    void (async () => {
-      try {
-        setV(await fetchJson<SkillsVista>("/api/ia/av-agent/skills"));
-      } catch { /* sin catálogo la tab queda vacía, no rota */ }
-      try {
-        setEv(await fetchJson<EvalResumen>("/api/ia/av-agent/eval"));
-      } catch { /* sin medición el catálogo se muestra igual */ }
-    })();
-  }, []);
 
   // ── LA JERARQUÍA ────────────────────────────────────────────────────────
   //
@@ -1688,7 +1631,11 @@ function TabSkills() {
 }
 
 function Preguntale() {
-  const [cat, setCat] = useState<Sabe[]>([]);
+  // El catálogo es un recurso de la capa (sobrevive al cambio de tab); lo
+  // elegido, el sujeto y la respuesta son estado de PANTALLA y quedan acá.
+  const { leer, llamar } = useDatos();
+  const { dato: sabe } = useRecurso<{ catalogo?: Sabe[] }>("sabe");
+  const cat = sabe?.catalogo ?? [];
   const [elegido, setElegido] = useState<Sabe | null>(null);
   const [sujeto, setSujeto] = useState("");
   const [opciones, setOpciones] = useState<string[]>([]);
@@ -1698,15 +1645,6 @@ function Preguntale() {
     pasos?: Paso[]; pregunta?: string;
   } | null>(null);
 
-  useEffect(() => {
-    void (async () => {
-      try {
-        const r = await fetchJson<{ catalogo?: Sabe[] }>("/api/ia/av-agent/explicar");
-        setCat(r.catalogo ?? []);
-      } catch { /* sin catálogo: la tab queda vacía, no rota */ }
-    })();
-  }, []);
-
   const elegir = async (e: Sabe) => {
     setElegido(e);
     setRes(null);
@@ -1714,7 +1652,7 @@ function Preguntale() {
     setOpciones([]);
     if (!e.necesita) return;
     try {
-      const r = await fetchJson<{ sugerencias?: string[] }>(
+      const r = await leer<{ sugerencias?: string[] }>(
         `/api/ia/av-agent/explicar?explicador=${encodeURIComponent(e.id)}`);
       setOpciones(r.sugerencias ?? []);
     } catch { /* sin sugerencias se escribe a mano */ }
@@ -1725,10 +1663,9 @@ function Preguntale() {
     setCargando(true);
     setRes(null);
     try {
-      setRes(await fetchJson("/api/ia/av-agent/explicar", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ explicador: elegido.id, sujeto }),
-      }));
+      // `llamar` y no `escribir`: explicar CALCULA, no muta nada.
+      setRes(await llamar("/api/ia/av-agent/explicar",
+                          { explicador: elegido.id, sujeto }));
     } catch (e) {
       setRes({ ok: false, error: e instanceof Error ? e.message : String(e) });
     }
@@ -2194,7 +2131,7 @@ function VigilanciaAbierta({ cent, marcarVisto }: {
 
 
 function TabHallazgos({ porTipo, data, sims, simular, ignorar,
-                       cent, marcarVisto, recargar }: {
+                       cent, marcarVisto }: {
   porTipo: Record<string, Hallazgo[]>;
   data: Vista;
   sims: Record<string, Record<string, unknown> | null>;
@@ -2206,11 +2143,8 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
   // 131 cosas abiertas sin ninguna pantalla, que es peor que el desorden.
   cent: Centinela | null;
   marcarVisto: (claves: string[]) => Promise<void>;
-  /** Vuelve a leer la vista. Lo necesita el VOTO: sin esto el «✔ te sirve»
-   *  vivía en un `useState` que muere al cambiar de tab, y al volver la fila
-   *  aparecía otra vez con los botones. */
-  recargar: () => Promise<void>;
 }) {
+  const { leer, llamar } = useDatos();
   // EL FILTRO. Con 84 hallazgos apilados en cinco secciones, la pantalla era un
   // scroll infinito donde para llegar a `tasa_sospechosa` había que pasar por
   // todo lo demás — y una vez abajo se perdía el contexto de cuánto quedaba.
@@ -2389,26 +2323,24 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
   const lanzar = useCallback(async (sinRed: boolean) => {
     setCorriendo(true);
     try {
-      const r = await fetchJson<{ ok: boolean; run_id?: number; error?: string }>(
+      // `llamar`: lanza un CÁLCULO en background; el estado que muta (el run)
+      // se sigue por el poll de abajo, no por relectura de un recurso.
+      const r = await llamar<{ ok: boolean; run_id?: number; error?: string }>(
         "/api/ia/av-agent/masivo", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            // Se manda el hallazgo entero: el backend necesita la acción (qué
-            // puerta abrir) y la evidencia (la curva de 1816, para un alta).
-            casos: planos.map((h) => ({
-              ticker: h.ticker, tipo: h.tipo, regla: h.regla,
-              accion: h.accion, motivo: h.motivo, evidencia: h.evidencia,
-            })),
-            filtro: { tipo: filtro, regla: reglaOk, busqueda: q.trim() },
-            sin_red: sinRed,
-          }),
+          // Se manda el hallazgo entero: el backend necesita la acción (qué
+          // puerta abrir) y la evidencia (la curva de 1816, para un alta).
+          casos: planos.map((h) => ({
+            ticker: h.ticker, tipo: h.tipo, regla: h.regla,
+            accion: h.accion, motivo: h.motivo, evidencia: h.evidencia,
+          })),
+          filtro: { tipo: filtro, regla: reglaOk, busqueda: q.trim() },
+          sin_red: sinRed,
         });
       if (!r.ok) { setRun(null); setCorriendo(false); return; }
     } catch {
       setCorriendo(false);
     }
-  }, [planos, filtro, reglaOk, q]);
+  }, [llamar, planos, filtro, reglaOk, q]);
 
   // ⚠️⚠️ **EL INFORME SE RECUPERA AL VOLVER A LA TAB.** El user: *«literal,
   // cuando estás en una vista, si hacés algo y te vas a otra desaparece todo.
@@ -2427,7 +2359,7 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
     let vivo = true;
     void (async () => {
       try {
-        const r = await fetchJson<RunMasivo>("/api/ia/av-agent/masivo");
+        const r = await leer<RunMasivo>("/api/ia/av-agent/masivo");
         if (!vivo || !r?.id) return;
         setRun(r);
         // Si quedó corriendo (se cerró el modal a mitad), el poll se reengancha
@@ -2436,7 +2368,7 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
       } catch { /* sin informe previo no hay nada que recuperar */ }
     })();
     return () => { vivo = false; };
-  }, []);
+  }, [leer]);
 
   // El POLL. Arranca cuando hay una corrida y se apaga sola al terminar — un
   // poll que sigue después del final es tráfico que nadie mira.
@@ -2445,7 +2377,7 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
     let vivo = true;
     const tick = async () => {
       try {
-        const r = await fetchJson<RunMasivo>("/api/ia/av-agent/masivo");
+        const r = await leer<RunMasivo>("/api/ia/av-agent/masivo");
         if (!vivo) return;
         setRun(r);
         if (r.estado !== "corriendo") setCorriendo(false);
@@ -2454,7 +2386,7 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
     void tick();
     const id = setInterval(() => void tick(), 2000);
     return () => { vivo = false; clearInterval(id); };
-  }, [corriendo]);
+  }, [corriendo, leer]);
 
   // ⚠️⚠️ **LA SALIDA TEMPRANA VA ACÁ, DESPUÉS DE TODOS LOS HOOKS — y no es
   // estilo, es un cuelgue.** Estaba arriba, en el medio de la lista de hooks, y
@@ -2841,7 +2773,7 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
                         un hallazgo que solo se mira. Restringirlo a los accionables
                         dejaría sin medir justo a los que todavía no sabemos si
                         valen la pena automatizar. */}
-                    {primera && <Voto h={h} recargar={recargar} />}
+                    {primera && <Voto h={h} />}
                   </div>
                   {/* IGNORAR vive en TODA fila, no solo donde hay una acción: el
                       valor de la lista depende de poder sacarle lo que no importa.
@@ -2952,7 +2884,7 @@ function Confianza({ c }: { c: Hallazgo["confianza"] }) {
 //    acá se muestra el voto en vez de volver a preguntar. Si el agente cambia de
 //    CAUSA es un par nuevo y sí se pregunta; y CAMBIAR el voto sigue estando a
 //    un click, porque un voto que no se puede corregir queda mal para siempre.
-function Voto({ h, recargar }: { h: Hallazgo; recargar?: () => Promise<void> }) {
+function Voto({ h }: { h: Hallazgo }) {
   // Arranca cerrado también cuando la CAUSA ya está probada, no solo cuando este
   // caso ya se votó. Se puede abrir igual desde «cambiar»: una causa probada que
   // empieza a fallar es justo lo que hay que poder registrar, y el ✖ la baja del
@@ -2981,50 +2913,42 @@ function Voto({ h, recargar }: { h: Hallazgo; recargar?: () => Promise<void> }) 
       ? `✔ causa probada (${h.confianza?.aciertos}/${h.confianza?.humanos})`
       : "");
 
+  const { escribir } = useDatos();
   const enviar = useCallback(async (acierta: boolean) => {
     setMsg("");
     try {
-      const r = await fetchJson<{ ok: boolean; error?: string }>(
+      // ⚠️ `escribir` con `relee: ["vista"]` es lo que hace que el voto DEJE
+      // HUELLA. La versión anterior olvidaba recargar y el «✔ te sirve» vivía
+      // en un `useState` que muere al cambiar de tab: al volver, `h.ya_votado`
+      // venía del `data` viejo y los botones reaparecían («me voy de ENCONTRÓ
+      // a AHORA, vuelvo, y NO HACE NADA, es clickear al pedo»). Con la capa,
+      // una escritura no puede olvidarse de releer: la relectura es el
+      // contrato del verbo, no una convención del que llama. Y de yapa es lo
+      // que hace que «✖ es ruido» SAQUE la fila: el backend la marca
+      // `es_ruido` y la vista la filtra al releer.
+      const r = await escribir<{ ok: boolean; error?: string }>(
         "/api/ia/av-agent/eval", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            caso: h.ticker,
-            // **El dominio lo dice el BACKEND** (`dominio_eval`), no se deduce
-            // del tipo acá: una segunda tabla de dominios se separa de la
-            // primera sin dar ningún error (REGLA #9).
-            dominio: h.dominio_eval ?? "bono",
-            // La CAUSA es la regla: es la unidad que después se automatiza o no.
-            causa: h.regla,
-            // El TIPO viaja para que el BACKEND decida si esto es un juicio o
-            // una observación. El front NO manda el `origen`: si lo mandara,
-            // podría anotar un «¿te sirve?» como si moviera la compuerta de
-            // autonomía.
-            tipo: h.tipo,
-            acierta,
-            nota: acierta ? "" : motivo.trim(),
-            causa_correcta: acierta ? "" : causa.trim(),
-          }),
-        });
+          caso: h.ticker,
+          // **El dominio lo dice el BACKEND** (`dominio_eval`), no se deduce
+          // del tipo acá: una segunda tabla de dominios se separa de la
+          // primera sin dar ningún error (REGLA #9).
+          dominio: h.dominio_eval ?? "bono",
+          // La CAUSA es la regla: es la unidad que después se automatiza o no.
+          causa: h.regla,
+          // El TIPO viaja para que el BACKEND decida si esto es un juicio o
+          // una observación. El front NO manda el `origen`: si lo mandara,
+          // podría anotar un «¿te sirve?» como si moviera la compuerta de
+          // autonomía.
+          tipo: h.tipo,
+          acierta,
+          nota: acierta ? "" : motivo.trim(),
+          causa_correcta: acierta ? "" : causa.trim(),
+        }, ["vista"]);
       if (r.ok) {
         setEstado("listo");
         setMsg(observacion
           ? (acierta ? "✔ te sirve" : "✖ anotado: es ruido")
           : (acierta ? "✔ acertó" : "✖ registrado"));
-        // ⚠️⚠️ **ESTO FALTABA, Y ERA TODO EL BUG.** El voto se guardaba bien y
-        // la pantalla NO se recargaba: el «✔ te sirve» vivía en un `useState`
-        // de este componente. Al cambiar de tab el componente se desmonta, al
-        // volver lee `h.ya_votado` del `data` VIEJO —que sigue en false— y
-        // vuelve a dibujar los botones.
-        //
-        // El user: *«me voy de ENCONTRÓ a AHORA, vuelvo, y NO HACE NADA, es
-        // clickear al pedo»*. Tenía razón literal: el click no cambiaba nada
-        // que sobreviviera al render siguiente.
-        //
-        // Y de yapa es lo que hace que «✖ es ruido» SAQUE la fila: el backend
-        // ya la marca `es_ruido` y la vista la filtra — pero solo cuando los
-        // datos se vuelven a leer.
-        await recargar?.();
       }
       else { setEstado("error"); setMsg(r.error ?? "no se pudo guardar"); }
     } catch (e) {
@@ -3032,7 +2956,7 @@ function Voto({ h, recargar }: { h: Hallazgo; recargar?: () => Promise<void> }) 
       setMsg(e instanceof Error ? e.message : String(e));
     }
   }, [h.ticker, h.regla, h.tipo, h.dominio_eval, observacion, motivo, causa,
-      recargar]);
+      escribir]);
 
   if (estado === "listo") {
     return (
@@ -3184,6 +3108,7 @@ function AccionCadena({ h, sim, simular, modo }: {
   simular: Simular;
   modo: Modo;
 }) {
+  const { escribir } = useDatos();
   // Lo que el user tipeó EN la cadena. Vive acá —y no en el padre— porque es de
   // ESTE hallazgo: un estado compartido haría que el CER de un bono se filtrara
   // al siguiente que se simule.
@@ -3213,12 +3138,15 @@ function AccionCadena({ h, sim, simular, modo }: {
     setRechequeando(true);
     setRechequeo("");
     try {
-      const r = await fetchJson<{
+      // `escribir` con relee de la vista: recontrolar MUTA `controles_datos`
+      // (cierra los resueltos), y la lista de ENCONTRÓ tiene que enterarse en
+      // el momento — no en el próximo poll.
+      const r = await escribir<{
         ok: boolean; texto?: string; error?: string; resuelto?: boolean;
         diagnostico?: Record<string, unknown>;
       }>(
         `/api/ia/av-agent/salud/recontrolar?control_id=${encodeURIComponent(chequeoId)}`,
-        { method: "POST" });
+        undefined, ["vista"]);
       setRechequeo(r.ok ? (r.texto ?? "listo") : `✘ ${r.error ?? "falló"}`);
       // La cadena se REEMPLAZA por la recién corrida. Si el backend no la pudo
       // rehacer, se deja la vieja: mejor una foto de hace un rato que ninguna.
@@ -3629,6 +3557,7 @@ const PASO_COLOR: Record<string, string> = {
 type Respuesta = { ok?: boolean; error?: string; pendientes?: Propuesta[] };
 
 function PanelHacer({ h }: { h: NonNullable<Paso["hacer"]> }) {
+  const { leer, llamar, escribir } = useDatos();
   const [props, setProps] = useState<Propuesta[] | null>(null);
   const [valores, setValores] = useState<Record<number, string>>({});
   const [marcadas, setMarcadas] = useState<Record<number, boolean>>({});
@@ -3646,12 +3575,12 @@ function PanelHacer({ h }: { h: NonNullable<Paso["hacer"]> }) {
       // los manda. Tipar la unión obligaba a estrechar por `"ok" in r`, y ahí
       // TypeScript pierde `error` — un tipo con los dos campos opcionales dice
       // lo mismo y se lee.
+      // PROPONER escribe filas de propuesta (pero nada que la vista dibuje:
+      // se relee acá abajo con `setProps`); LISTAR es una lectura.
       const r = await (proponer
-        ? fetchJson<Respuesta>(
-            "/api/ia/av-agent/hacer/proponer",
-            { method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ accion: h.accion }) })
-        : fetchJson<Respuesta>(
+        ? llamar<Respuesta>("/api/ia/av-agent/hacer/proponer",
+                            { accion: h.accion })
+        : leer<Respuesta>(
             `/api/ia/av-agent/hacer?accion=${encodeURIComponent(h.accion)}`));
       // El mensaje se arma en una variable LOCAL y se setea una sola vez al
       // final: `msg` leído acá dentro sería el del render anterior (el estado no
@@ -3686,13 +3615,14 @@ function PanelHacer({ h }: { h: NonNullable<Paso["hacer"]> }) {
         body.valores = Object.fromEntries(
           elegidas.map((p) => [String(p.id), (valores[p.id] ?? "").trim()]));
       }
-      const r = await fetchJson<{
+      // APLICAR muta datos que ENCONTRÓ dibuja → relee la vista por contrato;
+      // rechazar solo cambia la lista local de propuestas.
+      const r = await escribir<{
         ok: boolean; error?: string; texto?: string;
         resultados?: { id: number; sujeto: string; ok: boolean;
                        detalle?: string; error?: string }[];
-      }>(`/api/ia/av-agent/hacer/${ruta}`,
-         { method: "POST", headers: { "Content-Type": "application/json" },
-           body: JSON.stringify(body) });
+      }>(`/api/ia/av-agent/hacer/${ruta}`, body,
+         ruta === "aplicar" ? ["vista"] : []);
       setMsg(r.ok ? (r.texto ?? "listo") : `✘ ${r.error ?? "falló"}`);
       setResultados(r.resultados ?? []);
       if (r.ok) await cargar(false);   // la lista se relee: lo aplicado ya no espera OK
@@ -4611,6 +4541,7 @@ function InformeMasivo({ run, simular, sims, yaHecho }: {
   // el backend desde `av_agent_items` y sobrevive al reload.
   yaHecho: Set<string>;
 }) {
+  const { llamar } = useDatos();
   const [copiado, setCopiado] = useState(false);
   const [abierto, setAbierto] = useState<string | null>(null);
   // El PROGRESO del lote. Sin esto el botón aplicaba los 10 —y funcionaba— pero
@@ -4627,8 +4558,10 @@ function InformeMasivo({ run, simular, sims, yaHecho }: {
   const analizar = async () => {
     setPensando(true);
     try {
-      const r = await fetchJson<{ ok: boolean; analisis?: string; error?: string }>(
-        `/api/ia/av-agent/masivo/analizar?run_id=${run.id}`, { method: "POST" });
+      // `llamar`: el análisis con IA CALCULA una lectura del informe, no muta
+      // nada que la pantalla dibuje por otro lado.
+      const r = await llamar<{ ok: boolean; analisis?: string; error?: string }>(
+        `/api/ia/av-agent/masivo/analizar?run_id=${run.id}`);
       setIa(r.ok ? (r.analisis ?? "") : `⚠ ${r.error ?? "no se pudo analizar"}`);
     } catch (e) {
       setIa(`⚠ ${e instanceof Error ? e.message : String(e)}`);
@@ -4905,14 +4838,16 @@ function Rotos({ items, entendido }: {
   items: SaludRoto[];
   entendido: () => void;
 }) {
+  const { escribir } = useDatos();
   const [silenciando, setSilenciando] = useState("");
   const silenciar = async (chequeoId: string) => {
     setSilenciando(chequeoId);
     try {
-      await fetchJson("/api/ia/av-agent/salud/silenciar", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chequeo_id: chequeoId, alertar: false }),
-      });
+      // Muta `salud_config`; nada de lo que el modal dibuja lo lee, así que la
+      // declaración honesta es «no releo nada»: el poll de pendientes ya no lo
+      // va a traer.
+      await escribir("/api/ia/av-agent/salud/silenciar",
+                     { chequeo_id: chequeoId, alertar: false }, []);
     } catch {
       /* si falla, sigue avisando — que es el lado seguro del error */
     }
