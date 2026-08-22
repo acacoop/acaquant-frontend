@@ -543,42 +543,48 @@ function TabActivos({ data, usd, idCuenta }: {
       <div className="border border-[var(--t-border)] bg-[var(--t-panel)] overflow-auto">
         <table className="w-full text-[11px] table-fixed">
           <colgroup>{COLS_ACTIVOS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
+          {/* ⚠️ El color va en cada `th`, NO en el `tr`. `globals.css` le pone a
+              todo `th` un `background-color` propio (para que los headers
+              sticky no se transparenten al scrollear) y ese fondo pinta ENCIMA
+              del de la fila: puesto en el `tr`, la barra salía gris con el
+              texto en azul en vez del azul de la casa con el texto en blanco. */}
           <thead className="sticky top-0 z-10">
-            <tr className="bg-[var(--t-brand)] text-white">
-              <th className="text-left px-2 py-1.5 font-semibold tracking-wide">Ticker</th>
-              <th className="text-left px-2 py-1.5 font-semibold tracking-wide">Emisor</th>
-              <th className="text-center px-2 py-1.5 font-semibold tracking-wide">Calif.</th>
-              <th className="text-center px-2 py-1.5 font-semibold tracking-wide">Clase Act.</th>
-              <th className="text-center px-2 py-1.5 font-semibold tracking-wide">Venc.</th>
-              <th className="text-right px-2 py-1.5 font-semibold tracking-wide">Cantidad</th>
-              <th className="text-right px-2 py-1.5 font-semibold tracking-wide">Precio</th>
-              <th className="text-right px-2 py-1.5 font-semibold tracking-wide">Valuación</th>
-              <th className="text-right px-2 py-1.5 font-semibold tracking-wide">% Cart.</th>
+            <tr>
+              {["Ticker", "Emisor", "Calif.", "Clase Act.", "Venc.",
+                "Cantidad", "Precio", "Valuación", "% Cart."].map((c, i) => (
+                <th key={c}
+                    className={`px-2 py-2 !bg-[var(--t-brand)] !text-white font-semibold tracking-wide ${
+                      i <= 1 ? "text-left" : i <= 4 ? "text-center" : "text-right"}`}>
+                  {c}
+                </th>
+              ))}
             </tr>
           </thead>
           {data.detalle.bloques.map((b, iCart) => (
             <tbody key={b.cartera || "_sin"} className="tabular-nums">
-              {/* La fila de la cartera: gris, a todo el ancho y con la barra de
-                  color al costado — el mismo color de la torta y de MÉTRICAS. */}
-              <tr>
-                <td colSpan={9}
-                    className="px-2 py-1.5 bg-[var(--t-surface)] border-y border-[var(--t-border)] border-l-2"
+              {/* ⚠️ El total de la cartera va en CELDAS DE LA TABLA y no en un
+                  `colSpan` con flex: con flex, el número cae donde lo deja el
+                  layout —no en la columna VALUACIÓN— y quedaba descalzado
+                  respecto de los títulos de abajo. Con celdas reales comparte
+                  la misma columna, que es todo el punto de haber unificado la
+                  tabla. */}
+              <tr className="border-t-4 border-[var(--t-panel)]">
+                <td colSpan={7}
+                    className="px-2 py-2 bg-[var(--t-surface)] border-y border-[var(--t-border)] border-l-2"
                     style={{ borderLeftColor: carteraColor(b.cartera, iCart) }}>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-[11px] font-semibold text-[var(--t-text)] tracking-wide">
-                      {b.label}
-                    </span>
-                    <span className="ml-auto tabular-nums font-semibold">
-                      {fmt0(usd ? b.total_usd : b.total)}
-                    </span>
-                    <span className="w-14 text-right tabular-nums text-[var(--t-text-dim)]">
-                      {fmtPct(b.ponderacion)}
-                    </span>
-                  </div>
+                  <span className="text-[11px] font-semibold text-[var(--t-text)] tracking-wide">
+                    {b.label}
+                  </span>
+                </td>
+                <td className="px-2 py-2 text-right font-semibold bg-[var(--t-surface)] border-y border-[var(--t-border)]">
+                  {fmt0(usd ? b.total_usd : b.total)}
+                </td>
+                <td className="px-2 py-2 text-right text-[var(--t-text-dim)] bg-[var(--t-surface)] border-y border-[var(--t-border)]">
+                  {fmtPct(b.ponderacion)}
                 </td>
               </tr>
               {b.filas.length === 0 && (
-                <tr><td colSpan={9} className="px-2 py-3 text-center text-[var(--t-text-muted)]">
+                <tr><td colSpan={9} className="px-3 py-3 text-center text-[var(--t-text-muted)]">
                   Sin títulos en esta cartera.
                 </td></tr>
               )}
@@ -593,17 +599,17 @@ function TabActivos({ data, usd, idCuenta }: {
                       }}
                       title="Click derecho para operar este título"
                       className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]">
-                    <td className="px-2 py-1 text-[var(--t-text)] truncate" title={f.unidad}>{f.ticker}</td>
-                    <td className="px-2 py-1 text-[var(--t-text-dim)] truncate" title={f.emisor}>{f.emisor}</td>
-                    <td className="px-2 py-1 text-center text-[var(--t-text-dim)]">{f.calificacion}</td>
-                    <td className="px-2 py-1 text-center text-[var(--t-text-dim)] truncate">{f.clase_activo}</td>
-                    <td className="px-2 py-1 text-center text-[var(--t-text-dim)]">
+                    <td className="px-3 py-1.5 text-[var(--t-text)] truncate" title={f.unidad}>{f.ticker}</td>
+                    <td className="px-3 py-1.5 text-[var(--t-text-dim)] truncate" title={f.emisor}>{f.emisor}</td>
+                    <td className="px-3 py-1.5 text-center text-[var(--t-text-dim)]">{f.calificacion}</td>
+                    <td className="px-3 py-1.5 text-center text-[var(--t-text-dim)] truncate">{f.clase_activo}</td>
+                    <td className="px-3 py-1.5 text-center text-[var(--t-text-dim)]">
                       {f.vencimiento ? fmtFechaCorta(f.vencimiento) : "—"}
                     </td>
-                    <td className="px-2 py-1 text-right">{fmt2(f.cantidad, 2)}</td>
-                    <td className="px-2 py-1 text-right">{fmt2(f.precio, 2)}</td>
-                    <td className="px-2 py-1 text-right">{fmt0(val)}</td>
-                    <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">{fmtPct(f.share_cartera)}</td>
+                    <td className="px-3 py-1.5 text-right">{fmt2(f.cantidad, 2)}</td>
+                    <td className="px-3 py-1.5 text-right">{fmt2(f.precio, 2)}</td>
+                    <td className="px-3 py-1.5 text-right">{fmt0(val)}</td>
+                    <td className="px-3 py-1.5 text-right text-[var(--t-text-dim)]">{fmtPct(f.share_cartera)}</td>
                   </tr>
                 );
               })}

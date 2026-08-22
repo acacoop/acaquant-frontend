@@ -380,37 +380,43 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
                 hoja, así se comparan dos títulos de carteras distintas sin
                 mover la vista. */}
             <table className="w-full text-[9px]">
+              {/* ⚠️ El azul va en cada `th` y NO en el `tr`: `globals.css` le pone
+                  a todo `th` un `background-color` propio y ese fondo pinta
+                  ENCIMA del de la fila — puesto en el `tr`, la barra salía gris
+                  con el texto en azul en vez del azul de la casa en blanco. */}
               <thead>
-                <tr className="text-[8px] uppercase tracking-wide text-white"
-                    style={{ background: AZUL, printColorAdjust: "exact",
-                             WebkitPrintColorAdjust: "exact" } as React.CSSProperties}>
-                  <th className="text-left px-2 py-1">Ticker</th>
-                  <th className="text-left px-2 py-1">Emisor</th>
-                  <th className="text-center px-2 py-1">Calif.</th>
-                  <th className="text-center px-2 py-1">Clase</th>
-                  <th className="text-center px-2 py-1">Venc.</th>
-                  <th className="text-right px-2 py-1">Cantidad</th>
-                  <th className="text-right px-2 py-1">Precio</th>
-                  <th className="text-right px-2 py-1">Valuación</th>
-                  <th className="text-right px-2 py-1 w-14">% Cart.</th>
+                <tr className="text-[8px] uppercase tracking-wide">
+                  {["Ticker", "Emisor", "Calif.", "Clase", "Venc.",
+                    "Cantidad", "Precio", "Valuación", "% Cart."].map((c, k) => (
+                    <th key={c}
+                        className={`px-2 py-1 ${k <= 1 ? "text-left" : k <= 4 ? "text-center" : "text-right"}`}
+                        style={{ background: AZUL, color: "#fff",
+                                 printColorAdjust: "exact",
+                                 WebkitPrintColorAdjust: "exact" } as React.CSSProperties}>
+                      {c}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               {hoja.partes.map((parte) => (
                 <tbody key={`${parte.bloque.cartera}-${parte.desde}`} className="tabular-nums">
-                  <tr>
-                    <td colSpan={9} className="px-2 py-1 bg-neutral-100 border-y border-neutral-300"
-                        style={{ printColorAdjust: "exact",
-                                 WebkitPrintColorAdjust: "exact" } as React.CSSProperties}>
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-[10px] font-semibold" style={{ color: AZUL }}>
-                          {parte.bloque.label}
-                          {parte.cont && <span className="font-normal text-neutral-500"> (cont.)</span>}
-                        </span>
-                        <span className="ml-auto font-semibold">{fmt0(parte.bloque.total)}</span>
-                        <span className="w-12 text-right text-neutral-500">
-                          {fmtPct(parte.bloque.ponderacion)}
-                        </span>
-                      </div>
+                  {/* El total va en CELDAS de la tabla y no en un `colSpan` con
+                      flex: con flex cae donde lo deja el layout, no en la
+                      columna VALUACIÓN, y queda descalzado de los títulos de
+                      abajo — que es todo el punto de tener una sola tabla. */}
+                  <tr style={{ printColorAdjust: "exact",
+                               WebkitPrintColorAdjust: "exact" } as React.CSSProperties}>
+                    <td colSpan={7} className="px-2 py-1 bg-neutral-100 border-y border-neutral-300">
+                      <span className="text-[10px] font-semibold" style={{ color: AZUL }}>
+                        {parte.bloque.label}
+                        {parte.cont && <span className="font-normal text-neutral-500"> (cont.)</span>}
+                      </span>
+                    </td>
+                    <td className="px-2 py-1 text-right font-semibold bg-neutral-100 border-y border-neutral-300">
+                      {fmt0(parte.bloque.total)}
+                    </td>
+                    <td className="px-2 py-1 text-right text-neutral-500 bg-neutral-100 border-y border-neutral-300">
+                      {fmtPct(parte.bloque.ponderacion)}
                     </td>
                   </tr>
                   {parte.filas.map((f) => (
