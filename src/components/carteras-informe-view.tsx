@@ -74,7 +74,8 @@ type BloqueActivos = {
   ponderacion: number | null; filas: PosicionInforme[];
 };
 type MetricaFila = { clave: string; monto: number; monto_usd: number | null; n: number; share: number | null };
-type BloqueClase = { cartera: string; label: string; total: number; total_usd: number | null; filas: MetricaFila[] };
+type BloqueClase = { cartera: string; label: string; total: number; total_usd: number | null;
+                     ponderacion: number | null; filas: MetricaFila[] };
 type Vista = {
   id_cuenta: string;
   fecha: string | null; fecha_anterior: string | null;
@@ -530,40 +531,61 @@ function TabActivos({ data, usd, idCuenta }: {
           cartera, así que van al cuadro «Sin cartera» y no entran a ninguna métrica por cartera.
         </div>
       )}
-      {data.detalle.bloques.map((b) => (
-        <Panel key={b.cartera || "_sin"} titulo={b.label}
-               extra={
-                 <span className="text-[11px] text-white tabular-nums">
-                   {fmt0(usd ? b.total_usd : b.total)} · {fmtPct(b.ponderacion)}
-                 </span>
-               }>
-          <table className="w-full text-[11px] table-fixed">
-            <colgroup>{COLS_ACTIVOS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
-            <thead>
-              <tr className="text-[9px] uppercase text-[var(--t-text-muted)] bg-[var(--t-surface)]">
-                <th className="text-left px-2 py-1 font-medium">Ticker</th>
-                <th className="text-left px-2 py-1 font-medium">Emisor</th>
-                <th className="text-center px-2 py-1 font-medium">Calif.</th>
-                <th className="text-center px-2 py-1 font-medium">Clase Act.</th>
-                <th className="text-center px-2 py-1 font-medium">Venc.</th>
-                <th className="text-right px-2 py-1 font-medium">Cantidad</th>
-                <th className="text-right px-2 py-1 font-medium">Precio</th>
-                <th className="text-right px-2 py-1 font-medium">Valuación</th>
-                <th className="text-right px-2 py-1 font-medium">% Cart.</th>
+      {/* UNA sola tabla, no un cuadro por cartera (2026-08-22).
+          Antes cada cartera era un panel con su barra azul y su fila de
+          encabezados: con seis carteras eso son seis barras azules y seis veces
+          los mismos nombres de columna, y lo que se repite deja de leerse. Ahora
+          los nombres de columna van UNA vez arriba, en el azul, y la fila gris
+          que antes los repetía pasa a decir de qué cartera es lo que sigue.
+          Efecto lateral que importa: las columnas quedan alineadas de punta a
+          punta, así se pueden comparar dos títulos de carteras distintas sin
+          mover la vista. */}
+      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] overflow-auto">
+        <table className="w-full text-[11px] table-fixed">
+          <colgroup>{COLS_ACTIVOS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
+          {/* ⚠️ El color va en cada `th`, NO en el `tr`. `globals.css` le pone a
+              todo `th` un `background-color` propio (para que los headers
+              sticky no se transparenten al scrollear) y ese fondo pinta ENCIMA
+              del de la fila: puesto en el `tr`, la barra salía gris con el
+              texto en azul en vez del azul de la casa con el texto en blanco. */}
+          <thead className="sticky top-0 z-10">
+            <tr>
+              {["Ticker", "Emisor", "Calif.", "Clase Act.", "Venc.",
+                "Cantidad", "Precio", "Valuación", "% Cart."].map((c, i) => (
+                <th key={c}
+                    className={`px-2 py-2 !bg-[var(--t-brand)] !text-white font-semibold tracking-wide ${
+                      i <= 1 ? "text-left" : i <= 4 ? "text-center" : "text-right"}`}>
+                  {c}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          {data.detalle.bloques.map((b, iCart) => (
+            <tbody key={b.cartera || "_sin"} className="tabular-nums">
+              {/* La fila de la cartera lleva SOLO su peso, en la columna de %.
+                  El total en plata se sacó (2026-08-22): caía en la columna
+                  VALUACIÓN, justo arriba de las valuaciones de los títulos, y
+                  dos cifras de la misma columna que no son lo mismo —una es el
+                  subtotal y las otras los títulos— se leen mal. El total de
+                  cada cartera está en el cuadro del RESUMEN, que es donde se lo
+                  busca. Va en negrita porque es el número de la fila. */}
+              <tr className="border-t-4 border-[var(--t-panel)]">
+                <td colSpan={8}
+                    className="px-3 py-2 bg-[var(--t-surface)] border-y border-[var(--t-border)] border-l-2"
+                    style={{ borderLeftColor: carteraColor(b.cartera, iCart) }}>
+                  <span className="text-[11px] font-semibold text-[var(--t-text)] tracking-wide">
+                    {b.label}
+                  </span>
+                </td>
+                <td className="px-3 py-2 text-right font-bold text-[var(--t-text)] bg-[var(--t-surface)] border-y border-[var(--t-border)]">
+                  {fmtPct(b.ponderacion)}
+                </td>
               </tr>
-            </thead>
-            <tbody className="tabular-nums">
               {b.filas.length === 0 && (
-                <tr><td colSpan={9} className="px-2 py-3 text-center text-[var(--t-text-muted)]">
+                <tr><td colSpan={9} className="px-3 py-3 text-center text-[var(--t-text-muted)]">
                   Sin títulos en esta cartera.
                 </td></tr>
               )}
-              {/* PNL y GAN % NO se muestran en esta tabla (2026-08-22). No se
-                  borraron: el backend los sigue mandando por fila y el export a
-                  Excel los sigue llevando — lo que se sacó es el ruido de la
-                  pantalla. Esta vista contesta QUÉ TIENE la cartera y cuánto
-                  vale; cuánto se ganó con cada título es la pregunta de PNL
-                  TÍTULOS, que tiene el detalle boleto por boleto al lado. */}
               {b.filas.map((f) => {
                 const val = usd ? f.valuacion_usd : f.valuacion;
                 return (
@@ -574,25 +596,25 @@ function TabActivos({ data, usd, idCuenta }: {
                         setCtx({ x: e.clientX, y: e.clientY, pos: f });
                       }}
                       title="Click derecho para operar este título"
-                      className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]">
-                    <td className="px-2 py-1 text-[var(--t-text)] truncate" title={f.unidad}>{f.ticker}</td>
-                    <td className="px-2 py-1 text-[var(--t-text-dim)] truncate" title={f.emisor}>{f.emisor}</td>
-                    <td className="px-2 py-1 text-center text-[var(--t-text-dim)]">{f.calificacion}</td>
-                    <td className="px-2 py-1 text-center text-[var(--t-text-dim)] truncate">{f.clase_activo}</td>
-                    <td className="px-2 py-1 text-center text-[var(--t-text-dim)]">
+                      className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]">
+                    <td className="px-3 py-1.5 text-[var(--t-text)] truncate" title={f.unidad}>{f.ticker}</td>
+                    <td className="px-3 py-1.5 text-[var(--t-text-dim)] truncate" title={f.emisor}>{f.emisor}</td>
+                    <td className="px-3 py-1.5 text-center text-[var(--t-text-dim)]">{f.calificacion}</td>
+                    <td className="px-3 py-1.5 text-center text-[var(--t-text-dim)] truncate">{f.clase_activo}</td>
+                    <td className="px-3 py-1.5 text-center text-[var(--t-text-dim)]">
                       {f.vencimiento ? fmtFechaCorta(f.vencimiento) : "—"}
                     </td>
-                    <td className="px-2 py-1 text-right">{fmt2(f.cantidad, 2)}</td>
-                    <td className="px-2 py-1 text-right">{fmt2(f.precio, 2)}</td>
-                    <td className="px-2 py-1 text-right">{fmt0(val)}</td>
-                    <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">{fmtPct(f.share_cartera)}</td>
+                    <td className="px-3 py-1.5 text-right">{fmt2(f.cantidad, 2)}</td>
+                    <td className="px-3 py-1.5 text-right">{fmt2(f.precio, 2)}</td>
+                    <td className="px-3 py-1.5 text-right">{fmt0(val)}</td>
+                    <td className="px-3 py-1.5 text-right text-[var(--t-text-dim)]">{fmtPct(f.share_cartera)}</td>
                   </tr>
                 );
               })}
             </tbody>
-          </table>
-        </Panel>
-      ))}
+          ))}
+        </table>
+      </div>
 
       {ctx && (
         <div
@@ -654,32 +676,68 @@ function TabMetricas({ m, usd }: { m: Vista["metricas"]; usd: boolean }) {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
       <Panel titulo="Por clase de activo"
              extra={<span className="text-[11px] text-white tabular-nums">{fmt0(total)}</span>}>
-        {/* Las clases van agrupadas por cartera: la cartera es un renglón de
-            título, no un panel propio. Eso es lo que colapsó cinco cuadros en
-            una sola lista sin perder de quién es cada clase. */}
-        {m.por_clase.map((b) => (
-          <div key={b.cartera}>
-            <div className="flex items-baseline gap-2 px-3 py-1 bg-[var(--t-surface)] border-t border-[var(--t-border)]">
-              <span className="text-[10px] font-semibold text-[var(--t-text)] tracking-wide">{b.label}</span>
-              <span className="ml-auto text-[10px] text-[var(--t-text-dim)] tabular-nums">
-                {fmt0(usd ? b.total_usd : b.total)}
-              </span>
-            </div>
-            <ListaMetrica filas={b.filas} usd={usd} />
-          </div>
-        ))}
-        {m.por_clase.length === 0 && <Vacio />}
+        <PorClase bloques={m.por_clase} usd={usd} />
       </Panel>
 
       <Panel titulo="Por emisor"
              extra={<span className="text-[11px] text-white tabular-nums">{fmt0(total)}</span>}>
-        <ListaMetrica filas={m.por_emisor} usd={usd} />
+        <ListaMetrica filas={m.por_emisor} usd={usd} vacio="Sin emisor" />
       </Panel>
 
       <Panel titulo="Por calificación"
              extra={<span className="text-[11px] text-white tabular-nums">{fmt0(total)}</span>}>
-        <ListaMetrica filas={m.por_calificacion} usd={usd} />
+        <ListaMetrica filas={m.por_calificacion} usd={usd} vacio="Sin calificación" />
       </Panel>
+    </div>
+  );
+}
+
+/**
+ * La apertura por clase, agrupada por cartera.
+ *
+ * **Rehecho el 2026-08-22.** La versión anterior alternaba un renglón de cartera
+ * y sus clases sin separación, y se leía como una lista de renglones todos
+ * iguales: no se veía qué agrupaba a qué. Peor todavía, la mayoría de las
+ * carteras tienen UNA sola clase, así que el cuadro repetía dos veces la misma
+ * cifra («Cartera HD 275.257.885» y debajo «HD 275.257.885 100,0%»), que es
+ * exactamente el ruido que hacía dudar de si eran dos cosas distintas.
+ *
+ * Ahora:
+ *   · Cada cartera es un BLOQUE con aire alrededor. El espacio es lo único que
+ *     dice «esto termina acá», y no hacía falta inventar nada más.
+ *   · Una cartera de UNA sola clase se colapsa en un renglón: el nombre de la
+ *     clase va al lado del de la cartera. Si hay una sola, el 100% no informa.
+ *   · Los dos porcentajes son distintos y ahora se distinguen: el de la cartera
+ *     es sobre la CUENTA y el de la clase sobre SU cartera.
+ */
+function PorClase({ bloques, usd }: { bloques: BloqueClase[]; usd: boolean }) {
+  const conDatos = bloques.filter((b) => b.filas.length);
+  if (!conDatos.length) return <Vacio />;
+  return (
+    <div className="p-2 flex flex-col gap-3">
+      {conDatos.map((b, i) => {
+        const unica = b.filas.length === 1 ? b.filas[0] : null;
+        return (
+          <div key={b.cartera}>
+            <div className="flex items-baseline gap-2 px-2 py-1 bg-[var(--t-surface)] border-l-2"
+                 style={{ borderColor: carteraColor(b.cartera, i) }}>
+              <span className="text-[11px] font-semibold text-[var(--t-text)] tracking-wide">
+                {b.label}
+              </span>
+              {unica && (
+                <span className="text-[10px] text-[var(--t-text-dim)]">· {etiqueta(unica.clave, "Sin clase")}</span>
+              )}
+              <span className="ml-auto text-[11px] tabular-nums font-semibold">
+                {fmt0(usd ? b.total_usd : b.total)}
+              </span>
+              <span className="w-14 text-right text-[10px] tabular-nums text-[var(--t-text-dim)]">
+                {fmtPct(b.ponderacion)}
+              </span>
+            </div>
+            {!unica && <ListaMetrica filas={b.filas} usd={usd} vacio="Sin clase" sangria />}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -688,7 +746,16 @@ function Vacio() {
   return <div className="px-3 py-3 text-[11px] text-[var(--t-text-muted)]">Sin filas.</div>;
 }
 
-function ListaMetrica({ filas, usd }: { filas: MetricaFila[]; usd: boolean }) {
+/** El maestro escribe «-» cuando el campo está vacío, y un guión suelto en una
+ *  lista de emisores no se entiende. Se dice qué falta. */
+function etiqueta(clave: string, vacio: string): string {
+  const c = (clave || "").trim();
+  return c === "" || c === "-" || c === "—" ? vacio : c;
+}
+
+function ListaMetrica({ filas, usd, vacio, sangria = false }: {
+  filas: MetricaFila[]; usd: boolean; vacio: string; sangria?: boolean;
+}) {
   // Escala del bloque: la fila de mayor valor absoluto marca el 100% de ancho.
   const tope = useMemo(
     () => Math.max(1, ...filas.map((f) => Math.abs(f.monto))),
@@ -702,16 +769,15 @@ function ListaMetrica({ filas, usd }: { filas: MetricaFila[]; usd: boolean }) {
         const ancho = Math.min(100, (Math.abs(f.monto) / tope) * 100);
         return (
           <div key={f.clave}
-               className="relative px-3 py-1 border-t border-[var(--t-border)]"
-               title={`${f.clave} · ${f.n} título${f.n === 1 ? "" : "s"}`}>
+               className={`relative py-1 border-b border-[var(--t-border)] last:border-b-0 ${
+                 sangria ? "pl-5 pr-2" : "px-3"}`}>
             {/* La barra va DETRÁS del texto, no en una columna aparte: así usa
                 el ancho que sobraba en vez de robarle lugar a las cifras. */}
             <div aria-hidden
                  className={`absolute inset-y-0 left-0 ${neg ? "bg-[var(--t-neg)]/12" : "bg-[var(--t-accent)]/12"}`}
                  style={{ width: `${ancho}%` }} />
             <div className="relative flex items-baseline gap-2 text-[11px]">
-              <span className="truncate text-[var(--t-text)]">{f.clave}</span>
-              <span className="text-[9px] text-[var(--t-text-muted)] shrink-0">×{f.n}</span>
+              <span className="truncate text-[var(--t-text)]">{etiqueta(f.clave, vacio)}</span>
               <span className={`ml-auto tabular-nums shrink-0 ${neg ? "text-[var(--t-neg)]" : ""}`}>
                 {fmt0(enMoneda(f, usd))}
               </span>

@@ -77,7 +77,8 @@ export type DatosReporte = {
   };
   metricas: {
     total: number;
-    por_clase: { cartera: string; label: string; total: number; filas: Fila[] }[];
+    por_clase: { cartera: string; label: string; total: number;
+                 ponderacion: number | null; filas: Fila[] }[];
     por_emisor: Fila[]; por_calificacion: Fila[];
   };
 };
@@ -147,8 +148,13 @@ const mesLargo = (m: string) => {
  * cabecera, este número hay que volver a medirlo: no se deduce del CSS.
  */
 const CAPACIDAD = 36;
-/** Lo que cuesta abrir una cartera: su título + el encabezado de la tabla. */
-const ALTO_CABECERA = 3;
+/** Lo que cuesta abrir una cartera DENTRO de la hoja: su renglón gris de título
+ *  (más el aire que lo separa de la cartera anterior). Bajó de 3 a 2 el
+ *  2026-08-22, cuando el encabezado de columnas dejó de repetirse por cartera y
+ *  pasó a ir UNA vez por hoja — ver `FILA_ENCABEZADO`. */
+const ALTO_CABECERA = 2;
+/** Lo que cuesta el encabezado de columnas de la hoja: va una sola vez arriba. */
+const FILA_ENCABEZADO = 1;
 /** Menos renglones libres que esto y la cartera arranca en la hoja siguiente. */
 const CORTE_MINIMO = 5;
 
@@ -159,12 +165,12 @@ export type HojaActivos = { partes: ParteHoja[] };
 export function paginarActivos(bloques: BloqueActivos[]): HojaActivos[] {
   const hojas: HojaActivos[] = [];
   let actual: ParteHoja[] = [];
-  let libre = CAPACIDAD;
+  let libre = CAPACIDAD - FILA_ENCABEZADO;
 
   const cerrar = () => {
     if (actual.length) hojas.push({ partes: actual });
     actual = [];
-    libre = CAPACIDAD;
+    libre = CAPACIDAD - FILA_ENCABEZADO;
   };
 
   for (const b of bloques) {
@@ -366,51 +372,69 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
           <Hoja key={i} n={2 + i}
                 titulo={`Activos${hojas.length > 1 ? ` (${i + 1}/${hojas.length})` : ""}`}
                 cuenta={titulo} fecha={fecha}>
-            {hoja.partes.map((parte) => (
-              <div key={`${parte.bloque.cartera}-${parte.desde}`} className="mb-4 last:mb-0">
-                <div className="flex items-baseline gap-3">
-                  <TituloBloque>
-                    {parte.bloque.label}
-                    {parte.cont && <span className="font-normal normal-case"> (cont.)</span>}
-                  </TituloBloque>
-                  <span className="ml-auto text-[10px] tabular-nums font-semibold">
-                    {fmt0(parte.bloque.total)} · {fmtPct(parte.bloque.ponderacion)} de la cartera
-                  </span>
-                </div>
-                <table className="w-full text-[9px]">
-                  <thead>
-                    <tr className="text-[8px] uppercase text-neutral-500 border-b border-neutral-300">
-                      <th className="text-left py-1">Ticker</th>
-                      <th className="text-left py-1">Emisor</th>
-                      <th className="text-center py-1">Calif.</th>
-                      <th className="text-center py-1">Clase</th>
-                      <th className="text-center py-1">Venc.</th>
-                      <th className="text-right py-1">Cantidad</th>
-                      <th className="text-right py-1">Precio</th>
-                      <th className="text-right py-1">Valuación</th>
-                      <th className="text-right py-1 w-14">% Cart.</th>
+            {/* UNA tabla por hoja: los nombres de columna van una sola vez
+                arriba y cada cartera es un renglón gris a todo el ancho. Antes
+                cada cartera repetía su propio encabezado — con seis carteras eso
+                es seis veces la misma línea, y lo que se repite deja de leerse.
+                De yapa las columnas quedan alineadas de punta a punta de la
+                hoja, así se comparan dos títulos de carteras distintas sin
+                mover la vista. */}
+            <table className="w-full text-[9px]">
+              {/* ⚠️ El azul va en cada `th` y NO en el `tr`: `globals.css` le pone
+                  a todo `th` un `background-color` propio y ese fondo pinta
+                  ENCIMA del de la fila — puesto en el `tr`, la barra salía gris
+                  con el texto en azul en vez del azul de la casa en blanco. */}
+              <thead>
+                <tr className="text-[8px] uppercase tracking-wide">
+                  {["Ticker", "Emisor", "Calif.", "Clase", "Venc.",
+                    "Cantidad", "Precio", "Valuación", "% Cart."].map((c, k) => (
+                    <th key={c}
+                        className={`px-2 py-1 ${k <= 1 ? "text-left" : k <= 4 ? "text-center" : "text-right"}`}
+                        style={{ background: AZUL, color: "#fff",
+                                 printColorAdjust: "exact",
+                                 WebkitPrintColorAdjust: "exact" } as React.CSSProperties}>
+                      {c}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              {hoja.partes.map((parte) => (
+                <tbody key={`${parte.bloque.cartera}-${parte.desde}`} className="tabular-nums">
+                  {/* La fila de la cartera lleva SOLO su peso, en la columna de
+                      %. El total en plata se sacó: caía en la columna VALUACIÓN
+                      justo arriba de las valuaciones de los títulos, y dos
+                      cifras de la misma columna que no son lo mismo se leen
+                      mal. El total de cada cartera está en la hoja 1. */}
+                  <tr style={{ printColorAdjust: "exact",
+                               WebkitPrintColorAdjust: "exact" } as React.CSSProperties}>
+                    <td colSpan={8} className="px-2 py-1 bg-neutral-100 border-y border-neutral-300">
+                      <span className="text-[10px] font-semibold" style={{ color: AZUL }}>
+                        {parte.bloque.label}
+                        {parte.cont && <span className="font-normal text-neutral-500"> (cont.)</span>}
+                      </span>
+                    </td>
+                    <td className="px-2 py-1 text-right font-bold bg-neutral-100 border-y border-neutral-300">
+                      {fmtPct(parte.bloque.ponderacion)}
+                    </td>
+                  </tr>
+                  {parte.filas.map((f) => (
+                    <tr key={f.unidad} className="border-b border-neutral-200">
+                      <td className="px-2 py-0.5">{f.ticker}</td>
+                      <td className="px-2 py-0.5 text-neutral-600">{f.emisor}</td>
+                      <td className="px-2 py-0.5 text-center text-neutral-600">{f.calificacion}</td>
+                      <td className="px-2 py-0.5 text-center text-neutral-600">{f.clase_activo}</td>
+                      <td className="px-2 py-0.5 text-center text-neutral-600">
+                        {f.vencimiento ? fmtFechaCorta(f.vencimiento) : "—"}
+                      </td>
+                      <td className="px-2 py-0.5 text-right">{fmt2(f.cantidad, 2)}</td>
+                      <td className="px-2 py-0.5 text-right">{fmt2(f.precio, 2)}</td>
+                      <td className="px-2 py-0.5 text-right">{fmt0(f.valuacion)}</td>
+                      <td className="px-2 py-0.5 text-right text-neutral-500">{fmtPct(f.share_cartera)}</td>
                     </tr>
-                  </thead>
-                  <tbody className="tabular-nums">
-                    {parte.filas.map((f) => (
-                      <tr key={f.unidad} className="border-b border-neutral-200">
-                        <td className="py-0.5">{f.ticker}</td>
-                        <td className="py-0.5 text-neutral-600">{f.emisor}</td>
-                        <td className="py-0.5 text-center text-neutral-600">{f.calificacion}</td>
-                        <td className="py-0.5 text-center text-neutral-600">{f.clase_activo}</td>
-                        <td className="py-0.5 text-center text-neutral-600">
-                          {f.vencimiento ? fmtFechaCorta(f.vencimiento) : "—"}
-                        </td>
-                        <td className="py-0.5 text-right">{fmt2(f.cantidad, 2)}</td>
-                        <td className="py-0.5 text-right">{fmt2(f.precio, 2)}</td>
-                        <td className="py-0.5 text-right">{fmt0(f.valuacion)}</td>
-                        <td className="py-0.5 text-right text-neutral-500">{fmtPct(f.share_cartera)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ))}
+                  ))}
+                </tbody>
+              ))}
+            </table>
           </Hoja>
         ))}
 
@@ -418,23 +442,39 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
           <div className="grid grid-cols-3 gap-6">
             <div>
               <TituloBloque>Por clase de activo</TituloBloque>
-              {datos.metricas.por_clase.map((b) => (
-                <div key={b.cartera} className="mb-2">
-                  <div className="flex items-baseline gap-2 text-[9px] font-semibold border-b border-neutral-300 py-0.5">
-                    <span>{b.label}</span>
-                    <span className="ml-auto tabular-nums">{fmt0(b.total)}</span>
+              {/* Mismo criterio que la pantalla: cada cartera es un bloque con
+                  aire alrededor, y la que tiene UNA sola clase se colapsa en un
+                  renglón — repetir la misma cifra dos veces («Cartera HD» y
+                  debajo «HD 100,0%») es lo que hacía dudar de si eran dos cosas
+                  distintas. */}
+              {datos.metricas.por_clase.filter((b) => b.filas.length).map((b) => {
+                const unica = b.filas.length === 1 ? b.filas[0] : null;
+                return (
+                  <div key={b.cartera} className="mb-3">
+                    <div className="flex items-baseline gap-2 text-[9px] font-semibold border-b border-neutral-400 py-0.5">
+                      <span>{b.label}</span>
+                      {unica && (
+                        <span className="font-normal text-neutral-500">
+                          · {etiquetaHoja(unica.clave, "Sin clase")}
+                        </span>
+                      )}
+                      <span className="ml-auto tabular-nums">{fmt0(b.total)}</span>
+                      <span className="w-10 text-right tabular-nums text-neutral-500">
+                        {fmtPct(b.ponderacion)}
+                      </span>
+                    </div>
+                    {!unica && <TablaHoja filas={b.filas} vacio="Sin clase" sangria />}
                   </div>
-                  <TablaHoja filas={b.filas} />
-                </div>
-              ))}
+                );
+              })}
             </div>
             <div>
               <TituloBloque>Por emisor</TituloBloque>
-              <TablaHoja filas={datos.metricas.por_emisor} />
+              <TablaHoja filas={datos.metricas.por_emisor} vacio="Sin emisor" />
             </div>
             <div>
               <TituloBloque>Por calificación</TituloBloque>
-              <TablaHoja filas={datos.metricas.por_calificacion} />
+              <TablaHoja filas={datos.metricas.por_calificacion} vacio="Sin calificación" />
             </div>
           </div>
         </Hoja>
@@ -602,14 +642,23 @@ function DatoHoja({ label, valor, sub }: { label: string; valor: string; sub?: s
   );
 }
 
-function TablaHoja({ filas }: { filas: Fila[] }) {
+/** El maestro escribe «-» cuando el campo está vacío, y un guión suelto en una
+ *  lista de emisores no se entiende. Se dice qué falta. */
+function etiquetaHoja(clave: string, vacio: string): string {
+  const c = (clave || "").trim();
+  return c === "" || c === "-" || c === "—" ? vacio : c;
+}
+
+function TablaHoja({ filas, vacio, sangria = false }: {
+  filas: Fila[]; vacio: string; sangria?: boolean;
+}) {
   if (!filas.length) return <p className="text-[9px] text-neutral-500">Sin filas.</p>;
   return (
     <table className="w-full text-[9px]">
       <tbody className="tabular-nums">
         {filas.map((f) => (
           <tr key={f.clave} className="border-b border-neutral-200">
-            <td className="py-0.5">{f.clave}</td>
+            <td className={`py-0.5 ${sangria ? "pl-3" : ""}`}>{etiquetaHoja(f.clave, vacio)}</td>
             <td className="py-0.5 text-right">{fmt0(f.monto)}</td>
             <td className="py-0.5 text-right w-12 text-neutral-500">{fmtPct(f.share)}</td>
           </tr>
