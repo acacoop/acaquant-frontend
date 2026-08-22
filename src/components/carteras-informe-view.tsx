@@ -65,7 +65,8 @@ export type PosicionInforme = {
   cartera: string; calificacion: string; vencimiento: string | null;
   cantidad: number; precio: number; fuente_precio: string;
   valuacion: number; valuacion_usd: number | null;
-  share: number | null; share_cartera: number | null;
+  /** Peso del título sobre el total de la CUENTA, en fracción (0-1). */
+  share: number | null;
   costo: number | null; pnl: number | null; gan_pct: number | null;
   costo_usd: number | null; pnl_usd: number | null; gan_pct_usd: number | null;
 };
@@ -551,7 +552,7 @@ function TabActivos({ data, usd, idCuenta }: {
           <thead className="sticky top-0 z-10">
             <tr>
               {["Ticker", "Emisor", "Calif.", "Clase Act.", "Venc.",
-                "Cantidad", "Precio", "Valuación", "% Cart."].map((c, i) => (
+                "Cantidad", "Precio", "Valuación", "% Total"].map((c, i) => (
                 <th key={c}
                     className={`px-2 py-2 !bg-[var(--t-brand)] !text-white font-semibold tracking-wide ${
                       i <= 1 ? "text-left" : i <= 4 ? "text-center" : "text-right"}`}>
@@ -562,23 +563,19 @@ function TabActivos({ data, usd, idCuenta }: {
           </thead>
           {data.detalle.bloques.map((b, iCart) => (
             <tbody key={b.cartera || "_sin"} className="tabular-nums">
-              {/* La fila de la cartera lleva SOLO su peso, en la columna de %.
-                  El total en plata se sacó (2026-08-22): caía en la columna
-                  VALUACIÓN, justo arriba de las valuaciones de los títulos, y
-                  dos cifras de la misma columna que no son lo mismo —una es el
-                  subtotal y las otras los títulos— se leen mal. El total de
-                  cada cartera está en el cuadro del RESUMEN, que es donde se lo
-                  busca. Va en negrita porque es el número de la fila. */}
+              {/* La fila de la cartera es SOLO el rótulo del grupo (2026-08-22).
+                  Ni el total en plata ni el peso de la cartera: los dos caían en
+                  columnas que ya tienen otro significado —VALUACIÓN son las
+                  valuaciones de los títulos y % TOTAL es el peso de cada título—
+                  y una columna con dos significados se lee mal. Lo de la cartera
+                  se mira en el RESUMEN y en MÉTRICAS, que es de lo que hablan. */}
               <tr className="border-t-4 border-[var(--t-panel)]">
-                <td colSpan={8}
+                <td colSpan={9}
                     className="px-3 py-2 bg-[var(--t-surface)] border-y border-[var(--t-border)] border-l-2"
                     style={{ borderLeftColor: carteraColor(b.cartera, iCart) }}>
                   <span className="text-[11px] font-semibold text-[var(--t-text)] tracking-wide">
                     {b.label}
                   </span>
-                </td>
-                <td className="px-3 py-2 text-right font-bold text-[var(--t-text)] bg-[var(--t-surface)] border-y border-[var(--t-border)]">
-                  {fmtPct(b.ponderacion)}
                 </td>
               </tr>
               {b.filas.length === 0 && (
@@ -607,7 +604,7 @@ function TabActivos({ data, usd, idCuenta }: {
                     <td className="px-3 py-1.5 text-right">{fmt2(f.cantidad, 2)}</td>
                     <td className="px-3 py-1.5 text-right">{fmt2(f.precio, 2)}</td>
                     <td className="px-3 py-1.5 text-right">{fmt0(val)}</td>
-                    <td className="px-3 py-1.5 text-right text-[var(--t-text-dim)]">{fmtPct(f.share_cartera)}</td>
+                    <td className="px-3 py-1.5 text-right text-[var(--t-text-dim)]">{fmtPct(f.share)}</td>
                   </tr>
                 );
               })}
@@ -839,7 +836,7 @@ async function exportarInforme(d: Vista, idCuenta: string, nombreCuenta?: string
           { key: "precio", header: "Precio", format: "number" },
           { key: "valuacion", header: "Valuación ARS", format: "number" },
           { key: "valuacion_usd", header: "Valuación USD", format: "number" },
-          { key: "share_cartera", header: "% Cartera", format: "percent" },
+          { key: "share", header: "% Total", format: "percent" },
           { key: "costo", header: "Costo", format: "number" },
           { key: "pnl", header: "PnL", format: "number" },
           { key: "gan_pct", header: "Gan %", format: "percent" },
@@ -850,7 +847,7 @@ async function exportarInforme(d: Vista, idCuenta: string, nombreCuenta?: string
           clase_activo: f.clase_activo, vencimiento: f.vencimiento,
           cantidad: f.cantidad, precio: f.precio,
           valuacion: f.valuacion, valuacion_usd: f.valuacion_usd,
-          share_cartera: f.share_cartera == null ? null : f.share_cartera * 100,
+          share: f.share == null ? null : f.share * 100,
           costo: f.costo, pnl: f.pnl, gan_pct: f.gan_pct,
         }))),
       },
