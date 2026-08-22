@@ -71,7 +71,7 @@ export type DatosReporte = {
         unidad: string; ticker: string; emisor: string; calificacion: string;
         clase_activo: string; vencimiento: string | null;
         cantidad: number; precio: number; valuacion: number;
-        share_cartera: number | null;
+        share: number | null;
       }[];
     }[];
   };
@@ -387,7 +387,7 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
               <thead>
                 <tr className="text-[8px] uppercase tracking-wide">
                   {["Ticker", "Emisor", "Calif.", "Clase", "Venc.",
-                    "Cantidad", "Precio", "Valuación", "% Cart."].map((c, k) => (
+                    "Cantidad", "Precio", "Valuación", "% Total"].map((c, k) => (
                     <th key={c}
                         className={`px-2 py-1 ${k <= 1 ? "text-left" : k <= 4 ? "text-center" : "text-right"}`}
                         style={{ background: AZUL, color: "#fff",
@@ -400,21 +400,17 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
               </thead>
               {hoja.partes.map((parte) => (
                 <tbody key={`${parte.bloque.cartera}-${parte.desde}`} className="tabular-nums">
-                  {/* La fila de la cartera lleva SOLO su peso, en la columna de
-                      %. El total en plata se sacó: caía en la columna VALUACIÓN
-                      justo arriba de las valuaciones de los títulos, y dos
-                      cifras de la misma columna que no son lo mismo se leen
-                      mal. El total de cada cartera está en la hoja 1. */}
+                  {/* La fila de la cartera es SOLO el rótulo del grupo: ni el
+                      total en plata ni el peso de la cartera, porque los dos
+                      caían en columnas que ya tienen otro significado. Eso se
+                      lee en la hoja 1 y en la de MÉTRICAS. */}
                   <tr style={{ printColorAdjust: "exact",
                                WebkitPrintColorAdjust: "exact" } as React.CSSProperties}>
-                    <td colSpan={8} className="px-2 py-1 bg-neutral-100 border-y border-neutral-300">
+                    <td colSpan={9} className="px-2 py-1 bg-neutral-100 border-y border-neutral-300">
                       <span className="text-[10px] font-semibold" style={{ color: AZUL }}>
                         {parte.bloque.label}
                         {parte.cont && <span className="font-normal text-neutral-500"> (cont.)</span>}
                       </span>
-                    </td>
-                    <td className="px-2 py-1 text-right font-bold bg-neutral-100 border-y border-neutral-300">
-                      {fmtPct(parte.bloque.ponderacion)}
                     </td>
                   </tr>
                   {parte.filas.map((f) => (
@@ -429,7 +425,7 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
                       <td className="px-2 py-0.5 text-right">{fmt2(f.cantidad, 2)}</td>
                       <td className="px-2 py-0.5 text-right">{fmt2(f.precio, 2)}</td>
                       <td className="px-2 py-0.5 text-right">{fmt0(f.valuacion)}</td>
-                      <td className="px-2 py-0.5 text-right text-neutral-500">{fmtPct(f.share_cartera)}</td>
+                      <td className="px-2 py-0.5 text-right text-neutral-500">{fmtPct(f.share)}</td>
                     </tr>
                   ))}
                 </tbody>
