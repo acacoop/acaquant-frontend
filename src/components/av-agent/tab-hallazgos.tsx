@@ -536,6 +536,17 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
         : <p className="text-[11px] text-[var(--t-text-muted)]">Sin datos todavía.</p>)}
       {sub === "aguantan" && (
         <div className="flex flex-col gap-4">
+          {/* QUÉ ES esta sub-tab, dicho arriba de todo (user, 2026-08-22: «no
+              está claro para qué es esta vista»). Es la sala de espera de lo
+              que YA se tocó: nada de acá pide trabajo. */}
+          <p className="text-[10px] text-[var(--t-text-dim)]">
+            Acá espera lo que ya se tocó, hasta que se confirme solo:
+            <b> EN PRUEBA</b> son arreglos aplicados que el agente vigila con
+            hitos (1·2·3·7·14·30 días — si no vuelve en 30, cuenta como acierto
+            verificado); <b>YA LO ATENDISTE</b> es lo que votaste o aplicaste,
+            hasta que el detector confirme que ya no está. Lo confirmado
+            desaparece solo; lo que VUELVE salta primero en AHORA.
+          </p>
           {data.seguimiento && <Seguimiento s={data.seguimiento} />}
           {/* LO QUE ATENDISTE, esperando confirmación. Está acá y no en la
               lista porque ya no es trabajo: es un arreglo del que todavía no
@@ -714,6 +725,16 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
               <>
                 No queda nada por hacer: los {nHechos} hallazgos ya pasaron por
                 tus manos. Están en ¿AGUANTAN?, esperando confirmación.
+              </>
+            ) : nVisiblesPre > 0 ? (
+              // El filtro SÍ matchea filas — pero todas ya pasaron por tus
+              // manos. Decir «no coincide nada» acá sería mentira: coincide
+              // todo, y ya lo atendiste (user, 2026-08-22: «filtro por salud y
+              // queda todo en blanco… está bien que no haya nada porque ya
+              // toqué todo, pero decilo»).
+              <>
+                Los {nVisiblesPre} de este filtro ya pasaron por tus manos —
+                están en ¿AGUANTAN?, esperando que el detector confirme.
               </>
             ) : (
               <>

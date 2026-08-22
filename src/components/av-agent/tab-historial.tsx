@@ -127,8 +127,44 @@ export function TabDecidido({ data, designorar }: {
   const pend = data.pendientes ?? [];
   const porResp: Record<string, Pendiente[]> = {};
   for (const p of pend) (porResp[p.respuesta ?? "?"] ??= []).push(p);
+  const votos = data.votos ?? [];
   return (
     <div className="flex flex-col gap-5">
+      {/* LO VOTADO deja huella ACÁ (user, 2026-08-22: «voy tachando cosas y
+          nada pasa a historial… ni siquiera queda registrado en ningún
+          lado»). El voto apaga la fila en ENCONTRÓ; sin esta lista, el rastro
+          de qué contestaste no vivía en ninguna pantalla. */}
+      {votos.length > 0 && (
+        <section>
+          <div className="flex items-baseline gap-2 mb-1">
+            <h3 className={TITULO}>VOTASTE</h3>
+            <span className={SUB}>{votos.length} · lo que contestaste sobre el agente</span>
+          </div>
+          <table className="w-full text-[11px]">
+            <tbody>
+              {votos.map((v, i) => (
+                <tr key={i} className="border-b border-[var(--t-border)]/40">
+                  <td className="py-0.5 pr-2 font-mono text-[var(--t-text)]">{v.caso}</td>
+                  <td className="py-0.5 pr-2 text-[var(--t-text-muted)]">
+                    {v.causa.replaceAll("_", " ")}
+                  </td>
+                  <td className="py-0.5 pr-2 whitespace-nowrap"
+                      style={{ color: v.acierta ? "var(--t-pos)" : "var(--t-neg)" }}>
+                    {v.origen === "utilidad"
+                      ? (v.acierta ? "✔ te sirve" : "✖ es ruido")
+                      : (v.acierta ? "✔ acertó" : "✖ no acertó")}
+                  </td>
+                  <td className="py-0.5 pr-2 text-[var(--t-text-dim)] truncate max-w-[24ch]"
+                      title={v.nota}>{v.nota}</td>
+                  <td className="py-0.5 text-right text-[var(--t-text-dim)] whitespace-nowrap">
+                    {fechaHora(v.creado_at)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
       {pend.length > 0 && (
         <section className="border border-[var(--t-tint-amber)] bg-[var(--t-surface)] px-3 py-2">
           <div className="flex items-baseline gap-2 mb-1">

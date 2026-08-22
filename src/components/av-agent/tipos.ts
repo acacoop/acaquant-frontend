@@ -143,6 +143,10 @@ export type Vista = {
   preguntas: Pregunta[];
   decisiones: Pregunta[];
   decididas: Decidida[];
+  // Lo VOTADO (¿acertó? / ¿te sirve verlo?), para el HISTORIAL: una decisión
+  // que no deja huella visible se re-decide — o se deja de decidir.
+  votos?: { caso: string; causa: string; acierta: boolean; origen: string;
+            nota: string; creado_at: string | null }[];
   // Lo que el agente MANDÓ a alguien. Va aparte de `avisos` porque son dos cosas
   // distintas que compartían tabla: un aviso de bono se COMPLETA acá; un mensaje
   // se mandó y lo resuelve otra persona en SU pantalla.
