@@ -553,10 +553,13 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
           // controla si se volvió a romper»*. Exacto: lo que atendiste no es
           // trabajo pendiente, es un arreglo esperando confirmación — que es
           // literalmente lo que esta sub-tab mide.
+          // ⚠️ El número son CAUSAS en prueba, no casos (user: «¿213?? no
+          // tiene lógica»): el lote que arregló 133 patas es UN arreglo con
+          // un solo reloj. Los casos van en el pie, que es contexto.
           ["aguantan", "¿AGUANTAN?",
-           (data.seguimiento?.en_prueba ?? 0) + (data.atendidos ?? 0),
-           data.seguimiento?.aguantaron
-             ? `${data.seguimiento.aguantaron} aguantaron` : "esperando"],
+           (data.seguimiento?.por_causa?.length
+             ?? data.seguimiento?.en_prueba ?? 0) + (data.atendidos ?? 0),
+           `${data.seguimiento?.en_prueba ?? 0} casos en prueba`],
           ["vigilancia", "VIGILANCIA", cent?.abiertos.length ?? 0,
            (cent?.sin_ver ?? 0) > 0 ? `${cent?.sin_ver} sin ver` : "todo visto"],
         ] as [typeof sub, string, number, string][]).map(([k, label, n, pie]) => (
@@ -578,7 +581,16 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
       </div>
 
       {sub === "importa" && (data.que_importa
-        ? <QueImporta q={data.que_importa} />
+        ? <QueImporta q={data.que_importa}
+                      irALista={(rg, suj) => {
+                        // EL PUENTE: de la prioridad al banco de trabajo. Una
+                        // causa te deja en LA LISTA filtrada por esa regla; un
+                        // sujeto, buscado — que es donde están los botones.
+                        setSub("lista");
+                        setFiltro("todos");
+                        setRegla(rg || "todas");
+                        setQ(suj || "");
+                      }} />
         : <p className="text-[11px] text-[var(--t-text-muted)]">Sin datos todavía.</p>)}
       {sub === "aguantan" && (
         <div className="flex flex-col gap-4">
@@ -1928,7 +1940,13 @@ export function InformeMasivo({ run, simular, sims, yaHecho, cerrar }: {
   );
 }
 
-export function QueImporta({ q }: { q: NonNullable<Vista["que_importa"]> }) {
+export function QueImporta({ q, irALista }: {
+  q: NonNullable<Vista["que_importa"]>;
+  // EL PUENTE al banco de trabajo: (regla, sujeto) → LA LISTA filtrada.
+  // Esta sub-tab NO tiene botones propios A PROPÓSITO: es la priorización;
+  // el trabajo se hace en LA LISTA, y sin este salto eran dos mundos.
+  irALista: (regla: string, sujeto: string) => void;
+}) {
   // ⚠️ **SIN PLIEGUE PROPIO.** Antes era una caja colapsable apilada arriba de
   // la lista; ahora es el contenido de una sub-tab, y una sub-tab que además
   // hay que desplegar son dos clics para ver lo que ya elegiste ver.
@@ -1961,21 +1979,61 @@ export function QueImporta({ q }: { q: NonNullable<Vista["que_importa"]> }) {
       <p className="mt-1 text-[9px] text-[var(--t-text-dim)]">
         Cuenta TODO lo que el agente recuerda abierto (relevada + controles +
         monitor en vivo), por eso es más que LA LISTA, que es solo la última
-        relevada.
+        relevada. <b>Acá no se trabaja: se elige por dónde empezar</b> — clic
+        en una causa y quedás en LA LISTA filtrada, con los botones. Una fila
+        sale de acá cuando su detector deja de verla (pasa a ¿AGUANTAN?) o
+        cuando la descartás.
         {(q.comunicaciones ?? 0) > 0 && (
           <> Aparte hay {q.comunicaciones} avisos y preguntas del agente sin
           atender — no son problemas de la base y viven en AHORA y en la
           cabecera.</>
         )}
       </p>
+      {/* ── EL RESUMEN POR CAUSA — es el que manda ──────────────────────────
+          54 filas donde 30 son la misma causa no son 54 decisiones (user:
+          «un número altísimo y no se puede hacer nada»). El grupo dice cuánto
+          pesa cada causa Y es el puente al lugar donde se arregla. */}
+      {abierto && (q.por_causa?.length ?? 0) > 0 && (
+        <div className="mt-2 border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
+          {q.por_causa!.map((g) => (
+            <button key={g.regla}
+                    onClick={() => irALista(g.regla, "")}
+                    title="Abre LA LISTA filtrada por esta causa"
+                    className="w-full grid grid-cols-[220px_60px_1fr_auto] gap-2 items-baseline px-2 py-1 text-left hover:bg-[var(--t-surface)]">
+              <span className="text-[10px] font-semibold text-[var(--t-text)] truncate">
+                {g.regla.replace(/_/g, " ")}
+              </span>
+              <span className="text-[10px] tabular-nums text-[var(--t-text-muted)]">
+                ×{g.n}
+              </span>
+              <span className="text-[9px] text-[var(--t-text-dim)] truncate">
+                {g.sujetos.slice(0, 3).join(" · ")}{g.n > 3 ? " …" : ""}
+              </span>
+              <span className="text-[9px] tabular-nums whitespace-nowrap"
+                    style={{ color: BANDA_COLOR[g.peor_banda] }}>
+                {g.piden > 0 ? `${g.piden} piden algo` : BANDA_TXT[g.peor_banda] ?? g.peor_banda}
+                {" · hasta "}{Math.round(g.dias_max)}d →
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+      {abierto && q.filas.length > 0 && q.filas.length < q.abiertos && (
+        <p className="mt-2 text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
+          las {q.filas.length} filas más urgentes (de {q.abiertos}) — el resumen
+          de arriba sí está completo
+        </p>
+      )}
       {abierto && (
-        <div className="mt-2 flex flex-col gap-0.5">
+        <div className="mt-1 flex flex-col gap-0.5">
           {q.filas.map((f) => (
             <div key={f.clave}
                  className="grid grid-cols-[110px_150px_1fr_auto] gap-2 items-baseline text-[10px]">
-              <span className="text-[var(--t-text)] truncate" title={f.sujeto}>
+              <button onClick={() => irALista("", f.sujeto)}
+                      title="Buscarlo en LA LISTA"
+                      className="text-left text-[var(--t-text)] truncate hover:text-[var(--t-accent)]">
                 {f.sujeto}
-              </span>
+              </button>
               <span className="text-[var(--t-text-dim)] truncate uppercase tracking-wide text-[9px]"
                     title={f.regla}>
                 {f.regla.replace(/_/g, " ")}

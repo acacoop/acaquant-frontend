@@ -180,6 +180,10 @@ export type Vista = {
     // objetos con ciclo pero no son problemas: van contados aparte
     // (`comunicaciones`) para que el número concilie con lo que se ve.
     abiertos: number; piden_algo: number; comunicaciones?: number;
+    // EL RESUMEN POR CAUSA — 54 filas donde 30 son la misma causa no son 54
+    // decisiones. Es además el puente a LA LISTA (clickeable en la pantalla).
+    por_causa?: { regla: string; tipo: string; n: number; piden: number;
+                  peor_banda: string; dias_max: number; sujetos: string[] }[];
     por_banda: Record<string, number>;
     filas: { clave: string; sujeto: string; regla: string; titulo: string;
              severidad: string; veces: number; dias_abierto: number;
