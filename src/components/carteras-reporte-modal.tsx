@@ -400,22 +400,20 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
               </thead>
               {hoja.partes.map((parte) => (
                 <tbody key={`${parte.bloque.cartera}-${parte.desde}`} className="tabular-nums">
-                  {/* El total va en CELDAS de la tabla y no en un `colSpan` con
-                      flex: con flex cae donde lo deja el layout, no en la
-                      columna VALUACIÓN, y queda descalzado de los títulos de
-                      abajo — que es todo el punto de tener una sola tabla. */}
+                  {/* La fila de la cartera lleva SOLO su peso, en la columna de
+                      %. El total en plata se sacó: caía en la columna VALUACIÓN
+                      justo arriba de las valuaciones de los títulos, y dos
+                      cifras de la misma columna que no son lo mismo se leen
+                      mal. El total de cada cartera está en la hoja 1. */}
                   <tr style={{ printColorAdjust: "exact",
                                WebkitPrintColorAdjust: "exact" } as React.CSSProperties}>
-                    <td colSpan={7} className="px-2 py-1 bg-neutral-100 border-y border-neutral-300">
+                    <td colSpan={8} className="px-2 py-1 bg-neutral-100 border-y border-neutral-300">
                       <span className="text-[10px] font-semibold" style={{ color: AZUL }}>
                         {parte.bloque.label}
                         {parte.cont && <span className="font-normal text-neutral-500"> (cont.)</span>}
                       </span>
                     </td>
-                    <td className="px-2 py-1 text-right font-semibold bg-neutral-100 border-y border-neutral-300">
-                      {fmt0(parte.bloque.total)}
-                    </td>
-                    <td className="px-2 py-1 text-right text-neutral-500 bg-neutral-100 border-y border-neutral-300">
+                    <td className="px-2 py-1 text-right font-bold bg-neutral-100 border-y border-neutral-300">
                       {fmtPct(parte.bloque.ponderacion)}
                     </td>
                   </tr>

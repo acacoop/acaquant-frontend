@@ -562,24 +562,22 @@ function TabActivos({ data, usd, idCuenta }: {
           </thead>
           {data.detalle.bloques.map((b, iCart) => (
             <tbody key={b.cartera || "_sin"} className="tabular-nums">
-              {/* ⚠️ El total de la cartera va en CELDAS DE LA TABLA y no en un
-                  `colSpan` con flex: con flex, el número cae donde lo deja el
-                  layout —no en la columna VALUACIÓN— y quedaba descalzado
-                  respecto de los títulos de abajo. Con celdas reales comparte
-                  la misma columna, que es todo el punto de haber unificado la
-                  tabla. */}
+              {/* La fila de la cartera lleva SOLO su peso, en la columna de %.
+                  El total en plata se sacó (2026-08-22): caía en la columna
+                  VALUACIÓN, justo arriba de las valuaciones de los títulos, y
+                  dos cifras de la misma columna que no son lo mismo —una es el
+                  subtotal y las otras los títulos— se leen mal. El total de
+                  cada cartera está en el cuadro del RESUMEN, que es donde se lo
+                  busca. Va en negrita porque es el número de la fila. */}
               <tr className="border-t-4 border-[var(--t-panel)]">
-                <td colSpan={7}
-                    className="px-2 py-2 bg-[var(--t-surface)] border-y border-[var(--t-border)] border-l-2"
+                <td colSpan={8}
+                    className="px-3 py-2 bg-[var(--t-surface)] border-y border-[var(--t-border)] border-l-2"
                     style={{ borderLeftColor: carteraColor(b.cartera, iCart) }}>
                   <span className="text-[11px] font-semibold text-[var(--t-text)] tracking-wide">
                     {b.label}
                   </span>
                 </td>
-                <td className="px-2 py-2 text-right font-semibold bg-[var(--t-surface)] border-y border-[var(--t-border)]">
-                  {fmt0(usd ? b.total_usd : b.total)}
-                </td>
-                <td className="px-2 py-2 text-right text-[var(--t-text-dim)] bg-[var(--t-surface)] border-y border-[var(--t-border)]">
+                <td className="px-3 py-2 text-right font-bold text-[var(--t-text)] bg-[var(--t-surface)] border-y border-[var(--t-border)]">
                   {fmtPct(b.ponderacion)}
                 </td>
               </tr>
