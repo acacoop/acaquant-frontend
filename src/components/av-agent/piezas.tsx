@@ -7,6 +7,31 @@ import { useDatos } from "@/components/av-agent/datos";
 import { SUB, Paso, Propuesta, Veredicto, Insumo,
          PASO_ICONO, PASO_COLOR, Respuesta, cuando } from "@/components/av-agent/tipos";
 
+// Texto largo ACOTADO a tres renglones con «ver todo» (user, 2026-08-22:
+// «muchísimo texto en todos, no se termina de entender»). El análisis completo
+// es para el que lo busca; el que barre la lista necesita el arranque — que en
+// estos textos es donde vive el número que importa.
+export function Prosa({ t }: { t?: string }) {
+  const [todo, setTodo] = useState(false);
+  const largo = (t ?? "").length > 220;
+  if (!t) return null;
+  return (
+    <div>
+      <p className={`text-[10px] leading-snug text-[var(--t-text-muted)] whitespace-pre-wrap ${
+        !todo && largo ? "line-clamp-3" : ""}`}>
+        <Marcado t={t} />
+      </p>
+      {largo && (
+        <button onClick={() => setTodo((v) => !v)}
+                className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)]">
+          {todo ? "▾ menos" : "▸ ver todo"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+
 export function PanelHacer({ h }: { h: NonNullable<Paso["hacer"]> }) {
   const { leer, llamar, escribir } = useDatos();
   const [props, setProps] = useState<Propuesta[] | null>(null);
@@ -285,30 +310,44 @@ export function Chequeos({ pasos, veredicto, calculo }: {
 
   // El color y el ícono del desenlace. `viejo` es POSITIVO (el bono está bien)
   // aunque venga de un paso que bloquea: pintarlo rojo fue el bug.
-  const DES: Record<string, { color: string; icono: string }> = {
-    roto:  { color: "var(--t-neg)",  icono: "✘" },
-    no_se: { color: "var(--t-text-dim)", icono: "?" },
-    viejo: { color: "var(--t-pos)",  icono: "✔" },
-    mirar: { color: "#f59e0b",       icono: "▲" },
-    listo: { color: "var(--t-pos)",  icono: "✔" },
+  const DES: Record<string, { color: string; icono: string; orden: string }> = {
+    // ⚠️ **`orden` habla en IMPERATIVO y contesta la ÚNICA pregunta del que
+    // mira: «¿toco ARREGLAR o qué?»** (user, 2026-08-22: *«no entiendo si
+    // tocar arreglar o qué… en vez de decir claramente si hay que hacer algo,
+    // si no hay que hacer nada e ignorar»*). El análisis largo es para
+    // entrenar al agente; la orden es para la persona — y va primero.
+    roto:  { color: "var(--t-neg)",  icono: "✘",
+             orden: "NO APRIETES ARREGLAR — esto es el problema" },
+    no_se: { color: "var(--t-text-dim)", icono: "?",
+             orden: "TODAVÍA NADA — reintentá el diagnóstico" },
+    viejo: { color: "var(--t-pos)",  icono: "✔",
+             orden: "NO HAGAS NADA — está bien, cerralo o ignoralo" },
+    mirar: { color: "#f59e0b",       icono: "▲",
+             orden: "LEÉ LA TRABA — después decidí si aplicás" },
+    listo: { color: "var(--t-pos)",  icono: "✔",
+             orden: "TOCÁ ARREGLAR — la cadena cierra entera" },
   };
-  const des = DES[d?.clase ?? ""] ?? { color: "var(--t-text-muted)", icono: "·" };
+  const des = DES[d?.clase ?? ""]
+    ?? { color: "var(--t-text-muted)", icono: "·", orden: "" };
 
   return (
     <div className="basis-full mt-1">
-      {/* ── 1. QUÉ PASA. Una línea, arriba de todo. ─────────────────────────
+      {/* ── 1. LA ORDEN + QUÉ PASA. Una línea, arriba de todo. ──────────────
           Antes lo primero que se leía era «✘ BLOQUEADO — 1 paso lo bloquea», que
           contesta *«¿puedo escribir?»*. La pregunta que uno se hace primero es
-          *«¿qué le pasa?»*, y la respuesta estaba doce renglones más abajo
+          *«¿qué hago?»*, y la respuesta estaba doce renglones más abajo
           diciendo lo contrario. */}
       {d && (
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-[11px] font-bold" style={{ color: des.color }}>
-            {des.icono}
-          </span>
+        <div className="flex items-baseline gap-1.5 flex-wrap">
+          {des.orden && (
+            <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 border whitespace-nowrap"
+                  style={{ color: des.color, borderColor: des.color }}>
+              {des.orden}
+            </span>
+          )}
           <div className="min-w-0">
-            <span className="text-[11px] font-semibold" style={{ color: des.color }}>
-              {d.titulo}
+            <span className="text-[10px] font-semibold" style={{ color: des.color }}>
+              {des.icono} {d.titulo}
             </span>
             <span className="ml-1.5 text-[10px] text-[var(--t-text-muted)]">
               <Marcado t={d.que_hacer} />
@@ -331,19 +370,24 @@ export function Chequeos({ pasos, veredicto, calculo }: {
               {traba.tabla}
             </span>
           )}
-          <p className="text-[10px] leading-snug text-[var(--t-text-muted)] whitespace-pre-wrap">
-            <Marcado t={traba.detalle} />
-          </p>
+          {/* ⚠️ ACOTADA (user: «muchísimo texto en todos»): la prueba entera
+              está a un clic; lo que se lee de una es el arranque, que en estos
+              textos es donde vive el número que importa. */}
+          <Prosa t={traba.detalle} />
           {traba.hacer && <PanelHacer h={traba.hacer} />}
         </div>
       )}
 
       {/* ── 3. LA CONCLUSIÓN del diagnóstico local, si la hay. ──────────────
-          Va acá y no perdida en la lista: es la frase que resume el análisis. */}
-      {conclusion && (
-        <p className="mt-1 text-[10px] leading-snug text-[var(--t-text-muted)] whitespace-pre-wrap">
-          <Marcado t={conclusion.detalle} />
-        </p>
+          Va acá y no perdida en la lista: es la frase que resume el análisis.
+          ⚠️ **Salvo que REPITA la traba**: en GD46 el mismo párrafo de 1816
+          salía dos veces seguidas — una como traba y otra como conclusión — y
+          el doble texto era la mitad del «no se entiende nada». */}
+      {conclusion && !(traba
+          && (conclusion.detalle || "").includes((traba.detalle || "").slice(0, 60))) && (
+        <div className="mt-1">
+          <Prosa t={conclusion.detalle} />
+        </div>
       )}
 
       {/* ── 4. LO DEMÁS, PLEGADO Y SEPARADO POR NATURALEZA. ─────────────────

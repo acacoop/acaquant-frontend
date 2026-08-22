@@ -528,8 +528,12 @@ function ModalImpl() {
                 // abajo»). Un contador de tab promete trabajo: cuenta trabajo.
                 ["hallazgos", "ENCONTRÓ", data.hallazgos.filter(
                   (h) => !h.atendido && !h.es_ruido).length],
+                // ⚠️ Los VOTOS también son historial (user: «aparecen en el
+                // historial pero la cantidad sigue fija»): la tab los muestra
+                // en VOTASTE, así que el contador los cuenta.
                 ["historial", "HISTORIAL",
-                  (data.acciones ?? []).length + data.decididas.length],
+                  (data.acciones ?? []).length + data.decididas.length
+                  + (data.votos ?? []).length],
               ] as [Tab, string, number][]).map(([k, label, n]) => (
                 <button
                   key={k}

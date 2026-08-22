@@ -1109,7 +1109,8 @@ export function Voto({ h }: { h: Hallazgo }) {
       // contrato del verbo, no una convención del que llama. Y de yapa es lo
       // que hace que «✖ es ruido» SAQUE la fila: el backend la marca
       // `es_ruido` y la vista la filtra al releer.
-      const r = await escribir<{ ok: boolean; error?: string }>(
+      const r = await escribir<{ ok: boolean; error?: string;
+                                 duplicado?: boolean }>(
         "/api/ia/av-agent/eval", {
           caso: h.ticker,
           // **El dominio lo dice el BACKEND** (`dominio_eval`), no se deduce
@@ -1129,9 +1130,16 @@ export function Voto({ h }: { h: Hallazgo }) {
         }, ["vista"]);
       if (r.ok) {
         setEstado("listo");
-        setMsg(observacion
-          ? (acierta ? "✔ te sirve" : "✖ anotado: es ruido")
-          : (acierta ? "✔ acertó" : "✖ registrado"));
+        // ⚠️ **EL DUPLICADO SE DICE** (user, 2026-08-22: «les di que sí y el
+        // 17/17 sigue igual»). El backend deduplica el MISMO juicio sobre el
+        // MISMO caso (repetirlo no agrega evidencia) — pero devolverlo en
+        // silencio hacía que el voto pareciera perdido. El contador solo se
+        // mueve con casos NUEVOS o con una corrección (cambiar el veredicto).
+        setMsg(r.duplicado
+          ? "ya lo habías votado igual — el contador no suma de nuevo"
+          : observacion
+            ? (acierta ? "✔ te sirve" : "✖ anotado: es ruido")
+            : (acierta ? "✔ acertó" : "✖ registrado"));
       }
       else { setEstado("error"); setMsg(r.error ?? "no se pudo guardar"); }
     } catch (e) {
@@ -1162,8 +1170,13 @@ export function Voto({ h }: { h: Hallazgo }) {
             title={observacion
               ? "Esto no es un diagnóstico: el agente copió un hecho (una línea de ERROR del log, un 500 del proveedor). No hay nada que acertar. Lo que sirve saber es si querés seguir viéndolo."
               : "¿La causa que dio el agente es la correcta? Tu voto no cambia nada del sistema: mide al agente."}>
-        {observacion ? "¿te sirve verlo?" : "¿acertó?"}
+        {observacion ? "¿te sirve verlo?" : "¿acertó el diagnóstico?"}
       </span>
+      {!observacion && (
+        <span className="text-[8px] text-[var(--t-text-dim)]">
+          entrena al agente — no toca el bono
+        </span>
+      )}
       <button
         onClick={() => void enviar(true)}
         className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-pos)] hover:text-[var(--t-pos)]"
