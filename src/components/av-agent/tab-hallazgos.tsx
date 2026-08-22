@@ -914,6 +914,18 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
                         ✔ {h.atendido}
                       </span>
                     )}
+                    {/* ⚠️ **VOTAR NO ES ARREGLAR** (user: «toqué que sí y
+                        desapareció — no me dejó arreglarlo»). El voto persiste
+                        (no se re-pregunta), pero la fila con arreglo pendiente
+                        se queda ACÁ hasta que se aplique — y esta marca dice
+                        por qué sigue. */}
+                    {!h.atendido && h.ya_votado && (
+                      <span className="ml-1 text-[8px] font-normal uppercase tracking-widest"
+                            style={{ color: "var(--t-pos)" }}
+                            title="Ya dijiste que el diagnóstico es correcto — la fila sigue acá porque el ARREGLO está pendiente. Cuando lo apliques (o el detector confirme que ya no está), pasa a ¿AGUANTAN?.">
+                        ✔ votado · falta arreglar
+                      </span>
+                    )}
                   </span>
                   <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)] truncate"
                         title={h.regla}>
