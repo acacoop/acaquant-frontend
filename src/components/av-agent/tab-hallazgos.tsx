@@ -588,10 +588,12 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
           <p className="text-[10px] text-[var(--t-text-dim)]">
             Acá espera lo que ya se tocó, hasta que se confirme solo:
             <b> EN PRUEBA</b> son arreglos aplicados que el agente vigila con
-            hitos (1·2·3·7·14·30 días — si no vuelve en 30, cuenta como acierto
-            verificado); <b>YA LO ATENDISTE</b> es lo que votaste o aplicaste,
-            hasta que el detector confirme que ya no está. Lo confirmado
-            desaparece solo; lo que VUELVE salta primero en AHORA.
+            hitos (1·2·3·7·14·30 <b>días hábiles</b> — el finde y los feriados
+            no cuentan: nada corre que pueda contradecir al arreglo; si no
+            vuelve en 30 hábiles, cuenta como acierto verificado);{" "}
+            <b>YA LO ATENDISTE</b> es lo que votaste o aplicaste, hasta que el
+            detector confirme que ya no está. Lo confirmado desaparece solo;
+            lo que VUELVE salta primero en AHORA.
           </p>
           {data.seguimiento && <Seguimiento s={data.seguimiento} />}
           {/* LO QUE ATENDISTE, esperando confirmación. Está acá y no en la

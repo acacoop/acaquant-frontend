@@ -502,6 +502,21 @@ export function TabCentinela({ cent, recargar }: {
           En el Droplet: <span className="font-mono">systemctl status av_agent_centinela</span>
         </p>
       )}
+
+      {/* ── EL DÍA NO HÁBIL, DICHO (user, 2026-08-22: «hoy es SÁBADO, el
+          mercado no abre — no puede pasar que un día no hábil se rompa
+          algo»). Sin este renglón, un sábado tranquilo y un lunes roto se
+          dibujan igual — y lo que quedó del viernes parece de hoy. */}
+      {cent.habil === false && (
+        <p className="text-[10px] text-[var(--t-text-muted)] border-l-2 border-[var(--t-border)] pl-2">
+          <b className="text-[var(--t-text)]">Hoy no es día hábil</b> — el
+          mercado no abre: los motores están apagados a propósito y nada de
+          rueda se re-evalúa hasta el próximo hábil (lo que quede abajo con
+          fecha de ayer quedó del último día de mercado). Lo único que{" "}
+          <b>no puede pasar</b> hoy es actividad de mercado: si un motor
+          escribe o un cron corre, lo canto acá como ROTO AHORA.
+        </p>
+      )}
       {cent.latido?.error && (
         <p className="text-[10px] text-[var(--t-neg)]">
           último error: {cent.latido.error}

@@ -282,6 +282,11 @@ export type SaludRoto = {
 
 export type Centinela = {
   ok: boolean; vivo: boolean; sin_ver: number;
+  // ¿HOY (ART) es día hábil? En no hábil el universo se invierte: motores
+  // apagados a propósito, nada de rueda se re-evalúa, y la única señal que
+  // NO puede aparecer es actividad de mercado. Lo decide el backend con el
+  // calendario único (L-V + feriados AR).
+  habil?: boolean;
   latido: { at: string; hace_s: number; ciclo: number; en_rueda: boolean;
             abiertos: number; nuevos: number; duracion_ms: number | null;
             error: string | null;
