@@ -6,7 +6,50 @@ import { useDatos } from "@/components/av-agent/datos";
 import { Marcado } from "@/components/av-agent/piezas";
 import { Pregunta, Aviso, Vista, Vigilado, SaludRoto,
          Centinela, Tab, TITULO, SUB, SEV_COLOR,
-         hora } from "@/components/av-agent/tipos";
+         hora, Hallazgo, fechaHora } from "@/components/av-agent/tipos";
+
+// ── NOTICIAS DE LA BASE (§0.cx) — el noticiero, no la lista de trabajo ──────
+//
+// El user, mirando «LA BASE CAMBIÓ: 34» adentro de ENCONTRÓ: *«este tipo de
+// cosas son AVISOS — no tienen que estar en ENCONTRÓ, que es accionable. Y
+// además está sin fecha ni hora»*. Son observaciones sin botón (una tabla
+// nueva, una que creció, una que dejó de escribir): se ENTERAN, no se
+// arreglan. Su casa es AHORA, cada una con su fecha y hora.
+export function Noticias({ filas }: { filas: Hallazgo[] }) {
+  if (!filas.length) return null;
+  return (
+    <div>
+      <div className="flex items-baseline gap-2">
+        <h3 className={TITULO}>NOTICIAS DE LA BASE</h3>
+        <span className={SUB}>{filas.length}</span>
+        <span className="text-[9px] text-[var(--t-text-dim)]">
+          observaciones, no problemas — nada que apretar; se renuevan con cada
+          relevada
+        </span>
+      </div>
+      <div className="mt-1 border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
+        {filas.map((h, i) => (
+          <div key={`${h.ticker}-${h.regla}-${i}`} className="px-2 py-1">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 min-w-0">
+              <span className="text-[9px] tabular-nums text-[var(--t-text-dim)] whitespace-nowrap"
+                    title={h.abierto_at
+                      ? `visto desde ${fechaHora(h.abierto_at)}` : "sin registrar"}>
+                {fechaHora(h.abierto_at ?? null)}
+              </span>
+              <span className="text-[11px] font-bold text-[var(--t-text)] min-w-0 break-all"
+                    title={h.ticker}>
+                {h.nombre || h.ticker}
+              </span>
+            </div>
+            <div className="text-[10px] text-[var(--t-text-muted)] break-words">
+              {h.motivo}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // ── TAB 1: las preguntas ───────────────────────────────────────────────────
 

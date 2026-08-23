@@ -1,150 +1,157 @@
 "use client";
 
-// Tab HISTORIAL: lo que hizo, lo que mandó, lo ya decidido. Solo lectura.
-import { Mensaje, Accion, Pendiente, Vista, haceCuanto,
-         ACCION_LABEL, fechaHora, TITULO, SUB } from "@/components/av-agent/tipos";
+// Tab HISTORIAL, rediseñada 2026-08-23 (§0.cx — la LEY DE CONEXIÓN).
+//
+// El user: *«quiero ese mismo diseño horizontal para todo lo de HISTORIAL…
+// ¿por qué DECIDIDO no está en YA HIZO? MANDÓ no existe, es COMUNICACIONES,
+// y es SOLO del día — no algo eterno e histórico»*.
+//
+// Quedan DOS cosas, con el mismo menú horizontal que ENCONTRÓ:
+//
+//   REGISTRO        una sola línea de tiempo con TODO lo que pasó — lo que
+//                   escribió el agente Y lo que decidiste vos (respuestas,
+//                   votos). Separarlos era arbitrario: son eventos del mismo
+//                   sistema, y el orden temporal es el que cuenta la historia.
+//                   Arriba, lo que todavía espera (contestadas sin ejecutar,
+//                   descartes con su deshacer): es la única parte viva.
+//   COMUNICACIONES  lo que el agente mandó HOY. Una comunicación es del día:
+//                   el efecto pendiente vive en la bandeja del destinatario,
+//                   no acá acumulándose.
+import { Mensaje, Pendiente, Vista, fechaHora,
+         ACCION_LABEL, TITULO, SUB } from "@/components/av-agent/tipos";
 
-// LO QUE EL AGENTE MANDÓ. Minimalista y completo, que es lo que pidió el user:
-// *«seguir viendo todo en AV AGENT de manera minimalista pero todo registrado»*.
-//
-// Va aparte de AVISOS porque son dos cosas distintas que compartían tabla: un
-// aviso de bono se COMPLETA en el agente (tiene su campo para tipear); un
-// mensaje se MANDÓ y lo resuelve otra persona en su pantalla. Mezclarlos hacía
-// que el aviso de saldos apareciera bajo la columna BONO pidiendo «cargá el
-// dato», que no significa nada.
-//
-// Lo único que importa por fila: a quién, qué, y **si lo atendieron**.
-export function TabMando({ mensajes }: { mensajes: Mensaje[] }) {
-  if (mensajes.length === 0) {
-    return (
-      <p className="text-[11px] text-[var(--t-text-muted)]">
-        Todavía no mandé ningún mensaje.
-      </p>
-    );
-  }
-  return (
-    <div className="border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
-      {mensajes.map((m) => {
-        const vencido = m.vence_at ? new Date(m.vence_at) < new Date() : false;
-        return (
-          <div key={m.id}
-               className="grid grid-cols-[200px_1fr_auto_auto] items-baseline gap-2 px-2 py-1">
-            <span className="text-[10px] text-[var(--t-text-muted)] truncate"
-                  title={m.para}>
-              {m.para}
-            </span>
-            <span className="text-[11px] text-[var(--t-text)] truncate"
-                  title={m.asunto}>
-              {m.asunto}
-            </span>
-            {/* CUÁNTAS FILAS RESOLVIÓ. Es lo que dice si el mensaje sirvió o
-                quedó sin abrir — y sin esto «mandado» y «atendido» se ven
-                igual. */}
-            <span className="text-[9px] tabular-nums text-[var(--t-text-dim)]">
-              {m.filas > 0 ? `${m.hechas}/${m.filas}` : ""}
-            </span>
-            <span className="text-[8px] uppercase tracking-widest whitespace-nowrap"
-                  style={{ color: m.resuelto ? "var(--t-pos)"
-                    : vencido ? "var(--t-text-dim)" : "#f59e0b" }}
-                  title={m.resuelto ? `cerrado ${m.resuelto_at}`
-                    : vencido ? "venció sin cerrarse" : "abierto"}>
-              {m.resuelto ? "hecho" : vencido ? "venció" : "abierto"}
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
+const ART = "America/Argentina/Buenos_Aires";
+
+function esHoyArt(iso: string | null): boolean {
+  if (!iso) return false;
+  const f = (d: Date) => d.toLocaleDateString("es-AR", { timeZone: ART });
+  return f(new Date(iso)) === f(new Date());
 }
 
-export function TabHizo({ acciones }: { acciones: Accion[] }) {
-  if (acciones.length === 0) {
-    return (
-      <p className="text-[11px] text-[var(--t-text-muted)]">
-        Todavía no escribí nada. Acá va a quedar cada cosa que toque, con la fecha,
-        la hora, la tabla y quién me lo pidió.
-      </p>
-    );
-  }
+export function mensajesDeHoy(mensajes: Mensaje[]): Mensaje[] {
+  return mensajes.filter((m) => esHoyArt(m.creado_at));
+}
+
+// ── COMUNICACIONES: solo HOY, cada fila con su fecha y hora ─────────────────
+
+export function Comunicaciones({ mensajes }: { mensajes: Mensaje[] }) {
+  const hoy = mensajesDeHoy(mensajes);
   return (
-    <div>
-      {/* Acá había un párrafo explicando que el libro incluye los intentos que
-          fallaron. Es cierto y no le sirve a nadie que ya lo tiene delante: la
-          tabla se explica sola, y el renglón se lo comía la pantalla. */}
-      <div className="border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
-        <div className="grid grid-cols-[110px_170px_90px_1fr] gap-2 px-2 py-1 bg-[var(--t-surface)] text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
-          <span>Cuándo</span><span>Qué hizo</span><span>Sobre</span><span>Dónde escribió</span>
-        </div>
-        {acciones.map((a) => (
-          <div
-            key={a.id}
-            className={`grid grid-cols-[110px_170px_90px_1fr] gap-2 px-2 py-1 items-baseline ${
-              a.ok ? "" : "bg-[var(--t-surface)]"}`}
-          >
-            <span className="text-[10px] tabular-nums text-[var(--t-text-muted)]">
-              {fechaHora(a.ts)}
-            </span>
-            <span className="text-[10px] text-[var(--t-text)]">
-              {!a.ok && <span className="text-[var(--t-neg)] font-bold">✘ </span>}
-              {ACCION_LABEL[a.accion] ?? a.accion}
-            </span>
-            <span className="text-[11px] font-bold tabular-nums text-[var(--t-text)]">
-              {a.objetivo}
-            </span>
-            <div className="min-w-0">
-              {/* La TABLA que se tocó, en crudo: es lo que uno necesita para ir a
-                  mirarla, y traducirla a lenguaje humano la haría inservible
-                  para eso. */}
-              <span className="text-[10px] font-mono text-[var(--t-text-dim)]">
-                {a.destino}
-              </span>
-              <div className="text-[9px] text-[var(--t-text-dim)] truncate"
-                   title={JSON.stringify(a.detalle ?? {})}>
-                {a.por || "—"}
-                {a.pregunta_id ? ` · pregunta #${a.pregunta_id}` : ""}
-                {a.error ? ` · ${a.error}` : ""}
-                {a.detalle && Object.keys(a.detalle).length > 0
-                  ? ` · ${JSON.stringify(a.detalle)}`
-                  : ""}
+    <div className="flex flex-col gap-2">
+      <p className="text-[10px] text-[var(--t-text-dim)]">
+        Lo que el agente mandó <b>HOY</b> y a quién, con su estado. No se
+        acumula: una comunicación es del día — si el destinatario no la
+        atendió, sigue abierta en SU bandeja (/api/avisos), no acá.
+      </p>
+      {hoy.length === 0 ? (
+        <p className="text-[11px] text-[var(--t-text-muted)]">
+          Hoy no mandé ninguna comunicación.
+        </p>
+      ) : (
+        <div className="border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
+          {hoy.map((m) => {
+            const vencido = m.vence_at ? new Date(m.vence_at) < new Date() : false;
+            return (
+              <div key={m.id} className="px-2 py-1">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 min-w-0">
+                  <span className="text-[9px] tabular-nums text-[var(--t-text-dim)] whitespace-nowrap">
+                    {fechaHora(m.creado_at)}
+                  </span>
+                  <span className="text-[10px] text-[var(--t-text-muted)] break-all"
+                        title={m.para}>
+                    {m.para}
+                  </span>
+                  {m.filas > 0 && (
+                    <span className="text-[9px] tabular-nums text-[var(--t-text-dim)]"
+                          title="cuántas filas del mensaje ya resolvió">
+                      {m.hechas}/{m.filas}
+                    </span>
+                  )}
+                  <span className="text-[8px] uppercase tracking-widest whitespace-nowrap"
+                        style={{ color: m.resuelto ? "var(--t-pos)"
+                          : vencido ? "var(--t-text-dim)" : "#f59e0b" }}
+                        title={m.resuelto ? `cerrado ${m.resuelto_at}`
+                          : vencido ? "venció sin cerrarse" : "abierto"}>
+                    {m.resuelto ? "hecho" : vencido ? "venció" : "abierto"}
+                  </span>
+                </div>
+                <div className="text-[10px] text-[var(--t-text)] break-words">
+                  {m.asunto}
+                </div>
               </div>
-            </div>
-          </div>
-        ))}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
-// ── TAB 4: lo ya decidido (y cómo deshacerlo) ──────────────────────────────
+// ── REGISTRO: una sola línea de tiempo — el agente Y vos ────────────────────
+//
+// ⚠️ SIN GRILLAS DE COLUMNAS FIJAS (user: «en LO QUE HIZO todo se solapa»):
+// la vieja `grid-cols-[110px_170px_90px_1fr]` metía «JOB:CIERRE_CANJE» en
+// una columna de 90px y se montaba sobre la de al lado. Cada evento son DOS
+// renglones que envuelven: arriba cuándo·qué·sobre, abajo quién y el detalle.
 
-// ⚠️ REDISEÑADA 2026-08-22 (§0.cv — user: *«en YA DECIDIDO la vista está muy
-// mal… no entiendo HISTORIAL de qué si ya es una vista entera de historial, ni
-// el valor de ESPERANDO QUE PUEDA APLICARLAS, si se actualiza, si tiene alguna
-// funcionalidad»*). Tres cambios de fondo:
-//   1. UNA columna, en el orden en que uno pregunta: qué falta que pase →
-//      qué descartaste (lo único con botón) → el registro de todo lo demás.
-//   2. Cada bloque DICE qué es y si se mueve solo — un tablero cuyo
-//      funcionamiento hay que adivinar no es un tablero.
-//   3. «HISTORIAL» adentro del historial se renombró a REGISTRO DE RESPUESTAS.
-export function TabDecidido({ data, designorar }: {
+type Evento = {
+  key: string; ts: string | null; quien: string; que: string;
+  sobre: string; detalle: string; malo?: boolean;
+};
+
+function eventos(data: Vista): Evento[] {
+  const out: Evento[] = [];
+  for (const a of data.acciones ?? []) {
+    out.push({
+      key: `a${a.id}`, ts: a.ts,
+      quien: a.por || "el agente",
+      que: ACCION_LABEL[a.accion] ?? a.accion,
+      sobre: a.objetivo,
+      detalle: [a.destino, a.error ?? "",
+                a.pregunta_id ? `pregunta #${a.pregunta_id}` : "",
+                a.detalle && Object.keys(a.detalle).length
+                  ? JSON.stringify(a.detalle) : ""].filter(Boolean).join(" · "),
+      malo: !a.ok,
+    });
+  }
+  for (const d of data.decididas ?? []) {
+    out.push({
+      key: `d${d.id}`, ts: d.respondida_at,
+      quien: d.respondida_por || "—",
+      que: `respondiste «${d.respuesta ?? "?"}»`,
+      sobre: d.clave.includes(":") ? d.clave.split(":", 2)[1] : d.clave,
+      detalle: [d.pregunta, d.aplicada_at ? "" : "guardado, sin aplicar",
+                d.nota ? `«${d.nota}»` : ""].filter(Boolean).join(" · "),
+    });
+  }
+  (data.votos ?? []).forEach((v, i) => {
+    out.push({
+      key: `v${i}`, ts: v.creado_at,
+      quien: "vos",
+      que: v.origen === "utilidad"
+        ? (v.acierta ? "votaste ✔ te sirve" : "votaste ✖ es ruido")
+        : (v.acierta ? "votaste ✔ acertó" : "votaste ✖ no acertó"),
+      sobre: v.caso,
+      detalle: [v.causa.replaceAll("_", " "), v.nota ?? ""]
+        .filter(Boolean).join(" · "),
+    });
+  });
+  // Más reciente primero; sin fecha, al final (no se inventa un orden).
+  return out.sort((a, b) => (b.ts ?? "").localeCompare(a.ts ?? ""));
+}
+
+export function Registro({ data, designorar }: {
   data: Vista;
   designorar: (ticker: string) => void;
 }) {
   const pend = data.pendientes ?? [];
   const porResp: Record<string, Pendiente[]> = {};
   for (const p of pend) (porResp[p.respuesta ?? "?"] ??= []).push(p);
-  const votos = data.votos ?? [];
+  const evs = eventos(data);
   return (
-    <div className="flex flex-col gap-5">
-      <p className="text-[10px] text-[var(--t-text-dim)] -mb-2">
-        Tus decisiones y qué pasó con cada una. <b>Nada de acá pide trabajo</b>:
-        lo único que se puede tocar es DESHACER un descarte. El resto se
-        actualiza solo.
-      </p>
-
-      {/* 1 ── LO CONTESTADO QUE EL AGENTE TODAVÍA NO PUDO EJECUTAR. Va primero
-          porque es lo único que va a CAMBIAR de acá: cuando el agente gane esa
-          habilidad, las procesa solas y pasan al registro de abajo. */}
+    <div className="flex flex-col gap-4">
+      {/* LO ÚNICO VIVO de esta tab va primero: decisiones esperando efecto y
+          descartes con su deshacer. El resto es pasado y no se toca. */}
       {pend.length > 0 && (
         <section className="border border-[var(--t-tint-amber)] bg-[var(--t-surface)] px-3 py-2">
           <div className="flex items-baseline gap-2 mb-1 flex-wrap">
@@ -153,51 +160,34 @@ export function TabDecidido({ data, designorar }: {
           </div>
           <p className="text-[9px] text-[var(--t-text-dim)] mb-1">
             Tu respuesta quedó guardada; el agente aún no tiene la habilidad
-            para ejecutarla solo. <b>Se mueve solo</b>: cuando la gane, las
-            procesa y cada una baja al registro con su fecha de aplicación.
+            para ejecutarla solo. <b>Se concilia contra la base en cada
+            lectura</b>: lo que la realidad ya cumplió (un alta hecha por otra
+            vía) se sella aplicado y baja al registro.
           </p>
           {Object.entries(porResp).map(([resp, filas]) => (
-            <div key={resp} className="mt-1">
-              <div className="text-[10px] text-[var(--t-text)]">
-                <strong className="uppercase tracking-widest">{resp}</strong>
-                <span className="text-[var(--t-text-dim)]"> ({filas.length}): </span>
-                <span className="tabular-nums break-words">
-                  {filas.map((f) => f.ticker).sort().join(", ")}
-                </span>
-              </div>
-              {resp === "alta" && (
-                <p className="text-[9px] text-[var(--t-text-dim)] mt-0.5">
-                  Falta E2: dar de alta necesita bajar el cuadro de flujos de 1816 y
-                  simular la TEA antes de escribir. Estas son las que va a procesar.
-                </p>
-              )}
+            <div key={resp} className="mt-1 text-[10px] text-[var(--t-text)]">
+              <strong className="uppercase tracking-widest">{resp}</strong>
+              <span className="text-[var(--t-text-dim)]"> ({filas.length}): </span>
+              <span className="tabular-nums break-words">
+                {filas.map((f) => f.ticker).sort().join(", ")}
+              </span>
             </div>
           ))}
         </section>
       )}
 
-      {/* 2 ── LO DESCARTADO, con su deshacer. Es la lista DURABLE de papeles
-          que dijiste que no interesan al contestar una pregunta de alta —
-          distinta del IGNORAR de LA LISTA, que es un snooze del día y vence
-          solo (§0.cv). */}
-      <section>
-        <div className="flex items-baseline gap-2 mb-1 flex-wrap">
-          <h3 className={TITULO}>NO TE INTERESAN</h3>
-          <span className={SUB}>
-            {data.ignorados.length} · papeles descartados al contestar «no nos
-            interesa» — no se vuelven a proponer hasta que los deshagas
-          </span>
-        </div>
-        {data.ignorados.length === 0 ? (
-          <p className="text-[10px] text-[var(--t-text-muted)]">Ninguno todavía.</p>
-        ) : (
+      {data.ignorados.length > 0 && (
+        <section>
+          <div className="flex items-baseline gap-2 mb-1 flex-wrap">
+            <h3 className={TITULO}>NO TE INTERESAN</h3>
+            <span className={SUB}>
+              {data.ignorados.length} · papeles descartados al contestar — se
+              re-proponen solo si los deshacés
+            </span>
+          </div>
           <div className="border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
             {data.ignorados.map((ig) => (
               <div key={ig.ticker} className="flex items-center gap-2 px-2 py-1">
-                {/* `w-16` eran 4rem para un ticker de 4 letras, pero acá también
-                    entran ids de chequeo («JOB:MERCADO_1816_SERIES»): el texto se
-                    salía de la caja y se montaba sobre el motivo de al lado. Ancho
-                    mayor + `truncate` para que corte en vez de desbordar. */}
                 <span className="text-[11px] font-bold text-[var(--t-text)] tabular-nums w-40 shrink-0 truncate"
                       title={ig.ticker}>
                   {ig.ticker}
@@ -206,9 +196,6 @@ export function TabDecidido({ data, designorar }: {
                       title={ig.motivo}>
                   {ig.motivo}
                 </span>
-                {/* Sin este botón, el descarte es irreversible desde la app → la
-                    respuesta segura pasa a ser no contestar nada, y el canal de
-                    preguntas entero deja de usarse. */}
                 <button
                   onClick={() => designorar(ig.ticker)}
                   className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-dim)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors shrink-0"
@@ -218,85 +205,48 @@ export function TabDecidido({ data, designorar }: {
               </div>
             ))}
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
-      {/* 3 ── EL REGISTRO. Solo lectura, append-only: cada respuesta a una
-          pregunta del agente, con quién y cuándo, y si ya se aplicó. */}
       <section>
         <div className="flex items-baseline gap-2 mb-1 flex-wrap">
-          <h3 className={TITULO}>REGISTRO DE RESPUESTAS</h3>
+          <h3 className={TITULO}>TODO LO QUE PASÓ</h3>
           <span className={SUB}>
-            {data.decididas.length} · cada pregunta que contestaste, y si ya se aplicó
+            {evs.length} · lo que escribió el agente y lo que decidiste vos,
+            en orden — cada evento con su fecha y hora
           </span>
         </div>
-        {data.decididas.length === 0 ? (
-          <p className="text-[10px] text-[var(--t-text-muted)]">Todavía no contestaste nada.</p>
+        {evs.length === 0 ? (
+          <p className="text-[10px] text-[var(--t-text-muted)]">
+            Todavía no pasó nada: acá va a quedar cada escritura del agente y
+            cada decisión tuya, con fecha, hora y sobre qué.
+          </p>
         ) : (
           <div className="border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
-            {data.decididas.map((d) => (
-              <div key={d.id} className="px-2 py-1">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--t-accent)] w-16 shrink-0">
-                    {d.respuesta}
+            {evs.map((e) => (
+              <div key={e.key} className={`px-2 py-1 ${e.malo ? "bg-[var(--t-surface)]" : ""}`}>
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 min-w-0">
+                  <span className="text-[9px] tabular-nums text-[var(--t-text-dim)] whitespace-nowrap">
+                    {fechaHora(e.ts)}
                   </span>
-                  <span className="text-[10px] text-[var(--t-text-muted)] truncate">
-                    {d.pregunta}
+                  <span className="text-[10px] text-[var(--t-text)]">
+                    {e.malo && <span className="text-[var(--t-neg)] font-bold">✘ </span>}
+                    {e.que}
+                  </span>
+                  <span className="text-[11px] font-bold tabular-nums text-[var(--t-text)] min-w-0 break-all"
+                        title={e.sobre}>
+                    {e.sobre}
                   </span>
                 </div>
-                <div className="text-[9px] text-[var(--t-text-dim)] pl-[72px]">
-                  {d.respondida_por || "—"} · {haceCuanto(d.respondida_at)}
-                  {/* aplicada_at NULL = se guardó pero no surtió efecto todavía.
-                      Decirlo evita que uno crea que un bono ya está dado de alta
-                      cuando no lo está. */}
-                  {!d.aplicada_at && " · guardado, sin aplicar"}
-                  {d.nota && ` · «${d.nota}»`}
+                <div className="text-[9px] text-[var(--t-text-dim)] break-words"
+                     title={e.detalle}>
+                  {e.quien}{e.detalle ? ` · ${e.detalle}` : ""}
                 </div>
               </div>
             ))}
           </div>
         )}
       </section>
-
-      {/* 4 ── LO VOTADO deja huella ACÁ (user, 2026-08-22: «voy tachando cosas
-          y nada pasa a historial»). El voto apaga la pregunta en ENCONTRÓ; sin
-          esta lista el rastro no vivía en ninguna pantalla. Va último porque
-          es el registro que menos se consulta. */}
-      {votos.length > 0 && (
-        <section>
-          <div className="flex items-baseline gap-2 mb-1 flex-wrap">
-            <h3 className={TITULO}>VOTASTE</h3>
-            <span className={SUB}>
-              {votos.length} · tus juicios sobre los diagnósticos (entrenan al agente)
-            </span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-[11px]">
-              <tbody>
-                {votos.map((v, i) => (
-                  <tr key={i} className="border-b border-[var(--t-border)]/40">
-                    <td className="py-0.5 pr-2 font-mono text-[var(--t-text)]">{v.caso}</td>
-                    <td className="py-0.5 pr-2 text-[var(--t-text-muted)]">
-                      {v.causa.replaceAll("_", " ")}
-                    </td>
-                    <td className="py-0.5 pr-2 whitespace-nowrap"
-                        style={{ color: v.acierta ? "var(--t-pos)" : "var(--t-neg)" }}>
-                      {v.origen === "utilidad"
-                        ? (v.acierta ? "✔ te sirve" : "✖ es ruido")
-                        : (v.acierta ? "✔ acertó" : "✖ no acertó")}
-                    </td>
-                    <td className="py-0.5 pr-2 text-[var(--t-text-dim)] truncate max-w-[24ch]"
-                        title={v.nota}>{v.nota}</td>
-                    <td className="py-0.5 text-right text-[var(--t-text-dim)] whitespace-nowrap">
-                      {fechaHora(v.creado_at)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
     </div>
   );
 }

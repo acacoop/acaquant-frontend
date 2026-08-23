@@ -88,6 +88,9 @@ export type Hallazgo = {
   // Lo sacaste de la lista POR HOY con IGNORAR (§0.cv): snooze, no blacklist.
   // Mañana, si el detector lo re-ve, el backend lo reabre y esto viene false.
   ignorado?: boolean;
+  // NOTICIA (§0.cx): observación sin accionable (la base cambió, una tabla
+  // quieta). Su casa es AHORA, el noticiero — LA LISTA la esconde contándola.
+  noticia?: boolean;
   // EL NOMBRE PARA LA PANTALLA. Para un bono es el ticker; para un chequeo es
   // su título humano («Patas en dólares que nadie pide»), que ya venía en la
   // evidencia y no lo leía nadie. Lo resuelve el BACKEND para que las dos

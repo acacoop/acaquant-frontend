@@ -340,6 +340,9 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
       // Lo IGNORADO POR HOY no se lista (vuelve solo mañana si el detector lo
       // re-ve); la búsqueda sí lo encuentra, como a los otros cortes.
       if (!t) hs = hs.filter((h) => !h.ignorado);
+      // Las NOTICIAS (§0.cx: la base cambió, tablas quietas) viven en AHORA —
+      // acá solo estorbarían: ENCONTRÓ es accionable. La búsqueda las trae.
+      if (!t) hs = hs.filter((h) => !h.noticia);
       if (t) {
         hs = hs.filter((h) =>
           h.ticker.toLowerCase().includes(t) ||
@@ -391,7 +394,7 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
   // descartado. Va en el recuento y en la submétrica de LA LISTA — el número
   // del menú tiene que decir por qué entrarías, no cuántas filas hay.
   const nPorHacer = data.hallazgos.filter(
-    (h) => !h.atendido && !h.es_ruido && !h.ignorado).length;
+    (h) => !h.atendido && !h.es_ruido && !h.ignorado && !h.noticia).length;
   // ⚠️ **EL DESPLEGABLE CUENTA LO MISMO QUE EL MENÚ** (user, 2026-08-22: *«LA
   // LISTA dice 58 pero en el filtro tiene 89… no tienen lógica, no hay
   // relación»*). El menú dice «por resolver» y el desplegable contaba TODO
@@ -402,7 +405,7 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
     const n: Record<string, number> = {};
     for (const t of tipos)
       n[t] = porTipo[t].filter(
-        (h) => !h.atendido && !h.es_ruido && !h.ignorado).length;
+        (h) => !h.atendido && !h.es_ruido && !h.ignorado && !h.noticia).length;
     return n;
   }, [porTipo, tipos]);
   // Los SUJETOS cuyo arreglo ya se APLICÓ (no solo votado): es lo que hace que

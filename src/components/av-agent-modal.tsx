@@ -37,9 +37,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 // (POST que muta y DECLARA qué recursos relee). Ver el porqué en el header de
 // ese archivo y en docs/AV_AGENT.md §0.cj.
 import { DatosProvider, useDatos } from "@/components/av-agent/datos";
-import { Rotos, TabCentinela, TabPreguntas, TabAvisos } from "@/components/av-agent/tab-ahora";
+import { Rotos, TabCentinela, TabPreguntas, TabAvisos, Noticias } from "@/components/av-agent/tab-ahora";
 import { TabHallazgos } from "@/components/av-agent/tab-hallazgos";
-import { TabHizo, TabMando, TabDecidido } from "@/components/av-agent/tab-historial";
+import { Registro, Comunicaciones, mensajesDeHoy } from "@/components/av-agent/tab-historial";
 import { TabAgenda } from "@/components/av-agent/tab-agenda";
 import { TabSkills } from "@/components/av-agent/tab-skills";
 import { TabControl } from "@/components/av-agent/tab-control";
@@ -85,7 +85,7 @@ function ModalImpl() {
   const [error, setError] = useState("");
   const errorVista = errores.vista ?? "";
   const [tab, setTab] = useState<Tab>("ahora");
-  const [subHist, setSubHist] = useState("hizo");
+  const [subHist, setSubHist] = useState("registro");
   const [enviando, setEnviando] = useState<number | null>(null);
   const [notas, setNotas] = useState<Record<number, string>>({});
   // Simulaciones por ticker. `null` = corriendo. El resultado se guarda para que
@@ -364,7 +364,9 @@ function ModalImpl() {
   // distintas. Ahora cuenta las novedades del DÍA, que es lo único que la tab
   // dibuja. Las preguntas y los avisos siguen sumando: también esperan algo.
   const nAhora = (cent?.hoy?.novedades ?? 0) + nPreg
-    + (data?.avisos ?? []).filter((a) => !a.resuelto).length;
+    + (data?.avisos ?? []).filter((a) => !a.resuelto).length
+    // Las NOTICIAS de la base (§0.cx) también se dibujan en AHORA → cuentan.
+    + (data?.hallazgos ?? []).filter((h) => h.noticia).length;
 
   return (
     <>
@@ -629,6 +631,9 @@ function ModalImpl() {
                     <Rotos items={rotos} entendido={entendido} />
                   )}
                   <TabCentinela cent={cent} recargar={cargarCentinela} />
+                  {/* Las NOTICIAS de la base (§0.cx): observaciones sin botón.
+                      Viven acá — el noticiero — y no en ENCONTRÓ. */}
+                  <Noticias filas={(data.hallazgos ?? []).filter((h) => h.noticia)} />
                   {nPreg > 0 && (
                     <TabPreguntas
                       data={data} enviando={enviando} notas={notas}
@@ -648,37 +653,43 @@ function ModalImpl() {
                               simular={simular} ignorar={ignorar}
                               cent={cent} marcarVisto={marcarVisto} />
               )}
-              {/* HISTORIAL: lo que ya pasó. No se acciona, así que no merece dos
-                  tabs — se lee de arriba abajo y listo. */}
-              {/* UNA cosa por vez. Apilar «lo que hice» y «lo ya decidido» en la
-                  misma pantalla dejaba dos tablas y cuatro listas encimadas — el
-                  user: «no puede estar todo junto como si nada, la vista es para
-                  una sola cosa». El selector va donde estaba el párrafo que se
-                  fue: mismo lugar, ahora sirve para algo. */}
+              {/* HISTORIAL (§0.cx): DOS cosas con el MISMO menú horizontal que
+                  ENCONTRÓ (user: «quiero ese mismo diseño para todo lo de
+                  HISTORIAL»). REGISTRO unifica «lo que hizo» y «ya decidido»
+                  en una sola línea de tiempo — separar lo del agente de lo
+                  tuyo era arbitrario: son eventos del mismo sistema.
+                  COMUNICACIONES (ex «MANDÓ», que no es una palabra de nadie)
+                  es SOLO del día. */}
               {tab === "historial" && (
                 <div className="flex flex-col gap-3">
-                  <div className="flex items-center gap-2">
-                    {([["hizo", "LO QUE HIZO", (data.acciones ?? []).length],
-                       ["mensajes", "MANDÓ", (data.mensajes ?? []).length],
-                       ["decidido", "YA DECIDIDO", data.decididas.length]] as
-                       [string, string, number][]).map(([k, label, n]) => (
+                  <div className="flex items-stretch flex-wrap border-b border-[var(--t-border)]">
+                    {([["registro", "REGISTRO",
+                        (data.acciones ?? []).length + data.decididas.length
+                          + (data.votos ?? []).length,
+                        "el agente y vos, en orden"],
+                       ["comunicaciones", "COMUNICACIONES",
+                        mensajesDeHoy(data.mensajes ?? []).length,
+                        "solo las de HOY"]] as
+                       [string, string, number, string][]).map(([k, label, n, pie]) => (
                       <button
                         key={k}
                         onClick={() => setSubHist(k)}
-                        className={`text-[9px] font-semibold uppercase tracking-widest px-2 py-1 border transition-colors ${
+                        className={`px-3 py-1.5 text-[10px] font-semibold tracking-widest border-b-2 -mb-px transition-colors ${
                           subHist === k
                             ? "border-[var(--t-accent)] text-[var(--t-accent)]"
-                            : "border-[var(--t-border)] text-[var(--t-text-muted)] hover:text-[var(--t-text)]"}`}
+                            : "border-transparent text-[var(--t-text-muted)] hover:text-[var(--t-text)]"}`}
                       >
-                        {label} <span className="tabular-nums opacity-70">{n}</span>
+                        {label}
+                        <span className="ml-1.5 tabular-nums opacity-60">{n}</span>
+                        <span className="block text-[8px] font-normal tracking-normal text-[var(--t-text-dim)]">
+                          {pie}
+                        </span>
                       </button>
                     ))}
                   </div>
-                  {subHist === "hizo"
-                    ? <TabHizo acciones={data.acciones ?? []} />
-                    : subHist === "mensajes"
-                    ? <TabMando mensajes={data.mensajes ?? []} />
-                    : <TabDecidido data={data} designorar={designorar} />}
+                  {subHist === "comunicaciones"
+                    ? <Comunicaciones mensajes={data.mensajes ?? []} />
+                    : <Registro data={data} designorar={designorar} />}
                 </div>
               )}
               {tab === "control" && (
