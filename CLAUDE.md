@@ -1,3 +1,7 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 @AGENTS.md
 
 > **📌 REMOTES POR PROYECTO (actualizado 2026-07-27).** DOS remotes por repo, ambos
@@ -24,3 +28,201 @@
 >
 > Vercel deploya de `origin` (`NMolloAV/acaquant-frontend`) desde 2026-07-27 —
 > un `git push origin` (o `git pushall`) dispara el deploy de producción.
+
+> **⚠️ AUTOR DE LOS COMMITS — Vercel BLOQUEA por identidad.** Si el commit lo firma
+> alguien que NO es miembro del proyecto, el deploy queda **Blocked** y producción
+> sigue sirviendo la versión anterior **sin ningún error visible**: el código está en
+> `main`, el build compila, y la app no cambia. **No pisar `user.name`/`user.email`
+> al commitear** — el default del checkout es el que Vercel acepta. Si algo no
+> aparece en la app, mirar Deployments en Vercel ANTES de buscar el bug en el código.
+> El footer de la barra muestra los 7 chars de `VERCEL_GIT_COMMIT_SHA` (`dev` en
+> local) justamente para contestar «¿estoy viendo este build?» sin adivinar.
+
+## Qué es esto
+
+`acaquant-web` — el frontend de **TradingAV**, plataforma quant MERVAL/ROFEX. Next.js
+16 (App Router) + React 19 + Tailwind v4, deployado en Vercel.
+
+**No tiene base de datos ni lógica de negocio propia.** Es una terminal que renderiza
+lo que sirve el backend FastAPI (`api.acaquant.com`, repo hermano
+`acaquant-backend`). Las ~75 route handlers de `src/app/api/**` son **proxies**
+hacia ese backend — inyectan auth y reenvían. Todo cálculo de negocio vive del otro
+lado; si algo hay que derivar, se deriva allá.
+
+Dos portales sobre el MISMO deploy, separados por Cloudflare Access:
+- **trading.acaquant.com** — la mesa. Ve todo según su rol.
+- **www.acaquant.com** — portal **INVITADO** (otro sector de la empresa): SOLO
+  mercado + research, read-only. Ver "Portal invitado" abajo.
+
+## Comandos
+
+```bash
+npm install            # node_modules NO está en el repo — instalar antes de nada
+npm run dev            # dev server en :3000
+npm run build          # build de producción (es la única verificación de tipos real)
+npm start              # servir el build
+npm run lint           # eslint (flat config, eslint 9)
+npx tsc --noEmit       # typecheck aislado, sin build
+```
+
+**No hay suite de tests ni CI propio** (`.github/` solo tiene `dependabot.yml`). La
+verificación antes de pushear es `npm run lint && npm run build` — el build es lo que
+falla si rompiste un tipo, y Vercel lo va a correr igual.
+
+## Convenciones que rompen cosas si se olvidan
+
+- **`export const dynamic = "force-dynamic"` en TODA page.** Las 20 páginas lo
+  tienen. El `layout.tsx` también, y ahí es **crítico para RBAC**: el nav se
+  renderiza por usuario (`getMe()`), sin `force-dynamic` Vercel puede servirle a un
+  trader el HTML cacheado de un admin con el link de MANAGER a la vista.
+- **Route handlers que proxean data live**: `export const revalidate = 0` +
+  `cache: "no-store"` en el `fetch`. Sin eso Next sirve una respuesta vieja de un
+  endpoint que cambia cada 5s.
+- **`maxDuration`** en los proxies de endpoints lentos (Manager 90s, órdenes/riesgo
+  30s). El default de Vercel corta antes de que el backend conteste.
+- **El proxy nunca devuelve el error como excepción**: reenvía el status y el cuerpo
+  del backend tal cual, y mapea un fallo de red a 502 JSON. Un handler que tira
+  rompe la vista con un error sin mensaje.
+- **Alias de imports**: `@/*` → `./src/*`.
+- **Commits en español**, estilo `feat/fix/refactor/docs(scope): mensaje` — mirar
+  `git log`, el mensaje describe el efecto en la pantalla, no el diff.
+
+## Arquitectura
+
+### El camino de un request
+
+```
+browser → (Cloudflare Access) → Vercel
+            ├─ src/proxy.ts            ← pre-gate por módulo + SANITIZA identidad
+            ├─ page.tsx (SSR)          → lib/api.ts   (apiFetch/safeFetch) ─┐
+            └─ componente cliente      → src/app/api/**/route.ts (proxy)  ──┤
+                                                                            ↓
+                                                          api.acaquant.com (FastAPI)
+```
+
+### Identidad y RBAC — dónde vive cada mitad
+
+Esta es la parte que más fácil se rompe, porque el gate está en cuatro lugares y
+**tres de ellos son UX; el único real es el backend**.
+
+1. **`src/lib/cf-access.ts` — la identidad de confianza.** El header de texto plano
+   `cf-access-authenticated-user-email` es **falsificable** si alguien llega al
+   origin salteando Cloudflare (la URL `*.vercel.app`). El email bueno sale de
+   validar el **sello firmado** (`Cf-Access-Jwt-Assertion`) con `jose`. Se activa
+   solo si están `CF_ACCESS_TEAM_DOMAIN` + `CF_ACCESS_AUD` → el código deployado
+   queda **inerte** hasta setear las env vars, y borrarlas revierte al instante sin
+   tocar código.
+2. **`src/proxy.ts`** (Next 16 renombró `middleware` a `proxy`). Hace dos cosas
+   distintas y las dos importan:
+   - **Sanitiza**: borra cualquier email que venga en el request entrante y setea
+     SOLO el verificado. Todo route handler aguas abajo lee la identidad de ahí.
+   - **Pre-gatea** por módulo (`PATH_MODULES`) para que el HTML de una página
+     restringida no se vea ni por un instante. Cachea `/api/me` 30s por email;
+     **fail-closed** en prod (redirect a `/`), fail-open solo en dev sin `API_URL`.
+3. **`src/components/header.tsx`** — el nav filtra por `me.modules`. `modules === null`
+   (backend caído / dev) muestra todo.
+4. **El backend** — `require_module()` / `require_*` devuelven 403. **Este es el
+   único enforcement.** Esconder una solapa no es un permiso.
+
+> **Contrato con el backend que hay que replicar a mano:** `PATH_MODULES` de
+> `proxy.ts` espeja `ENDPOINT_MODULE_PREFIXES` de `api/auth.py`, y el campo `module`
+> de `NAV` en `header.tsx` espeja `core/roles.py::MODULES`. Un módulo nuevo se toca
+> en los dos repos o el nav y el gate dejan de estar de acuerdo — y no falla nada,
+> simplemente muestran cosas distintas.
+>
+> Hay capacidades que **NO son módulos** y se publican dentro de `me.modules` solo
+> para que el nav las filtre igual (`mesa-dinero`, `aca`, `manager-aca`): el acceso
+> real es una allowlist per-usuario server-side. **No agregarlas a `core.roles.MODULES`**
+> — sería un checkbox en ROLES Y PERMISOS que no controla nada.
+
+### Portal invitado (www.acaquant.com) — default-deny
+
+El invitado se identifica por el **`aud` del sello firmado** (`CF_ACCESS_AUD_GUEST`),
+no por un header: no es spoofeable. Cuando aplica, el frontend manda
+`x-acaquant-portal: guest` y el backend fuerza el rol `invitado`.
+
+**Regla bloqueante:** el invitado ve **mercado + research** y nada más. Cualquier cosa
+del negocio de la mesa (portfolios, operaciones, manager, back-office, clientes, AuM,
+P&L, ACA) **jamás** puede quedarle accesible. Ante la duda, no exponer. `useIsGuest()`
+sirve para esconder pedazos de UI — es UX, el gate real es del backend.
+
+### Capa de red del cliente — cuatro helpers con contratos distintos
+
+| Helper | Dónde | Contrato |
+|---|---|---|
+| `lib/api.ts::apiFetch` / `safeFetch` | **SSR** (pages, route handlers) | Habla directo con FastAPI: mete Bearer + CF service token + identidad. `safeFetch` devuelve fallback si el backend está caído. Timeout 15s. |
+| `lib/fetch-json.ts::fetchJson` | cliente, carga de vista | **TIRA** con status + detalle del backend. La vista atrapa y muestra el error. |
+| `lib/fetch-json.ts::getJSON` | cliente, polls/refetch | Devuelve `null` ante cualquier fallo. **Nunca** para decidir "no hay datos": un 403/502 se ve idéntico a vacío — así se perdió una semana la tab ESTRATEGIA. |
+| `lib/fetch-shared.ts::fetchShared` | listas de filtros | Dedupea en vuelo + cachea 5min. Un fallo no se cachea. |
+
+**`lib/use-poll.ts::usePoll`** es el hook de data viva y trae tres cosas que no son
+obvias: comparte el request en vuelo por URL (dos componentes polleando el mismo
+endpoint mandan **un** request), **no re-parsea ni re-renderiza si el payload crudo es
+idéntico** al anterior, y expone `error` aparte de `data` (un poll fallido conserva lo
+que había en vez de dibujar vacío). Resetea al cambiar de `endpoint`, no de `initial`.
+
+### Patrones de UI compartidos
+
+- **Shells con tabs keep-alive** (`*-shell.tsx`, `trading-shell.tsx` es el modelo):
+  cada tab se monta la primera vez y después se esconde con CSS. Cambiar de tab no
+  re-fetchea ni pierde estado. La tab activa va en `usePersistedState`.
+- **`lib/use-persisted-state.ts`** — `useState` respaldado en `sessionStorage`, para
+  que los filtros sobrevivan a la navegación (App Router desmonta la vista). Solo
+  elecciones del usuario, **nunca** data fetcheada. Key única por vista+campo.
+- **`components/ui/informe.tsx`** — pill / panel / dato de cabecera + `fmt0/fmt2/fmtPct`.
+  Es la identidad visual de "esto es un informe": dos copias empiezan a verse
+  distinto sin que nadie lo decida.
+- **`components/ui/slot-barra-inferior.tsx`** — portal para que una vista baje sus
+  acciones secundarias al `<footer>` del root layout, definiéndolas dentro de la
+  vista (cierran sobre su estado) y dibujándolas abajo.
+- **`lib/fmt.ts`** — fechas es-AR parseadas **por regex, no con `new Date(iso)`**:
+  `new Date("YYYY-MM-DD")` es medianoche UTC y en ART (UTC−3) mostraba el día
+  anterior.
+- **`lib/use-viewport-key.ts`** — `key` para remountear `ResponsiveContainer`;
+  recharts a veces mide 0 y no se recupera solo.
+- Export a Excel: `lib/xlsx-export.ts` (SheetJS con lazy import, tipos nativos para
+  que Excel pueda sumar).
+
+### Temas
+
+Todo el color pasa por tokens `--t-*` en `src/app/globals.css`. Oscuro es el default
+(`:root`), claro se activa con `class="light"` en `<html>` y cambia el acento de
+naranja terminal a azul de empresa. **No hardcodear hex en componentes** —
+`bg-[var(--t-panel)]`, `text-[var(--t-text-dim)]`, etc.
+
+### El modal del AV AGENT — la red se toca desde UN lugar
+
+`src/components/av-agent/datos.tsx` es la ÚNICA pieza del modal que puede importar
+`@/lib/fetch-json`, y **el lint lo hace estructural** (`no-restricted-imports` en
+`eslint.config.mjs`). Los componentes guardan estado de **pantalla** (qué tab, qué
+filtro); el estado del **servidor** tiene un dueño y un ciclo: `leer` → `escribir`
+→ **releer**. Tres verbos, y el verbo dice qué es la llamada:
+
+- `leer(url)` — GET, no cambia nada.
+- `llamar(url, body)` — POST que CALCULA (explicar, simular). No muta lo que la
+  pantalla dibuja, no relee.
+- `escribir(url, body, relee)` — POST que MUTA. Declara qué recursos invalida y los
+  relee al volver. Relee **también** si el backend contestó `ok: false`.
+
+El front **no deriva**: acción, estado, atendido, nombre vienen resueltos del backend.
+Un fetch suelto adentro de una tab es cómo nacieron «voté y los botones volvieron» y
+«el informe desapareció al cambiar de tab».
+
+## Variables de entorno (Vercel)
+
+| Var | Para qué |
+|---|---|
+| `API_URL` | Backend FastAPI. Default `https://api.acaquant.com`. **Su ausencia es lo que marca "dev"** — sin ella el proxy deja pasar todo. |
+| `API_KEY` | Bearer hacia el backend. |
+| `CF_ACCESS_CLIENT_ID` / `_SECRET` | Service token para atravesar Cloudflare Access. Ojo: con service token CF **estripa** `cf-access-authenticated-user-email`, por eso se manda `x-acaquant-user-email` en paralelo (el backend lo lee con prioridad). |
+| `CF_ACCESS_TEAM_DOMAIN` / `CF_ACCESS_AUD` | Activan la validación del sello firmado. Sin las dos, la validación queda inerte. |
+| `CF_ACCESS_AUD_GUEST` | AUD de la app de Access de www → identifica al invitado. |
+
+## Cambios que tocan los dos repos
+
+El backend (`../acaquant-backend`) es un checkout paralelo, **no un submodule**. Su
+`CLAUDE.md` manda para todo lo de allá — en particular `docs/MAPA_APP.md`, que es el
+índice de toda la superficie (vistas, tabs, endpoints, permisos) y ahorra re-relevar
+la app. Si agregás o cambiás una vista, una tab o un filtro acá, actualizá su sección
+en ese doc en el mismo trabajo: el inventario de endpoints lo regenera un script, una
+tab nueva no la detecta nadie.
