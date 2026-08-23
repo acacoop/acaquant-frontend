@@ -393,21 +393,33 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
   // Lo que TODAVÍA pide trabajo, sin importar el filtro puesto: ni atendido ni
   // descartado. Va en el recuento y en la submétrica de LA LISTA — el número
   // del menú tiene que decir por qué entrarías, no cuántas filas hay.
-  const nPorHacer = data.hallazgos.filter(
-    (h) => !h.atendido && !h.es_ruido && !h.ignorado && !h.noticia).length;
+  //
+  // ⚠️ **LO CUENTA EL BACKEND** (§0.dd). Acá vivía el filtro, y su gemelo en
+  // el contador de la tab ENCONTRÓ tenía DOS cortes menos: la tab decía 95 y
+  // esta línea 60, sobre la misma lista y a un centímetro de distancia. Se
+  // arregló donde correspondía —una sola cuenta, en `av_agent_vista`— y no
+  // sincronizando las copias, que es lo que ya falló las dos veces
+  // anteriores. El `??` es solo el puente de un deploy desparejo.
+  const nPorHacer = data.por_resolver
+    ?? data.hallazgos.filter(
+      (h) => !h.atendido && !h.es_ruido && !h.ignorado && !h.noticia).length;
   // ⚠️ **EL DESPLEGABLE CUENTA LO MISMO QUE EL MENÚ** (user, 2026-08-22: *«LA
   // LISTA dice 58 pero en el filtro tiene 89… no tienen lógica, no hay
   // relación»*). El menú dice «por resolver» y el desplegable contaba TODO
   // (atendidos y descartados incluidos): dos números para la misma lista, sin
   // decir por qué difieren. Ahora los dos cuentan el mismo universo — lo
   // atendido vive en ¿AGUANTAN? y lo descartado tiene su propio contador.
+  // ⚠️ Y también lo cuenta el BACKEND (§0.dd): era la TERCERA copia del mismo
+  // predicado. Un desglose que no suma el total del menú es la misma
+  // contradicción que la de arriba, nada más que en chico.
   const nPorHacerPorTipo = useMemo(() => {
+    if (data.por_resolver_tipo) return data.por_resolver_tipo;
     const n: Record<string, number> = {};
     for (const t of tipos)
       n[t] = porTipo[t].filter(
         (h) => !h.atendido && !h.es_ruido && !h.ignorado && !h.noticia).length;
     return n;
-  }, [porTipo, tipos]);
+  }, [porTipo, tipos, data.por_resolver_tipo]);
   // Los SUJETOS cuyo arreglo ya se APLICÓ (no solo votado): es lo que hace que
   // el informe masivo no vuelva a ofrecer lo que ya hiciste, ni siquiera
   // después de recargar. Sale del objeto, vía `hallazgos[].atendido`.

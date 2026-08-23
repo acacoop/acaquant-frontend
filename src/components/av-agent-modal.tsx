@@ -528,8 +528,19 @@ function ModalImpl() {
                 // descartados) no se explicaba en ningún lado (user: «ENCONTRÓ
                 // sigue mostrando datos que no son los que luego se ven
                 // abajo»). Un contador de tab promete trabajo: cuenta trabajo.
-                ["hallazgos", "ENCONTRÓ", data.hallazgos.filter(
-                  (h) => !h.atendido && !h.es_ruido).length],
+                //
+                // ⚠️⚠️ **Y VOLVIÓ A PASAR** (§0.dd): este filtro tenía DOS
+                // cortes menos que el de LA LISTA (le faltaban `ignorado` y
+                // `noticia`, agregados en §0.cv y §0.cx), así que la tab decía
+                // 95 y la sub-tab 60. La primera vez se arregló copiando el
+                // criterio — y una copia se desincroniza sola en cuanto
+                // aparece un corte nuevo. **Ahora lo cuenta el backend** y
+                // esta pantalla solo lo lee, igual que LA LISTA. El `??` es el
+                // puente para un deploy desparejo de front y API.
+                ["hallazgos", "ENCONTRÓ", data.por_resolver
+                  ?? data.hallazgos.filter(
+                    (h) => !h.atendido && !h.es_ruido && !h.ignorado
+                      && !h.noticia).length],
                 // ⚠️ Los VOTOS también son historial (user: «aparecen en el
                 // historial pero la cantidad sigue fija»): la tab los muestra
                 // en VOTASTE, así que el contador los cuenta.

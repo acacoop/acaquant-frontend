@@ -206,6 +206,15 @@ export type Vista = {
   es_ruido?: number;
   // Cuántas sacaste de la vista POR HOY (mañana vuelven si se re-detectan).
   ignorados_hoy?: number;
+  // ⚠️ **LO QUE TODAVÍA PIDE TRABAJO — lo cuenta el BACKEND** (§0.dd).
+  // El criterio (ni atendido, ni ruido, ni ignorado, ni noticia) vivía DOS
+  // veces en el front: la tab ENCONTRÓ decía 95 y la sub-tab LA LISTA 60,
+  // porque al sumar `ignorado` y `noticia` se actualizó una copia y no la
+  // otra. Ahora nadie lo recalcula acá: las dos pantallas leen este campo.
+  // `por_resolver_tipo` es el mismo número abierto por tipo, para que el
+  // desplegable no vuelva a ser una tercera copia que no suma el total.
+  por_resolver?: number;
+  por_resolver_tipo?: Record<string, number>;
 };
 
 // EL TABLERO. Las fuentes usan el MISMO vocabulario de estados que el pre-flight
