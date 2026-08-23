@@ -1968,48 +1968,94 @@ export function InformeMasivo({ run, simular, sims, yaHecho, cerrar }: {
 
       {/* El DETALLE del grupo abierto. Cerrado por default: el informe entero es
           para copiar, la pantalla es para decidir dónde mirar. */}
-      {abierto && (
-        <div className="border-t border-[var(--t-border)] pt-2 flex flex-col gap-1 max-h-64 overflow-y-auto">
-          {run.informe.filter((f) => f.estado === abierto).map((f, i) => (
-            <div key={`${f.sujeto}-${i}`} className="text-[10px] leading-snug">
-              <span className="font-bold text-[var(--t-text)]">{f.sujeto}</span>
-              <span className="text-[var(--t-text-dim)]"> · {f.regla ?? f.tipo}</span>
-              {f.causa && <span className="text-[var(--t-accent)]"> → {f.causa}</span>}
-              {/* APLICAR desde el informe. El backend RE-SIMULA y vuelve a correr
-                  la cadena entera antes de escribir, así que esto no es un
-                  atajo que saltea el pre-flight: es el mismo camino, sin
-                  obligar a volver a buscar el bono en la lista. */}
-              {/* El botón desaparece cuando ya se hizo: dejarlo puesto al lado
-                  de un «✔ aplicado» es la contradicción que el user marcó. */}
-              {f.estado === "listo" && f.accion && !hecho(f) && (
-                <button
-                  disabled={sims[f.sujeto] === null}
-                  onClick={() => simular(f.sujeto, "", true, {}, f.accion as Modo)}
-                  className="ml-2 text-[9px] uppercase tracking-widest px-1.5 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] disabled:opacity-40"
-                >
-                  {sims[f.sujeto] === null ? "…" : "aplicar"}
-                </button>
-              )}
-              {hecho(f) && (
-                <span className="ml-2 text-[9px] text-[var(--t-pos)]">✔ aplicado</span>
-              )}
-              {(sims[f.sujeto] as Record<string, unknown> | undefined)?.ok === false && (
-                <span className="ml-2 text-[9px] text-[var(--t-neg)]">
-                  ✘ {String((sims[f.sujeto] as Record<string, unknown>).error ?? "")}
-                </span>
-              )}
-              {f.detalle && (
-                <div className="text-[var(--t-text-muted)] pl-3">{f.detalle}</div>
-              )}
-              {(f.trabas ?? []).slice(0, 3).map((t, j) => (
-                <div key={j} className="text-[var(--t-text-dim)] pl-3">
-                  · {t.paso}: {t.detalle}
+      {abierto && (() => {
+        // EL MISMO TEXTO NO SE LEE 25 VECES (informe #18: 25 filas con la misma
+        // traba palabra por palabra — «parece un template roto, no 25 datos»).
+        // Se agrupa por FIRMA del texto (causa + detalle + trabas): el
+        // diagnóstico se muestra UNA vez y abajo los casos, cada uno con su
+        // botón. Un caso con texto propio queda como fila suelta, igual que
+        // siempre — la firma solo junta lo verdaderamente idéntico.
+        const filas = run.informe.filter((f) => f.estado === abierto);
+        const firma = (f: FilaInforme) => JSON.stringify([
+          f.causa ?? "", f.detalle ?? "",
+          (f.trabas ?? []).slice(0, 3).map((t) => `${t.paso}|${t.detalle}`),
+        ]);
+        const grupos = new Map<string, FilaInforme[]>();
+        for (const f of filas) {
+          const k = firma(f);
+          grupos.set(k, [...(grupos.get(k) ?? []), f]);
+        }
+        // La cabecera del caso: sujeto + regla + causa + acción. Es lo que NO
+        // se agrupa nunca — el botón es por bono, no por diagnóstico.
+        const cabecera = (f: FilaInforme, i: number, conCausa: boolean) => (
+          <div key={`${f.sujeto}-${i}`} className="text-[10px] leading-snug">
+            <span className="font-bold text-[var(--t-text)]">{f.sujeto}</span>
+            <span className="text-[var(--t-text-dim)]"> · {f.regla ?? f.tipo}</span>
+            {conCausa && f.causa && (
+              <span className="text-[var(--t-accent)]"> → {f.causa}</span>
+            )}
+            {/* APLICAR desde el informe. El backend RE-SIMULA y vuelve a correr
+                la cadena entera antes de escribir, así que esto no es un
+                atajo que saltea el pre-flight: es el mismo camino, sin
+                obligar a volver a buscar el bono en la lista. */}
+            {/* El botón desaparece cuando ya se hizo: dejarlo puesto al lado
+                de un «✔ aplicado» es la contradicción que el user marcó. */}
+            {f.estado === "listo" && f.accion && !hecho(f) && (
+              <button
+                disabled={sims[f.sujeto] === null}
+                onClick={() => simular(f.sujeto, "", true, {}, f.accion as Modo)}
+                className="ml-2 text-[9px] uppercase tracking-widest px-1.5 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] disabled:opacity-40"
+              >
+                {sims[f.sujeto] === null ? "…" : "aplicar"}
+              </button>
+            )}
+            {hecho(f) && (
+              <span className="ml-2 text-[9px] text-[var(--t-pos)]">✔ aplicado</span>
+            )}
+            {(sims[f.sujeto] as Record<string, unknown> | undefined)?.ok === false && (
+              <span className="ml-2 text-[9px] text-[var(--t-neg)]">
+                ✘ {String((sims[f.sujeto] as Record<string, unknown>).error ?? "")}
+              </span>
+            )}
+          </div>
+        );
+        const texto = (f: FilaInforme) => (
+          <>
+            {f.detalle && (
+              <div className="text-[var(--t-text-muted)] pl-3">{f.detalle}</div>
+            )}
+            {(f.trabas ?? []).slice(0, 3).map((t, j) => (
+              <div key={j} className="text-[var(--t-text-dim)] pl-3">
+                · {t.paso}: {t.detalle}
+              </div>
+            ))}
+          </>
+        );
+        return (
+          <div className="border-t border-[var(--t-border)] pt-2 flex flex-col gap-1 max-h-64 overflow-y-auto">
+            {[...grupos.values()].map((g, gi) =>
+              g.length === 1 ? (
+                <div key={gi}>
+                  {cabecera(g[0], 0, true)}
+                  <div className="text-[10px] leading-snug">{texto(g[0])}</div>
+                </div>
+              ) : (
+                <div key={gi} className="border-l border-[var(--t-border)] pl-2">
+                  <div className="text-[10px] leading-snug">
+                    <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
+                      {g.length} casos, mismo diagnóstico
+                    </span>
+                    {g[0].causa && (
+                      <span className="text-[var(--t-accent)]"> → {g[0].causa}</span>
+                    )}
+                    {texto(g[0])}
+                  </div>
+                  {g.map((f, i) => cabecera(f, i, false))}
                 </div>
               ))}
-            </div>
-          ))}
-        </div>
-      )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
