@@ -16,8 +16,22 @@ import { useState } from "react";
 
 import { COLOR, fechaHora, type Hallazgo } from "@/components/agente/tipos";
 
-type Preview = { ok: boolean; error?: string; que_escribe?: string;
-                 donde?: string; porque?: string; antes?: unknown };
+type Paso = { titulo?: string; estado?: string; detalle?: string; tabla?: string };
+type Preview = {
+  ok: boolean; error?: string; que_escribe?: string; donde?: string;
+  porque?: string; antes?: unknown; veredicto?: string;
+  puede_aplicar?: boolean; pasos?: Paso[];
+};
+
+// El estado de cada eslabón de la cadena, con su color. Viene RESUELTO del
+// backend: el front no decide qué estado bloquea qué.
+const PASO: Record<string, string> = {
+  ok: "var(--t-pos)",
+  info: "var(--t-text-muted)",
+  revisar: "var(--t-accent)",
+  bloquea: "var(--t-neg)",
+  no_se_puede_saber: "var(--t-text-dim)",
+};
 
 export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: {
   filas: Hallazgo[];
@@ -161,6 +175,29 @@ export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: 
                       <div><b>escribe:</b> {p.que_escribe || "—"}</div>
                       <div><b>dónde:</b> {p.donde || f.arreglo_donde || "—"}</div>
                       {p.porque && <div className="mt-0.5">{p.porque}</div>}
+                      {p.puede_aplicar === false && (
+                        <div className="text-[var(--t-neg)] mt-0.5">
+                          ✘ la cadena FRENA: aplicar no va a escribir
+                          {p.veredicto ? ` — ${p.veredicto}` : ""}
+                        </div>
+                      )}
+                      {/* LA CADENA. Ver dónde frena es la mitad del valor de
+                          simular: sin esto, «no se puede» no dice por qué. */}
+                      {(p.pasos ?? []).length > 0 && (
+                        <div className="mt-1 flex flex-col gap-0.5">
+                          {p.pasos!.map((s, i) => (
+                            <div key={i} className="flex items-baseline gap-1.5">
+                              <span className="w-1 h-1 rounded-full shrink-0 mt-1"
+                                    style={{ background: PASO[s.estado ?? ""]
+                                             ?? "var(--t-text-dim)" }} />
+                              <span className="text-[var(--t-text)]">{s.titulo}</span>
+                              <span className="text-[var(--t-text-dim)] min-w-0">
+                                {s.detalle}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </>
                   ) : (
                     <span className="text-[var(--t-neg)]">{p.error}</span>
