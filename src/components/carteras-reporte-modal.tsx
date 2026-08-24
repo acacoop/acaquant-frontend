@@ -727,7 +727,7 @@ const CSS_IMPRESION = `
     box-shadow: none !important;
     margin: 0 !important;
     break-after: page;
-    /* `auto` a propósito: la hoja tiene alto FIJO, y si alguna se pasara de
+    /* 'auto' a propósito: la hoja tiene alto FIJO, y si alguna se pasara de
        largo preferimos que el navegador la parta y salga una página de más
        antes que recortar filas en silencio. */
     break-inside: auto;
