@@ -1,0 +1,195 @@
+"use client";
+
+// EL MODAL DEL AV AGENT. Doc: `docs/AGENT_2.0.md` §6.
+//
+// TRES pantallas y no siete:
+//
+//   AHORA      lo que apareció HOY. Informativo. Un solo botón: «leído».
+//   ENCONTRÓ   lo abierto que TIENE ARREGLO. Acá se trabaja.
+//   HISTORIAL  el libro: qué escribió el agente, de qué valor a qué valor.
+//
+// Se fueron VIGILANCIA (era un segundo depósito de los mismos problemas, con
+// otro reloj y otra tabla — la propia pantalla se lo explicaba al usuario) y
+// ¿AGUANTAN? (su número sumaba dos cosas que no se tocan). Y con ellas todo el
+// sistema de votos y eval set: *«generó demasiada complejidad en algo que no
+// funcionaba»*.
+//
+// ⚠️ **Ningún contador se suma acá.** Todos vienen del backend, de la misma
+// query que dibuja su lista, así que no pueden decir cosas distintas.
+import { useState } from "react";
+
+import { useAgente } from "@/components/agente/datos";
+import { TabAhora } from "@/components/agente/tab-ahora";
+import { TabEncontro } from "@/components/agente/tab-encontro";
+import { TabHistorial } from "@/components/agente/tab-historial";
+import { fechaHora, hace } from "@/components/agente/tipos";
+
+type Tab = "ahora" | "encontro" | "historial";
+
+export default function AgenteModal() {
+  const [abierto, setAbierto] = useState(false);
+  const [tab, setTab] = useState<Tab>("ahora");
+  const d = useAgente(abierto);
+  const v = d.vista;
+
+  const nAhora = v?.ahora.total ?? 0;
+  const nEncontro = v?.encontro.total ?? 0;
+  const nVolvio = v?.reincidencias.total ?? 0;
+  const vivo = v?.latido.vivo ?? false;
+
+  return (
+    <>
+      <button
+        onClick={() => setAbierto(true)}
+        title={vivo
+          ? `El agente está mirando (última pasada hace ${hace(v?.latido.hace_s ?? null)})`
+          : "El agente NO está mirando"}
+        className="inline-flex items-center gap-1 px-1.5 leading-none text-[10px] font-semibold text-[var(--t-text-muted)] hover:text-[var(--t-accent)] transition-colors"
+      >
+        {/* El círculo se apaga SOLO cuando el latido envejece: nadie tiene que
+            acordarse de apagarlo. */}
+        <span className="w-1.5 h-1.5 rounded-full"
+              style={{ background: vivo ? "var(--t-pos)" : "var(--t-text-dim)" }} />
+        AV AGENT
+        {nAhora > 0 && (
+          <span className="tabular-nums text-[var(--t-accent)]">{nAhora}</span>
+        )}
+        {nVolvio > 0 && (
+          <span className="tabular-nums text-[var(--t-neg)]" title="reincidencias">
+            ⚠{nVolvio}
+          </span>
+        )}
+      </button>
+
+      {abierto && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4"
+             onClick={() => setAbierto(false)}>
+          <div className="w-full max-w-5xl bg-[var(--t-panel)] border border-[var(--t-border)] mt-10"
+               onClick={(e) => e.stopPropagation()}>
+            {/* ── Cabecera ─────────────────────────────────────────────── */}
+            <div className="flex items-center gap-3 px-4 py-2 border-b border-[var(--t-border)] flex-wrap">
+              <span className="text-[11px] font-bold tracking-widest text-[var(--t-accent)]">
+                AV AGENT
+              </span>
+              <span className="text-[9px] text-[var(--t-text-dim)]">
+                {vivo ? "mirando" : "detenido"} · última pasada{" "}
+                {fechaHora(v?.latido.at ?? null)}
+              </span>
+              <button
+                onClick={() => void d.escribir("/api/agente/correr", {}, ["vista"])}
+                className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
+              >
+                ↻ mirar ahora
+              </button>
+              <button onClick={() => setAbierto(false)}
+                      className="ml-auto text-[11px] text-[var(--t-text-dim)] hover:text-[var(--t-text)]">
+                ✕
+              </button>
+            </div>
+
+            {/* ── LA ALARMA. Va arriba de todo porque la tabla que la
+                   alimenta DEBE estar vacía: si tiene filas, algo que dimos
+                   por arreglado se rompió de nuevo. ──────────────────────── */}
+            {nVolvio > 0 && (
+              <div className="px-4 py-2 border-b border-[var(--t-neg)] bg-[var(--t-surface)]">
+                <p className="text-[10px] font-bold text-[var(--t-neg)]">
+                  ⚠ {nVolvio} REINCIDENCIA(S) — un arreglo que aplicamos no sirvió
+                </p>
+                {v?.reincidencias.filas.slice(0, 5).map((r) => (
+                  <p key={r.id} className="text-[9px] text-[var(--t-text-muted)]">
+                    {r.sujeto} · {r.regla} · aguantó {Number(r.dias_aguanto).toFixed(1)} días
+                    {" "}(arreglo «{r.arreglo_aplicado || "?"}») · volvió {fechaHora(r.volvio_at)}
+                  </p>
+                ))}
+              </div>
+            )}
+
+            {/* ── Tabs ─────────────────────────────────────────────────── */}
+            <div className="flex gap-1 px-4 border-b border-[var(--t-border)]">
+              {([
+                ["ahora", "AHORA", nAhora, "lo de hoy · informativo"],
+                ["encontro", "ENCONTRÓ", nEncontro, "lo que tiene arreglo"],
+                ["historial", "HISTORIAL", null, "lo que el agente escribió"],
+              ] as [Tab, string, number | null, string][]).map(([k, label, n, pie]) => (
+                <button key={k} onClick={() => setTab(k)}
+                        className={`px-3 py-1.5 text-[10px] font-semibold tracking-widest border-b-2 -mb-px transition-colors ${
+                          tab === k ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                                    : "border-transparent text-[var(--t-text-muted)] hover:text-[var(--t-text)]"}`}>
+                  {label}
+                  {n !== null && <span className="ml-1.5 tabular-nums opacity-60">{n}</span>}
+                  <span className="block text-[8px] font-normal tracking-normal text-[var(--t-text-dim)]">
+                    {pie}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* ── Cuerpo ───────────────────────────────────────────────── */}
+            <div className="overflow-y-auto max-h-[70vh] p-4">
+              {d.error.vista && (
+                <p className="text-[10px] text-[var(--t-neg)] mb-2">
+                  No pude leer el agente: {d.error.vista}
+                </p>
+              )}
+              {!v && d.cargando && (
+                <p className="text-[11px] text-[var(--t-text-muted)]">cargando…</p>
+              )}
+              {v && tab === "ahora" && (
+                <TabAhora
+                  filas={v.ahora.filas}
+                  marcarLeidos={async (ids) => {
+                    await d.escribir("/api/agente/leidos", { ids }, ["vista"]);
+                  }}
+                />
+              )}
+              {v && tab === "encontro" && (
+                <TabEncontro
+                  filas={v.encontro.filas}
+                  porHabilidad={v.encontro.por_habilidad}
+                  preview={(id) => d.calcular("/api/agente/preview", { id })}
+                  aplicar={(id) => d.escribir("/api/agente/aplicar", { id }, ["vista"])}
+                  ignorar={async (id) => {
+                    await d.escribir("/api/agente/ignorar", { id }, ["vista"]);
+                  }}
+                />
+              )}
+              {tab === "historial" && <TabHistorial leer={d.leer} />}
+            </div>
+
+            {/* ── Las habilidades, al pie: qué sabe hacer y CUÁNDO MIRÓ ── */}
+            {v && (
+              <div className="px-4 py-2 border-t border-[var(--t-border)] max-h-[22vh] overflow-y-auto">
+                <p className="text-[8px] uppercase tracking-widest text-[var(--t-text-dim)] mb-1">
+                  habilidades · «corrió y no encontró nada» y «no corrió» NO son lo mismo
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+                  {v.habilidades.map((h) => (
+                    <div key={h.nombre} className="flex items-baseline gap-1.5 text-[9px] py-0.5">
+                      <span className="w-1 h-1 rounded-full shrink-0" style={{
+                        background: h.ultimo_resultado === "ok" ? "var(--t-pos)"
+                          : h.ultimo_resultado === "error" ? "var(--t-neg)"
+                          : h.ultimo_resultado === "sin_datos" ? "var(--t-accent)"
+                          : "var(--t-text-dim)",
+                      }} title={h.ultimo_resultado ?? "nunca corrió"} />
+                      <span className="text-[var(--t-text)] font-semibold">{h.nombre}</span>
+                      <span className="text-[var(--t-text-dim)]">{h.clase}</span>
+                      <span className="text-[var(--t-text-muted)] tabular-nums">
+                        {h.hallazgos_abiertos}
+                      </span>
+                      <span className="text-[var(--t-text-dim)] ml-auto tabular-nums">
+                        {h.ultima_corrida_at ? fechaHora(h.ultima_corrida_at) : "nunca"}
+                      </span>
+                      {h.reincidencias > 0 && (
+                        <span className="text-[var(--t-neg)]">⚠{h.reincidencias}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
