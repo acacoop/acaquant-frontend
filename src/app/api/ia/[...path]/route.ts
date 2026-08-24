@@ -1,5 +1,31 @@
 import { NextResponse } from "next/server";
 
+// ⚠️⚠️ **ESTA RUTA NO PUEDE CACHEARSE, Y NO LO DECLARABA** (2026-08-24).
+//
+// El AV AGENT desapareció de la barra y no volvió. El backend andaba —los dos
+// endpoints verificados contra producción, 143 hallazgos— pero el botón se
+// esconde con UNA condición: que `/vista` falle (`av-agent-modal.tsx`).
+//
+// Y este proxy tenía el `cache: "no-store"` en el `fetch` pero **le faltaba
+// `revalidate = 0` en la ruta**, que es la mitad que le habla a Next. El
+// CLAUDE.md del repo lo pide desde siempre: *«route handlers que proxean data
+// live: `revalidate = 0` + `cache: "no-store"`»*. Con solo la mitad, Next puede
+// quedarse con una respuesta vieja — y si la que quedó guardada fue un error
+// (por ejemplo los segundos en que la API se reinicia durante un deploy),
+// **el botón no vuelve nunca**: nadie vuelve a preguntar.
+//
+// HIPÓTESIS, no hecho verificado: no pude reproducirlo desde acá y la causa
+// definitiva sale del Network del navegador. Pero la ruta violaba una regla
+// escrita del repo, el síntoma encaja, y el arreglo es correcto igual.
+//
+// `maxDuration` por la misma razón que Manager: `vista()` mide **1.706 ms** en
+// el Droplet (medido hoy) y es el endpoint más lento de la app. El default de
+// Vercel corta antes de que un backend lento conteste, y ese corte se ve
+// exactamente igual que esto.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const maxDuration = 30;
+
 // Catch-all proxy de /api/ia/* → backend (módulo IA — QuantAI). GET (briefing,
 // observabilidad, copiloto/vistas) + POST (copiloto + feedback 👍/👎). Mismo
 // patrón que /api/manager/[...path]: propaga la identidad para que el RBAC del
