@@ -980,6 +980,22 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
                     <span className="text-[10px] text-[var(--t-text-muted)] leading-snug">
                       {h.motivo}
                     </span>
+                    {/* ⚠️⚠️ **EL DIAGNÓSTICO LLEGA HECHO** (user, 2026-08-24:
+                        *«nada más de DIAGNOSTICAR… ya tiene que venir todo
+                        diagnosticado y dejar el arreglo para hacer manual. El
+                        agente tiene que tener VIDA»*).
+
+                        Antes el motivo terminaba en «Tocá DIAGNOSTICAR para
+                        saber por qué» y había que apretar bono por bono; la
+                        conclusión moría al cerrar el modal, así que al día
+                        siguiente había que apretar de nuevo para leer lo mismo.
+                        Ahora lo corre el cron y viaja con la fila.
+
+                        Va en la PRIMERA aparición del bono nada más: el
+                        diagnóstico es del papel, no de cada regla que disparó
+                        — repetirlo sería el mismo párrafo dos veces, que es
+                        justo lo que hacía la pantalla ilegible. */}
+                    {primera && <Diagnostico h={h} />}
                     {/* ENCONTRÓ deja de ser solo un comentario: donde hay algo que
                         el agente PUEDE hacer, el botón está en la misma fila. Un
                         hallazgo accionable que obliga a irse a otra pantalla es un
@@ -1056,6 +1072,79 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
 //   · nada           nunca se votó → no se muestra, la ausencia ya lo dice
 // Y si la medición no se pudo LEER, se marca distinto: «no pude preguntar» no es
 // «no hay votos».
+// ── EL DIAGNÓSTICO, YA HECHO ────────────────────────────────────────────────
+//
+// ⚠️⚠️ **EL BOTÓN DIAGNOSTICAR ERA EL PROBLEMA** (user, 2026-08-24: *«basta de
+// este modelo, está roto, no funciona… el agente tiene que tener VIDA, tiene
+// que diagnosticar por sí solo»*).
+//
+// El motor de diagnóstico estaba entero desde hacía días y **solo corría si
+// alguien apretaba un botón**, bono por bono, y la conclusión se perdía al
+// cerrar el modal. Ahora lo corre el cron después de cada relevada y viaja
+// pegado al problema: la fila llega explicada y lo único que queda por decidir
+// es aplicar el arreglo.
+//
+// **Qué se muestra y qué NO.** Una línea: qué le pasa y qué se puede hacer.
+// Las ocho lentes, el cotejo contra 1816 y la cadena de pasos siguen estando
+// —atrás de SIMULAR, donde se necesitan para decidir— pero no en la lista: el
+// user ya dijo dos veces que hay demasiado texto por aviso. Lo que sube a la
+// fila es la CONCLUSIÓN, no el razonamiento.
+const DX_COLOR: Record<string, string> = {
+  listo:      "var(--t-pos)",
+  bloqueado:  "var(--t-neg)",
+  cerrado:    "var(--t-text-dim)",
+  sin_puerta: "var(--t-text-dim)",
+  no_pudo:    "#f59e0b",
+  error:      "#f59e0b",
+};
+const DX_QUE_HACER: Record<string, string> = {
+  listo:      "el agente lo puede arreglar",
+  bloqueado:  "hay que resolverlo a mano",
+  cerrado:    "ya no aplica",
+  sin_puerta: "todavía no sabe arreglarlo",
+  no_pudo:    "no pudo diagnosticarlo",
+  error:      "el diagnóstico falló",
+};
+
+export function Diagnostico({ h }: { h: Hallazgo }) {
+  const d = h.diagnostico;
+  // Sin diagnóstico se DICE, no se calla. Un renglón vacío se lee como «no
+  // pasa nada acá», y lo que pasa es que el agente todavía no lo miró — que
+  // es información, y es la que dice si el cron está corriendo.
+  if (!d) {
+    return (
+      <div className="mt-0.5 text-[9px] text-[var(--t-text-dim)]">
+        · el agente todavía no lo diagnosticó
+      </div>
+    );
+  }
+  const estado = d.estado || "";
+  // La frase: primero la CAUSA (qué le pasa), después el veredicto en una
+  // línea. `detalle` es lo que traen los estados que no llegaron a una causa.
+  const causa = (d.causa || "").replace(/_/g, " ");
+  const frase = (d.veredicto || d.detalle || "").trim();
+  return (
+    <div className="mt-0.5 text-[9px] leading-snug">
+      <span className="uppercase tracking-widest" style={{ color: DX_COLOR[estado] || "var(--t-text-dim)" }}>
+        {causa || estado.replace(/_/g, " ")}
+      </span>
+      <span className="ml-1 text-[var(--t-text-dim)]">
+        · {DX_QUE_HACER[estado] || estado}
+      </span>
+      {frase && (
+        <span className="ml-1 text-[var(--t-text-muted)]">— {frase}</span>
+      )}
+      {/* CUÁNDO lo diagnosticó. Una conclusión sin fecha no se puede pesar:
+          la de hoy y la de hace una semana se leen igual (REGLA #10.3). */}
+      {h.diagnostico_at && (
+        <span className="ml-1 text-[var(--t-text-dim)] tabular-nums">
+          ({fechaHora(h.diagnostico_at)})
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function Confianza({ c }: { c: Hallazgo["confianza"] }) {
   if (c === null) {
     return (

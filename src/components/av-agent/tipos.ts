@@ -100,6 +100,25 @@ export type Hallazgo = {
   // pero no ubica el hecho: «4d» no dice si empezó el lunes a la mañana o el
   // jueves a la noche. La pantalla lo escribe en hora argentina.
   abierto_at?: string | null;
+  // ── EL DIAGNÓSTICO, YA HECHO (backend 2026-08-24) ──────────────────────
+  //
+  // ⚠️ Antes había un botón DIAGNOSTICAR: había que apretarlo bono por bono y
+  // la conclusión moría al cerrar el modal, así que a la mañana siguiente
+  // había que apretarlo de nuevo para leer lo mismo. El user: *«el agente
+  // tiene que tener VIDA, tiene que diagnosticar por sí solo»*.
+  //
+  // Ahora lo corre el cron después de cada relevada y queda pegado al
+  // problema. La fila llega explicada; el botón que queda es el que APLICA.
+  //
+  // `estado`: listo (el agente sabe y puede) · bloqueado (sabe y algo lo
+  // frena) · cerrado (comprobó que ya no aplica) · sin_puerta (no sabe
+  // arreglarlo todavía) · no_pudo / error.
+  diagnostico?: {
+    estado?: string; causa?: string; veredicto?: string;
+    trabas?: { paso: string; estado: string; detalle: string }[];
+    detalle?: string; propuesta?: Record<string, unknown> | null;
+  } | null;
+  diagnostico_at?: string | null;
 };
 export type Pregunta = {
   id: number; clave: string; tipo: string; pregunta: string; opciones: string[];
