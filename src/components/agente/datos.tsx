@@ -87,14 +87,25 @@ export function useAgente(abierto: boolean): Datos {
     return r;
   }, [releer]);
 
-  // Al abrir carga; después refresca solo mientras está abierto. Cerrado no
-  // pollea: un modal cerrado que consulta cada 20 s es tráfico para nadie.
+  // ⚠️⚠️ **EL AGENTE CARGA SIEMPRE, ESTÉ EL MODAL ABIERTO O NO.**
+  //
+  // La primera versión sólo cargaba al abrir (`if (!abierto) return`), y con eso
+  // el botón de la barra decía «detenido» y sin número **hasta que alguien lo
+  // abría**. O sea: para enterarte de que había algo tenías que entrar a
+  // mirar — que es exactamente lo contrario de para qué existe un agente.
+  //
+  // El user (2026-08-24): *«el AGENT no figura por sí solo, necesita que sí o sí
+  // haya algo para aparecer en la página, y eso está mal»*.
+  //
+  // Cerrado pollea LENTO (2 min) y abierto RÁPIDO (20 s): el badge tiene que
+  // estar vivo, pero un modal cerrado consultando cada 20 s es tráfico para
+  // nadie.
   useEffect(() => {
-    if (!abierto) return;
     let cancelado = false;
     setCargando(true);
     void releer("vista").finally(() => { if (!cancelado) setCargando(false); });
-    const id = setInterval(() => void releer("vista"), 20_000);
+    const cada = abierto ? 20_000 : 120_000;
+    const id = setInterval(() => void releer("vista"), cada);
     return () => { cancelado = true; clearInterval(id); };
   }, [abierto, releer]);
 

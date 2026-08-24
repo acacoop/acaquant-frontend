@@ -36,7 +36,10 @@ export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: 
   async function ver(id: number) {
     setOcupado(id);
     try {
-      setPreviews((p) => ({ ...p, [id]: await preview(id) }));
+      // El `await` va ANTES del setState: adentro del updater la función es
+      // sincrónica y Turbopack lo rechaza al parsear.
+      const p = await preview(id);
+      setPreviews((prev) => ({ ...prev, [id]: p }));
     } finally { setOcupado(null); }
   }
 

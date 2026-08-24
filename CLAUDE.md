@@ -227,6 +227,22 @@ eso se podía verificar del lado del servidor.
 Un fetch suelto adentro de una tab es cómo nacieron «apliqué y los botones
 volvieron» y «el informe desapareció al cambiar de tab».
 
+**Dos reglas del BOTÓN de la barra, y las dos vienen de bugs reales:**
+
+1. **Se dibuja SIEMPRE.** No hay condición que lo esconda. El modal viejo hacía
+   `return null` cuando `/vista` fallaba, así que el agente **desaparecía de la
+   barra justo cuando algo andaba mal** — y no volvía, porque nadie podía
+   apretarlo para reintentar. Un monitor que se esconde cuando se rompe es
+   indistinguible de uno que no existe.
+2. **Los datos cargan aunque el modal esté cerrado** (poll lento de 2 min;
+   20 s abierto). Si sólo cargaran al abrir, para enterarte de que hay algo
+   tendrías que entrar a mirar — lo contrario de para qué existe un agente.
+
+Y el círculo tiene **tres** estados, no dos: verde (mirando) · gris (detenido) ·
+**rojo (no pude leerlo)**. «No sé cómo está» y «está tranquilo» no se pueden
+dibujar igual: es la misma regla que rige adentro —una corrida que no pudo mirar
+no cierra nada— aplicada a la barra.
+
 ## Variables de entorno (Vercel)
 
 | Var | Para qué |

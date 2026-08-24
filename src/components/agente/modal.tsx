@@ -37,19 +37,33 @@ export default function AgenteModal() {
   const nVolvio = v?.reincidencias.total ?? 0;
   const vivo = v?.latido.vivo ?? false;
 
+  // ⚠️ **TRES estados, no dos.** «No pude leer al agente» NO se puede dibujar
+  // igual que «el agente está tranquilo»: son la misma imagen y significan lo
+  // contrario. Es la misma regla que rige adentro (una corrida que no pudo
+  // mirar no cierra nada), aplicada al botón.
+  const roto = Boolean(d.error.vista);
+  const color = roto ? "var(--t-neg)"
+    : vivo ? "var(--t-pos)"
+    : "var(--t-text-dim)";
+
   return (
     <>
+      {/* ⚠️⚠️ **ESTE BOTÓN SE DIBUJA SIEMPRE.** No hay ninguna condición que lo
+          esconda, y eso es a propósito: el modal viejo hacía `return null`
+          cuando `/vista` fallaba, así que el agente **desaparecía de la barra
+          justo cuando algo andaba mal** — y no volvía, porque nadie podía
+          apretarlo para reintentar. Un monitor que se esconde cuando se rompe
+          es indistinguible de un monitor que no existe. */}
       <button
         onClick={() => setAbierto(true)}
-        title={vivo
-          ? `El agente está mirando (última pasada hace ${hace(v?.latido.hace_s ?? null)})`
+        title={roto ? `No pude leer al agente: ${d.error.vista}`
+          : vivo ? `El agente está mirando (última pasada hace ${hace(v?.latido.hace_s ?? null)})`
           : "El agente NO está mirando"}
         className="inline-flex items-center gap-1 px-1.5 leading-none text-[10px] font-semibold text-[var(--t-text-muted)] hover:text-[var(--t-accent)] transition-colors"
       >
         {/* El círculo se apaga SOLO cuando el latido envejece: nadie tiene que
             acordarse de apagarlo. */}
-        <span className="w-1.5 h-1.5 rounded-full"
-              style={{ background: vivo ? "var(--t-pos)" : "var(--t-text-dim)" }} />
+        <span className="w-1.5 h-1.5 rounded-full" style={{ background: color }} />
         AV AGENT
         {nAhora > 0 && (
           <span className="tabular-nums text-[var(--t-accent)]">{nAhora}</span>
