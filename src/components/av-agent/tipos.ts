@@ -275,6 +275,15 @@ export type Vigilado = {
   // backend por la misma razón que `recien`: el criterio tiene que ser uno solo.
   dias_abierto?: number | null;
   vuelto_at?: string | null;
+  /** ⚠️ LA FECHA QUE ESTE BLOQUE NECESITA, ya elegida por el backend, más el
+   *  verbo que la explica (`confirmado` · `apareció` · `volvió` · `cerró`).
+   *  Acá había un `coalesce` fijo que nunca miraba `ultimo_at`: una fila
+   *  re-confirmada hace dos minutos mostraba el día que NACIÓ y parecía
+   *  muerta — el user, a las 11:18 viendo filas de las 10:32. Cada bloque
+   *  pregunta otra cosa y la fecha tiene que contestar ESA; quién la elige es
+   *  el backend, para que la consola y la tab no puedan discrepar. */
+  cuando?: string | null;
+  cuando_dice?: string;
   /** El nombre LEGIBLE — `control:patas_equivocadas` → `patas equivocadas`. Lo
    *  deriva el backend, igual que en ENCONTRÓ: dos pantallas que muestran el
    *  mismo hallazgo tienen que llamarlo igual. */

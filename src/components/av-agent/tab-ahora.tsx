@@ -694,7 +694,8 @@ export function Novedad({ titulo, filas, tono, ayuda, plegado = false }: {
                 justamente lo que dejaba pasar una fila vieja por nueva. */}
             <span className="text-[9px] text-[var(--t-text-dim)] tabular-nums whitespace-nowrap self-center"
                   title={`confirmado ${f.ultimo_at}`}>
-              {hora(f.vuelto_at ?? f.resuelto_at ?? f.abierto_at)}
+              {f.cuando_dice ? `${f.cuando_dice} ` : ""}
+              {hora(f.cuando ?? f.vuelto_at ?? f.resuelto_at ?? f.abierto_at)}
             </span>
           </div>
         ))}
