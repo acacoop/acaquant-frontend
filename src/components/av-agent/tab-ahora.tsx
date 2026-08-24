@@ -593,7 +593,18 @@ export function TabCentinela({ cent, recargar }: {
               esta pantalla que importe más. Y NO se filtra por día — con el
               corte por novedad, cuanto más tiempo llevaba roto menos se veía. */}
           <Novedad titulo="ROTO AHORA" filas={hoy.roto ?? []} tono="neg"
-                   ayuda="no es del día: está roto en este momento" />
+                   ayuda="confirmado recién: está roto en este momento" />
+          {/* ⚠️⚠️ **LO QUE NO SE PUDO CONFIRMAR** (2026-08-24). El user, con
+              cuatro motores en ROTO AHORA fechados tres días antes: *«es
+              inaceptable que AHORA muestre cosas que no sean del día actual»*.
+              Un detector que no corre no cierra lo suyo —correcto— pero la
+              fila quedaba acá arriba afirmando «está roto AHORA» cuando lo
+              único cierto era «estaba roto la última vez que alguien miró».
+              No se esconde: el silencio se lee igual que un verde. Baja acá,
+              plegado, diciendo hace cuánto que nadie la mira. */}
+          <Novedad titulo="NO LO PUDE VERIFICAR" filas={hoy.sin_confirmar ?? []}
+                   tono="texto" plegado
+                   ayuda="sigue abierto, pero su detector no da señales — no sé si sigue pasando" />
           <Novedad titulo="VOLVIÓ" filas={hoy.volvio} tono="neg"
                    ayuda="se había arreglado y volvió" />
           <Novedad titulo="APARECIÓ HOY" filas={hoy.aparecio} tono="texto"

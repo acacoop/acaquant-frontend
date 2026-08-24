@@ -287,6 +287,14 @@ export type LoDeHoy = {
    *  tiempo llevaba roto, menos visible era. Los tipos los declara el backend
    *  (`av_agent.EN_AHORA_SIEMPRE`). */
   roto?: Vigilado[];
+  /** SIGUE ABIERTO pero NADIE LO CONFIRMÓ hace rato (2026-08-24). No es una
+   *  novedad y no suma a `novedades`: es una advertencia sobre el AGENTE, no
+   *  sobre el sistema. Un detector que no corre no cierra lo suyo (correcto:
+   *  cerrar sin mirar deja el tablero en verde el día que está más ciego), y
+   *  entonces la fila quedaba en ROTO AHORA con su motivo congelado — el user
+   *  vio cuatro motores fechados tres días antes. `sin_confirmar_s` = hace
+   *  cuántos segundos que no se confirma; `null` = nunca se pudo. */
+  sin_confirmar?: (Vigilado & { sin_confirmar_s?: number | null })[];
   aparecio: Vigilado[];
   volvio: Vigilado[];
   se_arreglo: Vigilado[];
