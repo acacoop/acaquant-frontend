@@ -1497,9 +1497,16 @@ export function AccionCadena({ h, sim, simular, modo }: {
   // ternario sobre `unknown` embebido en el markup, que se lee peor y es justo
   // donde el compilador se pone quisquilloso.
   const a0 = (r?.antes ?? null) as { tea?: unknown; paridad?: unknown } | null;
+  // ⚠️ **LA FLECHA COLGADA** (user, 2026-08-23, mirando CP360). Esto terminaba
+  // en `→ ` y lo que venía inmediatamente después NO era el resultado: era
+  // «6 cupones». La línea se leía «paridad — → 6 cupones», que no significa
+  // nada. La flecha prometía un ANTES → DESPUÉS que estaba seis chips más
+  // adelante, con datos de la ficha del bono en el medio.
+  // Ahora el ANTES es una frase cerrada y el DESPUÉS se nombra donde está
+  // (abajo, «CON EL ARREGLO»). Y `TEA sin TEA` decía TEA dos veces.
   const antesTxt = modo === "arreglo" && a0
-    ? `HOY: TEA ${typeof a0.tea === "number" ? `${(a0.tea * 100).toFixed(2)}%` : "sin TEA"}`
-      + ` · paridad ${typeof a0.paridad === "number" ? `${a0.paridad.toFixed(1)}%` : "—"} → `
+    ? `HOY: ${typeof a0.tea === "number" ? `TEA ${(a0.tea * 100).toFixed(2)}%` : "sin TEA"}`
+      + ` · paridad ${typeof a0.paridad === "number" ? `${a0.paridad.toFixed(1)}%` : "—"} · `
     : "";
 
   return (
@@ -1646,7 +1653,23 @@ export function AccionCadena({ h, sim, simular, modo }: {
               {/* En el ARREGLO lo que importa es el ANTES → DESPUÉS: ver solo el
                   resultado no dice si mejoró algo, que es toda la pregunta. */}
               {antesTxt}
-              {`${r.cupones ?? 0} cupones`}
+              {/* EL DESPUÉS, PEGADO AL ANTES. Estaban separados por seis chips
+                  de la ficha del bono (cupones, vencimiento, escala, CER), o
+                  sea que la única comparación que importa —«¿mejora o no?»—
+                  había que armarla saltando por arriba del resto. En el alta no
+                  hay «antes», así que ahí sigue siendo la TEA simulada. */}
+              {tea !== null
+                ? `${modo === "arreglo" ? "CON EL ARREGLO: TEA" : "TEA simulada"} `
+                  + `${(tea * 100).toFixed(2)}%`
+                : ""}
+              {/* De dónde salió el precio con el que se calculó esa TEA. Un bono
+                  nuevo nunca tiene snapshot, así que sin decirlo el número se
+                  leería como si viniera del mercado. */}
+              {r.precio_fuente === "1816" ? " (precio de referencia 1816)" : ""}
+              {/* El separador es CONDICIONAL: en el alta no hay «antes» y
+                  puede no haber TEA, y entonces la línea arrancaba con un «·»
+                  suelto. */}
+              {`${antesTxt || tea !== null ? " · " : ""}${r.cupones ?? 0} cupones`}
               {/* Los YA PAGADOS, separados. 1816 manda el cronograma completo
                   desde la emisión, así que un bono de 2004 trae 60 cupones y de
                   los 60 se valúan 6: sin partir el número, el cuadro parece
@@ -1659,11 +1682,6 @@ export function AccionCadena({ h, sim, simular, modo }: {
                 ? ` · CER emisión ${(r.cer_emision as number).toFixed(4)} (${cerNota})`
                 : ""}
               {r.nota_cer ? ` · ${String(r.nota_cer)}` : ""}
-              {tea !== null ? ` · TEA simulada ${(tea * 100).toFixed(2)}%` : ""}
-              {/* De dónde salió el precio con el que se calculó esa TEA. Un bono
-                  nuevo nunca tiene snapshot, así que sin decirlo el número se
-                  leería como si viniera del mercado. */}
-              {r.precio_fuente === "1816" ? " (precio de referencia 1816)" : ""}
               {r.nota_tasa ? ` · ${String(r.nota_tasa)}` : ""}
               {modo === "alta" && !aplicable && r.motivo_no_aplicable
                 ? ` · ${String(r.motivo_no_aplicable)}`
