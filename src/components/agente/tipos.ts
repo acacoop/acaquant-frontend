@@ -61,7 +61,8 @@ export type Reincidencia = {
 
 export type Vista = {
   ok: boolean;
-  latido: { vivo: boolean; at?: string; hace_s: number | null };
+  latido: { vivo: boolean; at?: string; hace_s: number | null;
+            cada_s?: number | null };
   ahora: { total: number; filas: Hallazgo[] };
   encontro: { total: number; filas: Hallazgo[]; por_habilidad: Record<string, number> };
   reincidencias: { total: number; filas: Reincidencia[] };

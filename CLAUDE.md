@@ -201,6 +201,17 @@ Doc del backend: **`docs/AGENT_2.0.md`**. El agente se rehízo entero el
 | **ENCONTRÓ** | lo abierto que **tiene arreglo** | ver qué haría · aplicar · no me interesa |
 | **HISTORIAL** | el libro: qué escribió el agente, de qué valor a qué valor | ninguno |
 
+Y a la **derecha, siempre visible**, el panel de HABILIDADES: las 16, cada una
+con **la última hora que se ejecutó**, su estado (miró · no pudo mirar · reventó
+· todavía no le tocó) y cuántos hallazgos tiene abiertos.
+
+⚠️ **«Cuándo miró» es el único dato del agente que NO se puede derivar.** Una
+corrida que no encontró nada no deja rastro en los hallazgos, así que sin esa
+columna «miré y estaba todo bien» y «no corrí» se ven idénticos. Por eso el
+panel va al lado de las listas y no escondido en una tab: mirar «ENCONTRÓ 0» sin
+ver que cuatro habilidades no pudieron mirar es leer un verde que no significa
+nada.
+
 Se fueron VIGILANCIA (era un segundo depósito de los mismos problemas, con otro
 reloj y otra tabla — la propia pantalla se lo explicaba al usuario), ¿AGUANTAN?
 (su número sumaba dos cosas que no se tocan) y todo el sistema de votos.

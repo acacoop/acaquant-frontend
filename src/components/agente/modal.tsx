@@ -22,6 +22,7 @@ import { useAgente } from "@/components/agente/datos";
 import { TabAhora } from "@/components/agente/tab-ahora";
 import { TabEncontro } from "@/components/agente/tab-encontro";
 import { TabHistorial } from "@/components/agente/tab-historial";
+import { PanelHabilidades } from "@/components/agente/panel-habilidades";
 import { fechaHora, hace } from "@/components/agente/tipos";
 
 type Tab = "ahora" | "encontro" | "historial";
@@ -138,69 +139,43 @@ export default function AgenteModal() {
               ))}
             </div>
 
-            {/* ── Cuerpo ───────────────────────────────────────────────── */}
-            <div className="overflow-y-auto max-h-[70vh] p-4">
-              {d.error.vista && (
-                <p className="text-[10px] text-[var(--t-neg)] mb-2">
-                  No pude leer el agente: {d.error.vista}
-                </p>
-              )}
-              {!v && d.cargando && (
-                <p className="text-[11px] text-[var(--t-text-muted)]">cargando…</p>
-              )}
-              {v && tab === "ahora" && (
-                <TabAhora
-                  filas={v.ahora.filas}
-                  marcarLeidos={async (ids) => {
-                    await d.escribir("/api/agente/leidos", { ids }, ["vista"]);
-                  }}
-                />
-              )}
-              {v && tab === "encontro" && (
-                <TabEncontro
-                  filas={v.encontro.filas}
-                  porHabilidad={v.encontro.por_habilidad}
-                  preview={(id) => d.calcular("/api/agente/preview", { id })}
-                  aplicar={(id) => d.escribir("/api/agente/aplicar", { id }, ["vista"])}
-                  ignorar={async (id) => {
-                    await d.escribir("/api/agente/ignorar", { id }, ["vista"]);
-                  }}
-                />
-              )}
-              {tab === "historial" && <TabHistorial leer={d.leer} />}
-            </div>
-
-            {/* ── Las habilidades, al pie: qué sabe hacer y CUÁNDO MIRÓ ── */}
-            {v && (
-              <div className="px-4 py-2 border-t border-[var(--t-border)] max-h-[22vh] overflow-y-auto">
-                <p className="text-[8px] uppercase tracking-widest text-[var(--t-text-dim)] mb-1">
-                  habilidades · «corrió y no encontró nada» y «no corrió» NO son lo mismo
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
-                  {v.habilidades.map((h) => (
-                    <div key={h.nombre} className="flex items-baseline gap-1.5 text-[9px] py-0.5">
-                      <span className="w-1 h-1 rounded-full shrink-0" style={{
-                        background: h.ultimo_resultado === "ok" ? "var(--t-pos)"
-                          : h.ultimo_resultado === "error" ? "var(--t-neg)"
-                          : h.ultimo_resultado === "sin_datos" ? "var(--t-accent)"
-                          : "var(--t-text-dim)",
-                      }} title={h.ultimo_resultado ?? "nunca corrió"} />
-                      <span className="text-[var(--t-text)] font-semibold">{h.nombre}</span>
-                      <span className="text-[var(--t-text-dim)]">{h.clase}</span>
-                      <span className="text-[var(--t-text-muted)] tabular-nums">
-                        {h.hallazgos_abiertos}
-                      </span>
-                      <span className="text-[var(--t-text-dim)] ml-auto tabular-nums">
-                        {h.ultima_corrida_at ? fechaHora(h.ultima_corrida_at) : "nunca"}
-                      </span>
-                      {h.reincidencias > 0 && (
-                        <span className="text-[var(--t-neg)]">⚠{h.reincidencias}</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
+            {/* ── Cuerpo: la lista a la izquierda, LAS HABILIDADES a la
+                   derecha y siempre visibles. Mirar «ENCONTRÓ 0» sin ver que
+                   cuatro habilidades no pudieron mirar es leer un verde que no
+                   significa nada. ─────────────────────────────────────────── */}
+            <div className="flex flex-col lg:flex-row gap-4 overflow-y-auto max-h-[74vh] p-4">
+              <div className="flex-1 min-w-0">
+                {d.error.vista && (
+                  <p className="text-[10px] text-[var(--t-neg)] mb-2">
+                    No pude leer el agente: {d.error.vista}
+                  </p>
+                )}
+                {!v && d.cargando && (
+                  <p className="text-[11px] text-[var(--t-text-muted)]">cargando…</p>
+                )}
+                {v && tab === "ahora" && (
+                  <TabAhora
+                    filas={v.ahora.filas}
+                    marcarLeidos={async (ids) => {
+                      await d.escribir("/api/agente/leidos", { ids }, ["vista"]);
+                    }}
+                  />
+                )}
+                {v && tab === "encontro" && (
+                  <TabEncontro
+                    filas={v.encontro.filas}
+                    porHabilidad={v.encontro.por_habilidad}
+                    preview={(id) => d.calcular("/api/agente/preview", { id })}
+                    aplicar={(id) => d.escribir("/api/agente/aplicar", { id }, ["vista"])}
+                    ignorar={async (id) => {
+                      await d.escribir("/api/agente/ignorar", { id }, ["vista"]);
+                    }}
+                  />
+                )}
+                {tab === "historial" && <TabHistorial leer={d.leer} />}
               </div>
-            )}
+              {v && <PanelHabilidades habilidades={v.habilidades} />}
+            </div>
           </div>
         </div>
       )}
