@@ -134,20 +134,21 @@ const mesLargo = (m: string) => {
 // páginas), no estimados: ver la nota de `Hoja` sobre el alto útil.
 
 /**
- * Renglones de tabla que entran en una hoja A4 apaisada, debajo de la cabecera
+ * Renglones de tabla que entran en una hoja A4 vertical, debajo de la cabecera
  * azul y arriba del pie.
  *
- * **MEDIDO, no estimado.** Se generó el PDF con una cartera de N títulos y se
- * contaron sus páginas contra la cantidad de hojas del modal: con 38 renglones
- * las dos cifras coinciden y con 42 aparece una página de más (una hoja se
- * desborda). Queda en 36 —dos menos que el máximo que entra— como margen para
- * una fila más alta de lo normal: un emisor largo, un ticker de FCI con el
- * nombre completo del fondo.
+ * En apaisado el número medido era 36 sobre 173 mm de alto útil (≈4,8 mm por
+ * renglón). Vertical sube el alto útil a ≈258 mm → entran ≈53, y queda en **48**
+ * conservando el mismo margen de seguridad que tenía el 36: la cuenta es
+ * proporcional, NO una medición nueva.
  *
- * Si algún día se cambia el tamaño de letra de la tabla o el alto de la
- * cabecera, este número hay que volver a medirlo: no se deduce del CSS.
+ * ⚠️ **Volver a medirlo con un PDF real**: se genera el reporte de una cuenta
+ * con muchos títulos y se comparan las páginas del PDF contra las hojas del
+ * modal. Si el PDF tiene más páginas, alguna hoja se desbordó y hay que bajar
+ * este número. Tampoco se deduce del CSS si se toca el tamaño de letra de la
+ * tabla o el alto de la cabecera.
  */
-const CAPACIDAD = 36;
+const CAPACIDAD = 48;
 /** Lo que cuesta abrir una cartera DENTRO de la hoja: su renglón gris de título
  *  (más el aire que lo separa de la cartera anterior). Bajó de 3 a 2 el
  *  2026-08-22, cuando el encabezado de columnas dejó de repetirse por cartera y
@@ -243,13 +244,13 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
            className="my-2 flex flex-col items-center gap-3" id="reporte-imprimible">
 
         {/* Barra del modal — NO sale impresa */}
-        <div className="no-imprimir sticky top-0 z-10 w-full max-w-[297mm] flex items-center gap-3 px-3 py-2 text-white"
+        <div className="no-imprimir sticky top-0 z-10 w-full max-w-[210mm] flex items-center gap-3 px-3 py-2 text-white"
              style={{ background: AZUL }}>
           <span className="text-[12px] font-semibold tracking-wide uppercase">Reporte de cartera</span>
           <span className="text-[12px] text-white/80">{titulo} · {fecha}</span>
           <button onClick={() => window.print()}
                   className="ml-auto px-2 py-0.5 text-[11px] uppercase tracking-wide border border-white/40 hover:bg-white/10"
-                  title="Abre el diálogo de impresión — elegí «Guardar como PDF»">
+                  title="Abre el diálogo de impresión — elegí «Guardar como PDF», orientación VERTICAL y márgenes «Ninguno»">
             Imprimir / PDF
           </button>
           <button onClick={onCerrar} className="px-2 py-0.5 text-white/80 hover:text-white hover:bg-white/10"
@@ -266,18 +267,16 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
                       sub={a.a3500 ? `A3500 ${fmt2(a.a3500)}` : "sin A3500"} />
           </div>
 
-          {/* Mismo reparto que la pantalla: la torta a la izquierda y los dos
-              cuadros apilados a la derecha. El informe impreso y el de la
-              pantalla tienen que verse como el mismo documento — si no, el que
-              lo recibe no puede seguirlo mientras alguien se lo explica sobre la
-              app. */}
-          <div className="grid grid-cols-2 gap-6">
-            <div>
-              <TituloBloque>Composición al {fmtFechaCorta(a.fecha)}</TituloBloque>
-              <TortaCarteras carteras={a.carteras} />
-            </div>
+          {/* En vertical la hoja tiene 210 mm de ancho: la torta al lado de un
+              cuadro deja los dos apretados. Va la torta a todo el ancho arriba y
+              los dos cuadros comparativos abajo, uno al lado del otro — que es
+              además cómo se leen (el mes contra el mes anterior, en paralelo). */}
+          <div className="mb-5">
+            <TituloBloque>Composición al {fmtFechaCorta(a.fecha)}</TituloBloque>
+            <TortaCarteras carteras={a.carteras} />
+          </div>
 
-            <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-6">
             <div>
               <TituloBloque>Composición por cartera</TituloBloque>
               <table className="w-full text-[10px]">
@@ -364,7 +363,6 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
                 </p>
               )}
             </div>
-            </div>
           </div>
         </Hoja>
 
@@ -389,7 +387,7 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
                   {["Ticker", "Emisor", "Calif.", "Clase", "Venc.",
                     "Cantidad", "Precio", "Valuación", "% Total"].map((c, k) => (
                     <th key={c}
-                        className={`px-2 py-1 ${k <= 1 ? "text-left" : k <= 4 ? "text-center" : "text-right"}`}
+                        className={`px-1.5 py-1 ${k <= 1 ? "text-left" : k <= 4 ? "text-center" : "text-right"}`}
                         style={{ background: AZUL, color: "#fff",
                                  printColorAdjust: "exact",
                                  WebkitPrintColorAdjust: "exact" } as React.CSSProperties}>
@@ -406,7 +404,7 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
                       lee en la hoja 1 y en la de MÉTRICAS. */}
                   <tr style={{ printColorAdjust: "exact",
                                WebkitPrintColorAdjust: "exact" } as React.CSSProperties}>
-                    <td colSpan={9} className="px-2 py-1 bg-neutral-100 border-y border-neutral-300">
+                    <td colSpan={9} className="px-1.5 py-1 bg-neutral-100 border-y border-neutral-300">
                       <span className="text-[10px] font-semibold" style={{ color: AZUL }}>
                         {parte.bloque.label}
                         {parte.cont && <span className="font-normal text-neutral-500"> (cont.)</span>}
@@ -415,17 +413,17 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
                   </tr>
                   {parte.filas.map((f) => (
                     <tr key={f.unidad} className="border-b border-neutral-200">
-                      <td className="px-2 py-0.5">{f.ticker}</td>
-                      <td className="px-2 py-0.5 text-neutral-600">{f.emisor}</td>
-                      <td className="px-2 py-0.5 text-center text-neutral-600">{f.calificacion}</td>
-                      <td className="px-2 py-0.5 text-center text-neutral-600">{f.clase_activo}</td>
-                      <td className="px-2 py-0.5 text-center text-neutral-600">
+                      <td className="px-1.5 py-0.5">{f.ticker}</td>
+                      <td className="px-1.5 py-0.5 text-neutral-600">{f.emisor}</td>
+                      <td className="px-1.5 py-0.5 text-center text-neutral-600">{f.calificacion}</td>
+                      <td className="px-1.5 py-0.5 text-center text-neutral-600">{f.clase_activo}</td>
+                      <td className="px-1.5 py-0.5 text-center text-neutral-600">
                         {f.vencimiento ? fmtFechaCorta(f.vencimiento) : "—"}
                       </td>
-                      <td className="px-2 py-0.5 text-right">{fmt2(f.cantidad, 2)}</td>
-                      <td className="px-2 py-0.5 text-right">{fmt2(f.precio, 2)}</td>
-                      <td className="px-2 py-0.5 text-right">{fmt0(f.valuacion)}</td>
-                      <td className="px-2 py-0.5 text-right text-neutral-500">{fmtPct(f.share)}</td>
+                      <td className="px-1.5 py-0.5 text-right">{fmt2(f.cantidad, 2)}</td>
+                      <td className="px-1.5 py-0.5 text-right">{fmt2(f.precio, 2)}</td>
+                      <td className="px-1.5 py-0.5 text-right">{fmt0(f.valuacion)}</td>
+                      <td className="px-1.5 py-0.5 text-right text-neutral-500">{fmtPct(f.share)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -434,7 +432,13 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
           </Hoja>
         ))}
 
-        <Hoja n={2 + hojas.length} titulo="Métricas" cuenta={titulo} fecha={fecha}>
+        {/* MÉTRICAS y EVOLUCIÓN van en la MISMA hoja. Separadas, ninguna de las
+            dos llenaba media página y el reporte terminaba con dos hojas
+            mayormente en blanco. Juntas entran holgadas —las métricas ocupan el
+            ancho en tres columnas y la serie mensual son 14 renglones— y de paso
+            el informe queda en una página menos. */}
+        <Hoja n={2 + hojas.length} titulo="Métricas y evolución"
+              cuenta={titulo} fecha={fecha}>
           <div className="grid grid-cols-3 gap-6">
             <div>
               <TituloBloque>Por clase de activo</TituloBloque>
@@ -473,42 +477,42 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
               <TablaHoja filas={datos.metricas.por_calificacion} vacio="Sin calificación" />
             </div>
           </div>
-        </Hoja>
 
-        <Hoja n={3 + hojas.length} titulo="Evolución" cuenta={titulo} fecha={fecha}>
-          <TituloBloque>Cierre mensual</TituloBloque>
-          {meses === null ? (
-            <p className="text-[10px] text-neutral-500">Cargando la serie mensual…</p>
-          ) : meses.length === 0 ? (
-            <p className="text-[10px] text-neutral-500">
-              No se pudo traer la serie mensual de esta cuenta.
-            </p>
-          ) : (
-            <table className="w-full text-[10px]">
-              <thead>
-                <tr className="text-[8px] uppercase text-neutral-500 border-b border-neutral-300">
-                  <th className="text-left py-1">Mes</th>
-                  <th className="text-right py-1">Cierre</th>
-                  <th className="text-right py-1">Flujo neto</th>
-                  <th className="text-right py-1">Δ real</th>
-                  <th className="text-right py-1">TEM</th>
-                  <th className="text-right py-1">Base 100</th>
-                </tr>
-              </thead>
-              <tbody className="tabular-nums">
-                {meses.slice(0, 14).map((m) => (
-                  <tr key={m.mes} className="border-b border-neutral-200">
-                    <td className="py-1">{mesLargo(m.mes)}</td>
-                    <td className="text-right py-1">{fmt0(m.valuacion_cierre)}</td>
-                    <td className="text-right py-1">{fmt0(m.flujo_neto)}</td>
-                    <td className="text-right py-1">{fmt0(m.delta_real)}</td>
-                    <td className="text-right py-1">{fmtPct(m.tem_periodo, 2)}</td>
-                    <td className="text-right py-1">{fmt2(m.twr_base100, 1)}</td>
+          <div className="mt-6">
+            <TituloBloque>Cierre mensual</TituloBloque>
+            {meses === null ? (
+              <p className="text-[10px] text-neutral-500">Cargando la serie mensual…</p>
+            ) : meses.length === 0 ? (
+              <p className="text-[10px] text-neutral-500">
+                No se pudo traer la serie mensual de esta cuenta.
+              </p>
+            ) : (
+              <table className="w-full text-[10px]">
+                <thead>
+                  <tr className="text-[8px] uppercase text-neutral-500 border-b border-neutral-300">
+                    <th className="text-left py-1">Mes</th>
+                    <th className="text-right py-1">Cierre</th>
+                    <th className="text-right py-1">Flujo neto</th>
+                    <th className="text-right py-1">Δ real</th>
+                    <th className="text-right py-1">TEM</th>
+                    <th className="text-right py-1">Base 100</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+                </thead>
+                <tbody className="tabular-nums">
+                  {meses.slice(0, 14).map((m) => (
+                    <tr key={m.mes} className="border-b border-neutral-200">
+                      <td className="py-1">{mesLargo(m.mes)}</td>
+                      <td className="text-right py-1">{fmt0(m.valuacion_cierre)}</td>
+                      <td className="text-right py-1">{fmt0(m.flujo_neto)}</td>
+                      <td className="text-right py-1">{fmt0(m.delta_real)}</td>
+                      <td className="text-right py-1">{fmtPct(m.tem_periodo, 2)}</td>
+                      <td className="text-right py-1">{fmt2(m.twr_base100, 1)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </Hoja>
       </div>
     </div>,
@@ -519,24 +523,33 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
 // ── Piezas de la hoja ──────────────────────────────────────────────────────
 
 /**
- * Una hoja A4 apaisada. **Siempre en claro**, con colores literales y no
+ * Una hoja A4 vertical. **Siempre en claro**, con colores literales y no
  * variables de tema: esto se imprime y se manda hacia afuera, así que no puede
  * salir con fondo negro porque quien lo generó tenía la app en oscuro.
  *
- * `min-height` y no `height`: una cartera con muchos títulos crece y el
- * navegador la parte sola al imprimir. Forzar el alto la recortaría en silencio,
- * que es la peor forma de perder datos en un informe.
+ * **Alto FIJO y columna flex, y las dos cosas son por el mismo motivo.** Antes
+ * la hoja tenía `min-height` y el pie iba en flujo normal justo detrás del
+ * contenido: en una hoja corta el «Hecho en ACAQuant · Hoja N» quedaba flotando
+ * a media página con todo blanco debajo, y como cada hoja tiene distinto largo
+ * el pie aparecía a distinta altura en cada una. Con alto definido, `mt-auto`
+ * lo baja al ras del borde inferior en todas — que es lo que hace que un PDF se
+ * lea como un documento y no como una captura de pantalla.
+ *
+ * Si una hoja se pasara de largo NO se recorta: el contenido desborda y el
+ * navegador lo pagina (`break-inside: auto` en el CSS de impresión). Perder
+ * datos en silencio es peor que una página de más.
  */
 function Hoja({ n, titulo, cuenta, fecha, children }: {
   n: number; titulo: string; cuenta: string; fecha: string; children: React.ReactNode;
 }) {
   return (
-    // 205mm y no 210: el alto ÚTIL de un A4 apaisado es 210mm justos, así que
-    // pedir 210 hace que cualquier redondeo (un borde, el padding del pie)
-    // empuje unos píxeles a una segunda página y el PDF salga con hojas en
-    // blanco intercaladas. Medido: con 210mm, 6 hojas daban 7 páginas.
-    <section className="hoja sin-marca-de-agua bg-white text-neutral-900 shadow-lg"
-             style={{ width: "297mm", minHeight: "205mm",
+    // 290mm y no 297: el alto de un A4 vertical es 297mm justos, así que pedir
+    // 297 hace que cualquier redondeo (un borde, el padding del pie) empuje unos
+    // píxeles a una segunda página y el PDF salga con hojas en blanco
+    // intercaladas. Es el mismo margen (~97,5%) que tenía la versión apaisada,
+    // donde con 210mm exactos 6 hojas daban 7 páginas.
+    <section className="hoja sin-marca-de-agua bg-white text-neutral-900 shadow-lg flex flex-col"
+             style={{ width: "210mm", height: "290mm",
                       printColorAdjust: "exact",
                       WebkitPrintColorAdjust: "exact" } as React.CSSProperties}>
       {/* ⚠️ `printColorAdjust: exact` NO es decorativo: sin eso el navegador
@@ -544,7 +557,7 @@ function Hoja({ n, titulo, cuenta, fecha, children }: {
           diálogo, y nadie lo tilda. Sin fondo, la barra azul desaparece y el
           texto blanco queda blanco sobre blanco — la hoja sale con el título
           fantasma y sin logo, que es exactamente como salió el primer PDF. */}
-      <header className="flex items-center gap-3 px-6 py-3 text-white"
+      <header className="shrink-0 flex items-center gap-3 px-6 py-3 text-white"
               style={{ background: AZUL, printColorAdjust: "exact",
                        WebkitPrintColorAdjust: "exact" } as React.CSSProperties}>
         {/* eslint-disable-next-line @next/next/no-img-element -- se imprime; el
@@ -556,7 +569,7 @@ function Hoja({ n, titulo, cuenta, fecha, children }: {
         <span className="text-[11px] text-white/85">{fecha}</span>
       </header>
       <div className="px-6 py-4">{children}</div>
-      <footer className="px-6 pb-3 pt-1 flex items-baseline text-[8px] text-neutral-400">
+      <footer className="mt-auto shrink-0 px-6 pb-3 pt-1 flex items-baseline text-[8px] text-neutral-400">
         <span>{FIRMA}</span>
         <span className="ml-auto">Hoja {n}</span>
       </footer>
@@ -571,7 +584,7 @@ function Hoja({ n, titulo, cuenta, fecha, children }: {
  * ⚠️ **Medidas FIJAS, no `ResponsiveContainer`.** El contenedor responsivo mide
  * su caja con un `ResizeObserver` y dibuja recién después: en una hoja que se
  * está por imprimir eso es una carrera que a veces pierde y deja el SVG en cero.
- * La hoja tiene un ancho conocido (297mm), así que el gráfico puede tener
+ * La hoja tiene un ancho conocido (210mm), así que el gráfico puede tener
  * medidas exactas y dibujarse en el primer render. Es el único lugar de la app
  * donde conviene lo fijo sobre lo responsivo, y el motivo es la impresión.
  *
@@ -606,7 +619,10 @@ function TortaCarteras({ carteras }: {
           el orden del cuadro de al lado, y dos listas de lo mismo en distinto
           orden hacen que alguien lea mal el informe—, y además en la versión 3
           ya no se le puede pasar el contenido armado. */}
-      <ul className="text-[10px] leading-relaxed">
+      {/* Ancho acotado: la torta ahora ocupa la hoja entera a lo ancho y sin
+          tope el `ml-auto` del porcentaje lo mandaba al borde derecho, a diez
+          centímetros del nombre de su cartera. */}
+      <ul className="text-[10px] leading-relaxed w-[70mm]">
         {datos.map((d, i) => (
           <li key={d.cartera} className="flex items-baseline gap-2">
             <span className="inline-block w-2.5 h-2.5 shrink-0"
@@ -676,7 +692,7 @@ function TablaHoja({ filas, vacio, sangria = false }: {
 // recortando. Lo que pagina es sacar la app del flujo.
 const CSS_IMPRESION = `
 @media print {
-  @page { size: A4 landscape; margin: 0; }
+  @page { size: A4 portrait; margin: 0; }
   html, body {
     height: auto !important;
     overflow: visible !important;
@@ -711,6 +727,9 @@ const CSS_IMPRESION = `
     box-shadow: none !important;
     margin: 0 !important;
     break-after: page;
+    /* `auto` a propósito: la hoja tiene alto FIJO, y si alguna se pasara de
+       largo preferimos que el navegador la parta y salga una página de más
+       antes que recortar filas en silencio. */
     break-inside: auto;
   }
   .hoja:last-child { break-after: auto; }
