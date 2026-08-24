@@ -25,7 +25,7 @@ import { TabHistorial } from "@/components/agente/tab-historial";
 import { PanelHabilidades } from "@/components/agente/panel-habilidades";
 import { fechaHora, hace } from "@/components/agente/tipos";
 
-type Tab = "ahora" | "encontro" | "historial";
+type Tab = "ahora" | "encontro" | "historial" | "habilidades";
 
 export default function AgenteModal() {
   const [abierto, setAbierto] = useState(false);
@@ -125,6 +125,11 @@ export default function AgenteModal() {
                 ["ahora", "AHORA", nAhora, "lo de hoy · informativo"],
                 ["encontro", "ENCONTRÓ", nEncontro, "lo que tiene arreglo"],
                 ["historial", "HISTORIAL", null, "lo que el agente escribió"],
+                // HABILIDADES es una tab PROPIA, no un panel pegado al costado
+                // de las otras: lo que el agente sabe hacer y cuándo miró cada
+                // cosa no es un accesorio de la lista de hoy.
+                ["habilidades", "HABILIDADES", v?.habilidades.length ?? null,
+                 "qué sabe hacer y cuándo miró"],
               ] as [Tab, string, number | null, string][]).map(([k, label, n, pie]) => (
                 <button key={k} onClick={() => setTab(k)}
                         className={`px-3 py-1.5 text-[10px] font-semibold tracking-widest border-b-2 -mb-px transition-colors ${
@@ -139,42 +144,42 @@ export default function AgenteModal() {
               ))}
             </div>
 
-            {/* ── Cuerpo: la lista a la izquierda, LAS HABILIDADES a la
-                   derecha y siempre visibles. Mirar «ENCONTRÓ 0» sin ver que
-                   cuatro habilidades no pudieron mirar es leer un verde que no
-                   significa nada. ─────────────────────────────────────────── */}
-            <div className="flex flex-col lg:flex-row gap-4 overflow-y-auto max-h-[74vh] p-4">
-              <div className="flex-1 min-w-0">
-                {d.error.vista && (
-                  <p className="text-[10px] text-[var(--t-neg)] mb-2">
-                    No pude leer el agente: {d.error.vista}
-                  </p>
-                )}
-                {!v && d.cargando && (
-                  <p className="text-[11px] text-[var(--t-text-muted)]">cargando…</p>
-                )}
-                {v && tab === "ahora" && (
-                  <TabAhora
-                    filas={v.ahora.filas}
-                    marcarLeidos={async (ids) => {
-                      await d.escribir("/api/agente/leidos", { ids }, ["vista"]);
-                    }}
-                  />
-                )}
-                {v && tab === "encontro" && (
-                  <TabEncontro
-                    filas={v.encontro.filas}
-                    porHabilidad={v.encontro.por_habilidad}
-                    preview={(id) => d.calcular("/api/agente/preview", { id })}
-                    aplicar={(id) => d.escribir("/api/agente/aplicar", { id }, ["vista"])}
-                    ignorar={async (id) => {
-                      await d.escribir("/api/agente/ignorar", { id }, ["vista"]);
-                    }}
-                  />
-                )}
-                {tab === "historial" && <TabHistorial leer={d.leer} />}
-              </div>
-              {v && <PanelHabilidades habilidades={v.habilidades} />}
+            {/* ── Cuerpo ───────────────────────────────────────────────── */}
+            <div className="overflow-y-auto max-h-[74vh] p-4">
+              {d.error.vista && (
+                <p className="text-[10px] text-[var(--t-neg)] mb-2">
+                  No pude leer el agente: {d.error.vista}
+                </p>
+              )}
+              {!v && d.cargando && (
+                <p className="text-[11px] text-[var(--t-text-muted)]">cargando…</p>
+              )}
+              {v && tab === "ahora" && (
+                <TabAhora
+                  filas={v.ahora.filas}
+                  marcarLeidos={async (ids) => {
+                    await d.escribir("/api/agente/leidos", { ids }, ["vista"]);
+                  }}
+                />
+              )}
+              {v && tab === "encontro" && (
+                <TabEncontro
+                  filas={v.encontro.filas}
+                  porHabilidad={v.encontro.por_habilidad}
+                  preview={(id) => d.calcular("/api/agente/preview", { id })}
+                  aplicar={(id) => d.escribir("/api/agente/aplicar", { id }, ["vista"])}
+                  ignorar={async (id) => {
+                    await d.escribir("/api/agente/ignorar", { id }, ["vista"]);
+                  }}
+                />
+              )}
+              {tab === "historial" && <TabHistorial leer={d.leer} />}
+              {v && tab === "habilidades" && (
+                <PanelHabilidades habilidades={v.habilidades}
+                                  correr={(n) => d.escribir(
+                                    "/api/agente/correr", { habilidad: n },
+                                    ["vista"])} />
+              )}
             </div>
           </div>
         </div>

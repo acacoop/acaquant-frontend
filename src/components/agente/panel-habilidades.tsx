@@ -1,10 +1,15 @@
 "use client";
 
-// EL PANEL DE HABILIDADES — a la derecha, SIEMPRE visible.
+// HABILIDADES — una TAB PROPIA. Doc: `docs/AGENT_2.0.md` §6.
 //
-// Pedido del user (2026-08-24): *«tenemos que agregar acá en la punta derecha
-// un listado de todas las skills, y cada skill tiene que tener la última hora
-// que se ejecutó»*.
+// Pedido del user (2026-08-24): *«un listado de todas las skills, y cada skill
+// tiene que tener la última hora que se ejecutó»* · *«lo quiero ahí como una tab
+// que no está dentro de lo demás, es propia»*.
+//
+// Y tiene razón en que sea propia: lo que el agente SABE HACER no es un
+// accesorio de la lista de hoy. Es la respuesta a otra pregunta —«¿está
+// mirando?»— y esa pregunta se hace cuando las otras listas están en cero, que
+// es justo cuando un panel apretado al costado no se lee.
 //
 // ⚠️ **«Cuándo miró» es el único dato del agente que NO se puede derivar.** Una
 // corrida que no encontró nada no deja rastro en los hallazgos, así que sin
@@ -15,6 +20,8 @@
 // Por eso el panel va al lado de las listas y no escondido en una tab: mirar
 // «ENCONTRÓ 0» sin ver que cuatro habilidades no corrieron es leer un verde que
 // no significa nada.
+import { useState } from "react";
+
 import { fechaHora, type Habilidad } from "@/components/agente/tipos";
 
 // CUATRO estados, no dos. La distinción que el agente viejo no hacía.
@@ -25,7 +32,11 @@ const ESTADO: Record<string, { color: string; txt: string }> = {
 };
 const NUNCA = { color: "var(--t-text-dim)", txt: "todavía no le tocó" };
 
-export function PanelHabilidades({ habilidades }: { habilidades: Habilidad[] }) {
+export function PanelHabilidades({ habilidades, correr }: {
+  habilidades: Habilidad[];
+  correr: (nombre: string) => Promise<unknown>;
+}) {
+  const [corriendo, setCorriendo] = useState("");
   const orden = [...habilidades].sort((a, b) => {
     // Lo que NO pudo mirar va arriba: es una advertencia sobre el AGENTE, no
     // sobre el sistema, y es la que nadie sale a buscar.
@@ -38,24 +49,26 @@ export function PanelHabilidades({ habilidades }: { habilidades: Habilidad[] }) 
   const ciegas = orden.filter((h) =>
     h.ultimo_resultado === "error" || h.ultimo_resultado === "sin_datos").length;
 
+  async function correrla(nombre: string) {
+    if (corriendo) return;
+    setCorriendo(nombre);
+    try { await correr(nombre); } finally { setCorriendo(""); }
+  }
+
   return (
-    <aside className="w-full lg:w-72 shrink-0 lg:border-l border-[var(--t-border)] lg:pl-3">
-      <div className="flex items-baseline gap-2 mb-1">
-        <h3 className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
-          habilidades
-        </h3>
-        <span className="text-[9px] tabular-nums text-[var(--t-text-muted)]">
-          {habilidades.length}
-        </span>
+    <div className="flex flex-col gap-2">
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <p className="text-[10px] text-[var(--t-text-dim)]">
+          Lo que el agente sabe hacer, y <b>la última vez que miró cada cosa</b>.
+          «Corrió y no encontró nada» y «no corrió» <b>no son lo mismo</b>: sin
+          esta columna se ven idénticos.
+        </p>
         {ciegas > 0 && (
-          <span className="text-[9px] text-[var(--t-neg)]" title="no pudieron mirar">
-            ⚠ {ciegas} sin ver
+          <span className="text-[10px] text-[var(--t-neg)] ml-auto">
+            ⚠ {ciegas} no pudieron mirar — no cerraron nada
           </span>
         )}
       </div>
-      <p className="text-[8px] text-[var(--t-text-dim)] mb-1.5 leading-tight">
-        «corrió y no encontró nada» y «no corrió» <b>no son lo mismo</b>.
-      </p>
 
       <div className="flex flex-col divide-y divide-[var(--t-border)] border border-[var(--t-border)]">
         {orden.map((h) => {
@@ -63,13 +76,15 @@ export function PanelHabilidades({ habilidades }: { habilidades: Habilidad[] }) 
             ? (ESTADO[h.ultimo_resultado ?? ""] ?? NUNCA)
             : NUNCA;
           return (
-            <div key={h.nombre} className="px-1.5 py-1"
-                 title={`${h.que_mira}\n\n${e.txt}${h.ultimo_error ? `\n\n${h.ultimo_error}` : ""}`}>
-              <div className="flex items-baseline gap-1.5">
-                <span className="w-1 h-1 rounded-full shrink-0"
-                      style={{ background: e.color }} />
-                <span className="text-[10px] text-[var(--t-text)] truncate flex-1 min-w-0">
+            <div key={h.nombre} className="px-2 py-1.5">
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <span className="w-1.5 h-1.5 rounded-full shrink-0"
+                      style={{ background: e.color }} title={e.txt} />
+                <span className="text-[11px] font-bold text-[var(--t-text)]">
                   {h.nombre}
+                </span>
+                <span className="text-[9px] text-[var(--t-text-dim)]">
+                  {h.dominio}
                 </span>
                 {h.hallazgos_abiertos > 0 && (
                   <span className="text-[9px] tabular-nums text-[var(--t-accent)]">
@@ -83,25 +98,41 @@ export function PanelHabilidades({ habilidades }: { habilidades: Habilidad[] }) 
                   </span>
                 )}
               </div>
-              <div className="flex items-baseline gap-1.5 pl-2.5">
-                {/* LA HORA. Es lo que el user pidió y lo único que no se
-                    puede derivar de ninguna otra tabla. */}
-                <span className="text-[9px] tabular-nums text-[var(--t-text-dim)]">
-                  {h.ultima_corrida_at ? fechaHora(h.ultima_corrida_at) : "nunca"}
+              <p className="text-[10px] text-[var(--t-text-muted)] pl-3.5">
+                {h.que_mira}
+              </p>
+              <div className="flex items-baseline gap-2 pl-3.5 flex-wrap mt-0.5">
+                {/* LA HORA. Es lo que el user pidió y lo único del agente que
+                    NO se puede derivar de ninguna otra tabla. */}
+                <span className="text-[9px] tabular-nums text-[var(--t-text)]">
+                  {h.ultima_corrida_at
+                    ? `miró ${fechaHora(h.ultima_corrida_at)}`
+                    : "todavía no le tocó"}
                 </span>
-                <span className="text-[8px] text-[var(--t-text-dim)] truncate">
-                  {h.clase === "trabajo" ? "arregla" : "avisa"}
-                  {h.ventana !== "siempre" ? ` · ${h.ventana}` : ""}
+                <span className="text-[9px] text-[var(--t-text-dim)]">{e.txt}</span>
+                <span className="text-[9px] text-[var(--t-text-dim)]">
+                  cada {Math.round(h.cada_segundos / 60)} min
+                  {h.ventana !== "siempre" ? ` · solo en ${h.ventana}` : ""}
+                </span>
+                <span className="text-[9px] text-[var(--t-text-dim)]">
+                  {h.clase === "trabajo" ? "tiene arreglo" : "solo avisa"}
                 </span>
                 {h.corridas_hoy > 0 && (
-                  <span className="text-[8px] tabular-nums text-[var(--t-text-dim)] ml-auto"
-                        title="corridas hoy">
-                    ×{h.corridas_hoy}
+                  <span className="text-[9px] tabular-nums text-[var(--t-text-dim)]">
+                    {h.corridas_hoy}× hoy
                   </span>
                 )}
+                <button
+                  disabled={Boolean(corriendo)}
+                  onClick={() => void correrla(h.nombre)}
+                  title="Correrla ahora, sin esperar su ritmo"
+                  className="ml-auto text-[9px] uppercase tracking-widest px-1.5 py-0.5 border border-[var(--t-border)] text-[var(--t-text-dim)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-40"
+                >
+                  {corriendo === h.nombre ? "mirando…" : "↻ mirar"}
+                </button>
               </div>
               {h.ultimo_error && (
-                <p className="text-[8px] text-[var(--t-neg)] pl-2.5 truncate">
+                <p className="text-[9px] text-[var(--t-neg)] pl-3.5 mt-0.5">
                   {h.ultimo_error}
                 </p>
               )}
@@ -109,6 +140,6 @@ export function PanelHabilidades({ habilidades }: { habilidades: Habilidad[] }) 
           );
         })}
       </div>
-    </aside>
+    </div>
   );
 }
