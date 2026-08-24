@@ -192,21 +192,40 @@ naranja terminal a azul de empresa. **No hardcodear hex en componentes** —
 
 ### El modal del AV AGENT — la red se toca desde UN lugar
 
-`src/components/av-agent/datos.tsx` es la ÚNICA pieza del modal que puede importar
-`@/lib/fetch-json`, y **el lint lo hace estructural** (`no-restricted-imports` en
-`eslint.config.mjs`). Los componentes guardan estado de **pantalla** (qué tab, qué
-filtro); el estado del **servidor** tiene un dueño y un ciclo: `leer` → `escribir`
-→ **releer**. Tres verbos, y el verbo dice qué es la llamada:
+Doc del backend: **`docs/AGENT_2.0.md`**. El agente se rehízo entero el
+2026-08-24 y el modal pasó de **siete tabs a TRES**:
+
+| Tab | Qué muestra | Botones |
+|---|---|---|
+| **AHORA** | los hallazgos de **HOY** sin leer y sin resolver | uno: «leído» |
+| **ENCONTRÓ** | lo abierto que **tiene arreglo** | ver qué haría · aplicar · no me interesa |
+| **HISTORIAL** | el libro: qué escribió el agente, de qué valor a qué valor | ninguno |
+
+Se fueron VIGILANCIA (era un segundo depósito de los mismos problemas, con otro
+reloj y otra tabla — la propia pantalla se lo explicaba al usuario), ¿AGUANTAN?
+(su número sumaba dos cosas que no se tocan) y todo el sistema de votos.
+
+**`src/components/agente/datos.tsx` es la ÚNICA pieza que puede importar
+`@/lib/fetch-json`, y el lint lo hace estructural** (`no-restricted-imports` en
+`eslint.config.mjs`). Los componentes guardan estado de **pantalla** (qué tab,
+qué filtro); el estado del **servidor** tiene un dueño y un ciclo: `leer` →
+`escribir` → **releer**. Tres verbos, y el verbo dice qué es la llamada:
 
 - `leer(url)` — GET, no cambia nada.
-- `llamar(url, body)` — POST que CALCULA (explicar, simular). No muta lo que la
-  pantalla dibuja, no relee.
-- `escribir(url, body, relee)` — POST que MUTA. Declara qué recursos invalida y los
-  relee al volver. Relee **también** si el backend contestó `ok: false`.
+- `calcular(url, body)` — POST que **CALCULA** (el preview de un arreglo). No
+  muta lo que la pantalla dibuja, no relee.
+- `escribir(url, body, relee)` — POST que **MUTA**. Declara qué recursos
+  invalida y los relee al volver, **también si el backend contestó `ok: false`**.
 
-El front **no deriva**: acción, estado, atendido, nombre vienen resueltos del backend.
-Un fetch suelto adentro de una tab es cómo nacieron «voté y los botones volvieron» y
-«el informe desapareció al cambiar de tab».
+**El front no deriva, y ningún contador se suma acá.** Todos vienen del backend,
+de la misma query que dibuja su lista. El «AHORA 92» del agente viejo lo sumaba
+el navegador juntando cuatro cosas de dos endpoints con frescuras distintas
+(uno se refrescaba cada 20 s, el otro se cargaba una sola vez al abrir),
+contadas sobre listas ya cortadas en 200 filas y leídas de otra tabla — nada de
+eso se podía verificar del lado del servidor.
+
+Un fetch suelto adentro de una tab es cómo nacieron «apliqué y los botones
+volvieron» y «el informe desapareció al cambiar de tab».
 
 ## Variables de entorno (Vercel)
 

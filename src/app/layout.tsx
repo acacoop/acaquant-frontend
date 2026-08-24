@@ -7,7 +7,7 @@ import { AnuncioDolarFuturoModal } from "@/components/anuncio-dolar-futuro-modal
 import { AnuncioResearchModal } from "@/components/anuncio-research-modal";
 import { BriefingModal } from "@/components/briefing-modal";
 import { MisAvisos } from "@/components/mis-avisos";
-import { AvAgentModal } from "@/components/av-agent-modal";
+import AgenteModal from "@/components/agente/modal";
 import { Header } from "@/components/header";
 import { PerfBoot } from "@/components/perf-boot";
 import { SlotBarraInferior } from "@/components/ui/slot-barra-inferior";
@@ -147,7 +147,7 @@ export default async function RootLayout({
                 ADMIN-ONLY server-side, mismo criterio que SALUD — sin `manager`
                 el componente no existe en el HTML, no pollea y no puede mostrar
                 nada. El gate real es require_admin en el backend. */}
-            {esAdmin && <AvAgentModal />}
+            {esAdmin && <AgenteModal />}
             <span>MERVAL / ROFEX</span>
           </div>
         </footer>
