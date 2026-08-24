@@ -121,6 +121,17 @@ export type Accion = {
   detalle: Record<string, unknown> | null; antes: Record<string, unknown> | null;
   origen: string; pregunta_id: number | null; por: string | null;
   ok: boolean; error: string | null;
+  // ── LA TRAZABILIDAD (backend §0.dg) ──────────────────────────────────────
+  // Una acción es un EVENTO; «¿quedó arreglado?» es del OBJETO que tocó, y
+  // vive en otra tabla con su ciclo. El backend hace el cruce y manda las dos
+  // cosas juntas para que la pantalla no tenga que adivinar.
+  regla?: string | null;                    // QUÉ problema decía arreglar
+  cambios?: { campo: string; antes: string; despues: string }[];   // el CÓMO
+  estado_objeto?: string | null;            // el estado HOY de ESE problema
+  // Todos los problemas del sujeto. Es el respaldo honesto cuando la acción no
+  // dice cuál arreglaba: se muestran sin afirmar que se tocó alguno.
+  objetos?: { regla: string; estado: string; veces: number;
+              resuelto_at: string | null; vuelto_at: string | null }[];
 };
 export type Pendiente = {
   id: number; clave: string; ticker: string; respuesta: string | null;
