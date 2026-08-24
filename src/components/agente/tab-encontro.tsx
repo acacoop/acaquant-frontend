@@ -16,12 +16,22 @@ import { useState } from "react";
 
 import { COLOR, fechaHora, type Hallazgo } from "@/components/agente/tipos";
 
-type Paso = { titulo?: string; estado?: string; detalle?: string; tabla?: string };
+type Paso = { titulo?: string; estado?: string; detalle?: string;
+              tabla?: string; aviso?: string };
+type Flujo = { fecha?: string; amortizacion?: number | null;
+               cupon?: number | null; residual?: number | null };
 type Preview = {
   ok: boolean; error?: string; que_escribe?: string; donde?: string;
   porque?: string; antes?: unknown; veredicto?: string;
-  puede_aplicar?: boolean; pasos?: Paso[];
+  puede_aplicar?: boolean; pasos?: Paso[]; flujos?: Flujo[];
+  escala?: string; rama?: string; vencimiento?: string; simbolo?: string;
+  tea?: number | null; precio?: number | null;
+  ejes?: Record<string, string>;
 };
+
+const n2 = (v: number | null | undefined, d = 2) =>
+  v == null ? "—" : v.toLocaleString("es-AR",
+    { minimumFractionDigits: d, maximumFractionDigits: d });
 
 // El estado de cada eslabón de la cadena, con su color. Viene RESUELTO del
 // backend: el front no decide qué estado bloquea qué.
@@ -171,34 +181,104 @@ export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: 
               {p && (
                 <div className="mt-1 ml-3.5 border-l-2 border-[var(--t-border)] pl-2 text-[9px] text-[var(--t-text-muted)]">
                   {p.ok ? (
-                    <>
-                      <div><b>escribe:</b> {p.que_escribe || "—"}</div>
-                      <div><b>dónde:</b> {p.donde || f.arreglo_donde || "—"}</div>
-                      {p.porque && <div className="mt-0.5">{p.porque}</div>}
+                    <div className="flex flex-col gap-2">
+                      {/* LA FICHA: qué bono es, en datos y no en una frase. */}
+                      <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                        {([
+                          ["dónde escribe", p.donde || f.arreglo_donde],
+                          ["rama", p.rama],
+                          ["ejes", p.ejes
+                            ? `${p.ejes.emisor_tipo} · ${p.ejes.moneda_eje} · ${p.ejes.ajuste}`
+                            : null],
+                          ["símbolo", p.simbolo],
+                          ["vence", p.vencimiento],
+                          ["cupones", p.flujos?.length],
+                          ["precio", p.precio != null ? n2(p.precio) : null],
+                          ["TEA que daría", p.tea != null
+                            ? `${(p.tea * 100).toFixed(2)}%` : null],
+                        ] as [string, string | number | null | undefined][])
+                          .filter(([, v]) => v != null && v !== "")
+                          .map(([k, v]) => (
+                            <span key={k}>
+                              <span className="text-[var(--t-text-dim)]">{k}: </span>
+                              <b className="text-[var(--t-text)]">{v}</b>
+                            </span>
+                          ))}
+                      </div>
+
                       {p.puede_aplicar === false && (
-                        <div className="text-[var(--t-neg)] mt-0.5">
-                          ✘ la cadena FRENA: aplicar no va a escribir
-                          {p.veredicto ? ` — ${p.veredicto}` : ""}
+                        <div className="text-[var(--t-neg)]">
+                          ✘ {p.veredicto || "la cadena FRENA: aplicar no va a escribir"}
                         </div>
                       )}
+
+                      {/* EL CUADRO. Es lo que el bono va a pagar, y verlo
+                          contesta «¿es este el bono?» aunque la cadena frene. */}
+                      {(p.flujos ?? []).length > 0 && (
+                        <div>
+                          <div className="text-[var(--t-text-dim)] mb-0.5">
+                            EL CRONOGRAMA que se escribiría
+                            {p.escala ? ` · escala ${p.escala}` : ""}
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="tabular-nums text-[9px]">
+                              <thead className="text-[var(--t-text-dim)]">
+                                <tr>
+                                  <th className="text-left pr-3">fecha</th>
+                                  <th className="text-right pr-3">amortiza</th>
+                                  <th className="text-right pr-3">cupón</th>
+                                  <th className="text-right">residual</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {p.flujos!.map((fl, i) => (
+                                  <tr key={i} className="text-[var(--t-text)]">
+                                    <td className="pr-3">{fl.fecha}</td>
+                                    <td className="text-right pr-3">{n2(fl.amortizacion, 4)}</td>
+                                    <td className="text-right pr-3">{n2(fl.cupon, 6)}</td>
+                                    <td className="text-right text-[var(--t-text-muted)]">
+                                      {n2(fl.residual)}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
                       {/* LA CADENA. Ver dónde frena es la mitad del valor de
                           simular: sin esto, «no se puede» no dice por qué. */}
                       {(p.pasos ?? []).length > 0 && (
-                        <div className="mt-1 flex flex-col gap-0.5">
+                        <div className="flex flex-col gap-1">
+                          <div className="text-[var(--t-text-dim)]">
+                            LA CADENA que va a recorrer al aplicar
+                          </div>
                           {p.pasos!.map((s, i) => (
-                            <div key={i} className="flex items-baseline gap-1.5">
-                              <span className="w-1 h-1 rounded-full shrink-0 mt-1"
+                            <div key={i} className="flex items-start gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full shrink-0 mt-1"
                                     style={{ background: PASO[s.estado ?? ""]
-                                             ?? "var(--t-text-dim)" }} />
-                              <span className="text-[var(--t-text)]">{s.titulo}</span>
-                              <span className="text-[var(--t-text-dim)] min-w-0">
-                                {s.detalle}
-                              </span>
+                                             ?? "var(--t-text-dim)" }}
+                                    title={s.estado} />
+                              <div className="min-w-0">
+                                <span className="text-[var(--t-text)]">{s.titulo}</span>
+                                {s.tabla && (
+                                  <span className="text-[var(--t-text-dim)]"> · {s.tabla}</span>
+                                )}
+                                {s.detalle && (
+                                  <p className="text-[var(--t-text-muted)] whitespace-pre-wrap">
+                                    {s.detalle}
+                                  </p>
+                                )}
+                                {s.aviso && (
+                                  <p className="text-[var(--t-accent)]">⚠ {s.aviso}</p>
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>
                       )}
-                    </>
+                    </div>
                   ) : (
                     <span className="text-[var(--t-neg)]">{p.error}</span>
                   )}
