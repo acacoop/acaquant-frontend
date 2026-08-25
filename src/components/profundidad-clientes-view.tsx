@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { fetchJson } from "@/lib/fetch-json";
-import { fmtMoney, fmtMoneyFull } from "@/lib/fmt-money";
 import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
 
 // Tab PROFUNDIDAD DE CLIENTES (dentro de OPERADORES).
@@ -95,6 +94,15 @@ const COLS: Col[] = [
 
 const fmtInt = (n: number | null | undefined) =>
   n == null ? "—" : n.toLocaleString("es-AR");
+// Plata en ESTA vista: número ENTERO y COMPLETO ($1.234.567), sin "1,2 M" y sin
+// decimales (pedido explícito). El compacto de `fmtMoney` sirve en pantallas
+// donde el monto es contexto; acá el monto ES el dato y la tabla se compara
+// contra un Excel — "$1,2 M" no se puede cotejar contra nada.
+// Ojo con el 0: `fmtMoney` devuelve "—" para cero, y en esta tabla "—" está
+// reservado para "no pude mirar" (sin foto de tenencia). Un mes con cero
+// aranceles es un HECHO, así que muestra "$0".
+const fmtPesos = (n: number | null | undefined) =>
+  n == null ? "—" : `$${Math.round(n).toLocaleString("es-AR")}`;
 const fmtPct = (n: number | null | undefined) =>
   n == null ? "—" : `${(n * 100).toLocaleString("es-AR", { maximumFractionDigits: 1 })}%`;
 const fmtFecha = (iso: string | null | undefined) =>
@@ -106,13 +114,14 @@ function valorCelda(f: Fila, c: Col): number | null {
 function textoCelda(f: Fila, c: Col): string {
   const v = valorCelda(f, c);
   if (v == null) return "—";
-  return c.tipo === "int" ? fmtInt(v) : c.tipo === "pct" ? fmtPct(v) : fmtMoney(v);
+  return c.tipo === "int" ? fmtInt(v) : c.tipo === "pct" ? fmtPct(v) : fmtPesos(v);
 }
 function tituloCelda(f: Fila, c: Col): string {
+  // El monto ya se muestra entero en la celda, así que el tooltip NO lo repite:
+  // queda para la definición de la columna y para decir que se puede auditar.
   const v = valorCelda(f, c);
-  const exacto = v == null ? "sin dato" : c.tipo === "money" ? fmtMoneyFull(v)
-    : c.tipo === "pct" ? fmtPct(v) : fmtInt(v);
-  return `${c.label} · ${f.label}: ${exacto}\n${c.ayuda}${v == null ? "" : "\nClick para ver las cuentas."}`;
+  const extra = c.tipo === "pct" && v != null ? ` (${fmtPct(v)})` : "";
+  return `${c.label} · ${f.label}${extra}\n${c.ayuda}${v == null ? "" : "\nClick para ver las cuentas."}`;
 }
 
 // Chips de los filtros madre activos. El pedido fue explícito con NIVEL 3, pero se
@@ -416,8 +425,8 @@ function ModalCelda(
             <Dato label="Con AuM" value={fmtInt(d.totales.con_aum)} />
             <Dato label="Activos" value={fmtInt(d.totales.activos)} />
             <Dato label="Ratio activ." value={fmtPct(d.totales.ratio_actividad)} />
-            <Dato label={`Aranceles (${d.moneda})`} value={fmtMoneyFull(d.totales.aranceles)} />
-            <Dato label={`AuM (${d.moneda})`} value={fmtMoneyFull(d.totales.aum)} />
+            <Dato label={`Aranceles (${d.moneda})`} value={fmtPesos(d.totales.aranceles)} />
+            <Dato label={`AuM (${d.moneda})`} value={fmtPesos(d.totales.aum)} />
             <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)] max-w-[46%] text-right">
               {d.ecuacion}
             </span>
@@ -440,16 +449,17 @@ function ModalCelda(
           <table className="w-full table-fixed text-[11px]">
             <thead className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] sticky top-0 bg-[var(--t-panel)]">
               <tr className="border-b border-[var(--t-border)]">
-                <th className="px-2 py-1.5 text-left font-normal w-[8%]">Cuenta</th>
-                <th className="px-2 py-1.5 text-left font-normal w-[24%]">Cliente</th>
-                <th className="px-2 py-1.5 text-left font-normal w-[14%]">Operador</th>
-                <th className="px-2 py-1.5 text-left font-normal w-[11%]">Nivel 1</th>
-                <th className="px-2 py-1.5 text-left font-normal w-[13%]">Nivel 3</th>
-                <th className="px-2 py-1.5 text-left font-normal w-[8%]">Alta</th>
-                <th className="px-2 py-1.5 text-right font-normal w-[10%]">AuM</th>
-                <th className="px-2 py-1.5 text-right font-normal w-[5%]">Bol.</th>
-                <th className="px-2 py-1.5 text-right font-normal w-[9%]">Arancel</th>
-                <th className="px-2 py-1.5 text-left font-normal w-[8%]">Última op</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[7%]">Cuenta</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[19%]">Cliente</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[12%]">Operador</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[9%]">Nivel 1</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[10%]">Nivel 3</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[7%]">Alta</th>
+                {/* AuM y Arancel se llevan el ancho: van completos, sin abreviar. */}
+                <th className="px-2 py-1.5 text-right font-normal w-[14%]">AuM</th>
+                <th className="px-2 py-1.5 text-right font-normal w-[4%]">Bol.</th>
+                <th className="px-2 py-1.5 text-right font-normal w-[11%]">Arancel</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[7%]">Última op</th>
               </tr>
             </thead>
             <tbody>
@@ -467,15 +477,9 @@ function ModalCelda(
                   <td className="px-2 py-1 whitespace-normal break-words text-[var(--t-text-dim)] align-top">{i.nivel_1 || "—"}</td>
                   <td className="px-2 py-1 whitespace-normal break-words text-[var(--t-text-dim)] align-top">{i.nivel_3 || "—"}</td>
                   <td className="px-2 py-1 tabular-nums align-top">{fmtFecha(i.fecha_alta_legajo)}</td>
-                  <td className="px-2 py-1 text-right tabular-nums align-top"
-                    title={i.aum != null ? fmtMoneyFull(i.aum) : undefined}>
-                    {i.aum == null ? "—" : fmtMoney(i.aum)}
-                  </td>
+                  <td className="px-2 py-1 text-right tabular-nums align-top">{fmtPesos(i.aum)}</td>
                   <td className="px-2 py-1 text-right tabular-nums align-top">{i.n_boletos || "—"}</td>
-                  <td className="px-2 py-1 text-right tabular-nums align-top"
-                    title={i.arancel != null ? fmtMoneyFull(i.arancel) : undefined}>
-                    {i.arancel ? fmtMoney(i.arancel) : "—"}
-                  </td>
+                  <td className="px-2 py-1 text-right tabular-nums align-top">{fmtPesos(i.arancel)}</td>
                   <td className="px-2 py-1 tabular-nums align-top">{fmtFecha(i.ultima_op)}</td>
                 </tr>
               ))}
