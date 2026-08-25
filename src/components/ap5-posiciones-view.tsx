@@ -107,6 +107,9 @@ type Requerimiento = {
   // Qué conceptos suma esta card, y cuáles de ellos NO vinieron. Si la cámara
   // renombra `Inicial A3`, la card seguiría dibujando el número de los que sí
   // quedaron: el aviso es lo único que lo delata.
+  // Cuánto aportó CADA concepto. Sin esto, «`Inicial A3` sumó 0» y «`Inicial
+  // A3` no entró en la query» dan el mismo total y se ven idénticos.
+  por_concepto: { concepto: string; moneda: string; importe: number; filas: number }[];
   conceptos: string[];
   conceptos_faltantes: string[];
   // Si esta card mira SÓLO las cuentas de `AP5_CUENTAS_REQUERIMIENTO` o TODAS.
@@ -398,6 +401,13 @@ function Margenes({ r }: { r: Requerimiento }) {
             className="font-mono tabular-nums font-semibold"
             title={[
               `Conceptos: ${r.conceptos.join(" + ")}`,
+              "",
+              // El desglose por concepto va PRIMERO: es lo que contesta «¿por
+              // qué este número?». El detalle por cuenta viene después.
+              ...r.por_concepto
+                .filter((c) => c.moneda === m.moneda)
+                .map((c) => `${c.concepto}: ${fmt0(c.importe)}  (${c.filas} filas)`),
+              "",
               ...r.detalle
                 .filter((d) => d.moneda === m.moneda)
                 .map(
