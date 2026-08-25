@@ -34,8 +34,9 @@ type DifHoy = { moneda: string; familia: string; importe: number; cuentas: numbe
 type RankItem = {
   cuenta: string; nombre: string; moneda: string; familia: string; grupo: string;
   importe: number; diaria: number;
-  semilla: number | null; semilla_cargada: boolean;
-  desde_fecha: string | null; nota: string | null;
+  // El ARRASTRE de esta moneda y si lo cargó una persona. `cargado = false` con
+  // arrastre 0 NO es lo mismo que un cero verificado — y esta vista se imprime.
+  arrastre: number; cargado: boolean; fecha_arrastre: string | null;
 };
 // `tab` y `lado` los decide el BACKEND. La vista no compara strings de grupo —
 // que es exactamente donde se rompió el 2026-08-25: la base decía COOPERATIVAS,
@@ -45,7 +46,7 @@ type Ranking = {
   tab: TabFam; grupo: string; lado: "izq" | "der" | "otro";
   positivos: RankItem[]; negativos: RankItem[];
   total_positivo: number; total_negativo: number;
-  cuentas: number; sin_semilla: number;
+  cuentas: number; sin_cargar: number;
 };
 type Instr = {
   familia: string; producto: string; etiqueta: string;
@@ -57,8 +58,8 @@ type Instr = {
 };
 type Acum = {
   cuenta: string; nombre: string; grupo: string; moneda: string; familia: string;
-  semilla: number | null; semilla_cargada: boolean;
-  desde_fecha: string | null; nota: string | null;
+  arrastre: number; cargado: boolean;
+  fecha_arrastre: string | null; actualizado: string | null;
   movimiento: number; acumulado: number; diaria: number;
 };
 type Faltantes = {
@@ -66,7 +67,7 @@ type Faltantes = {
   fuera_de_tabs?: { familia: string; cuentas: number; simbolos: number }[];
   simbolos_sin_multiplicador?: { symbol: string; unidad: string | null; filas: number }[];
   cuentas_sin_nombre?: number; cuentas_sin_grupo?: number; cuentas?: number;
-  cuentas_sin_semilla?: number;
+  cuentas_sin_cargar?: number;
 };
 type Vista = {
   fecha: string | null; fecha_anterior: string | null;
@@ -252,13 +253,13 @@ export function Ap5PosicionesView() {
 
 /** Medio ranking (a favor / en contra).
  *
- *  ⚠️ **Acá NO se marca la cuenta sin semilla** (2026-08-25, pedido del user:
- *  esta vista se imprime como PDF para gerencia). El aviso sigue existiendo,
- *  pero UNA sola vez y en la barra de herramientas — que es de la mesa, no del
- *  informe. Ojo con lo que eso significa: sin semilla el acumulado arranca en
- *  nuestro primer día guardado y no es el arrastre real, así que el orden del
- *  top puede no ser el del mail. El cartel se sacó; el problema se cierra
- *  cargando las semillas, no escondiéndolas. El TOTAL es de TODAS las cuentas, no del
+ *  ⚠️ **Acá NO se marca la cuenta sin arrastre cargado** (2026-08-25, pedido
+ *  del user: esta vista se imprime como PDF para gerencia). El aviso sigue
+ *  existiendo, pero UNA sola vez y en la barra de herramientas — que es de la
+ *  mesa, no del informe. Ojo con lo que significa: sin arrastre el acumulado
+ *  cuenta solo desde nuestro primer día guardado, así que el orden del top
+ *  puede no ser el del mail. El cartel se sacó; el problema se cierra cargando
+ *  el arrastre, no escondiéndolo. El TOTAL es de TODAS las cuentas, no del
  *  top: el ranking recorta la LISTA, no la suma. Si el total saliera de las 10
  *  filas, mostrar 10 cambiaría el número y nadie lo notaría. */
 function Ladrillo({ titulo, items, total, onFila }: {
@@ -278,7 +279,7 @@ function Ladrillo({ titulo, items, total, onFila }: {
             <tr
               key={i.cuenta}
               onClick={() => onFila(i)}
-              title="cargar grupo o semilla"
+              title="cargar grupo o acumulado"
               className="border-b border-[var(--t-border-2)] last:border-b-0 cursor-pointer hover:bg-[var(--t-accent)]/5"
             >
               <td className="px-1 py-0.5 text-[9px] text-[var(--t-text-muted)] text-right w-6">{n + 1}</td>
@@ -312,7 +313,7 @@ function Faltantes({ f }: { f: Faltantes }) {
   if (sinMult.length) avisos.push(`${sinMult.length} símbolo(s) sin multiplicador`);
   if (f.cuentas_sin_grupo) avisos.push(`${f.cuentas_sin_grupo} sin grupo`);
   if (f.cuentas_sin_nombre) avisos.push(`${f.cuentas_sin_nombre} sin nombre`);
-  if (f.cuentas_sin_semilla) avisos.push(`${f.cuentas_sin_semilla} sin semilla`);
+  if (f.cuentas_sin_cargar) avisos.push(`${f.cuentas_sin_cargar} sin arrastre cargado`);
   if (!avisos.length) return <span className="text-[10px] text-[var(--t-text-muted)]">sin faltantes</span>;
   return (
     <span
@@ -325,16 +326,22 @@ function Faltantes({ f }: { f: Faltantes }) {
 }
 
 /** Las DOS cosas que ninguna fuente sabe y carga una persona: el GRUPO (parte
- *  los rankings; la cámara no lo sabe y no se deduce del nombre — REGLA #9) y
- *  la SEMILLA del acumulado (la cámara manda la diferencia del día, no el
- *  arrastre). */
+ *  los rankings; la cámara no lo sabe y NO se deduce del nombre — REGLA #9) y el
+ *  ARRASTRE del acumulado (la cámara manda la diferencia del día, no el
+ *  arrastre; lo anterior a nuestra serie solo existe en la planilla de la mesa).
+ *
+ *  Las DOS monedas van siempre juntas, en campos separados: el agro liquida en
+ *  Dólar MtR y el dólar futuro en Pesos. No hay un campo "moneda" con un
+ *  importe —eso dejaría una cargada y la otra sin saber si está en cero o sin
+ *  cargar— ni un total, porque un total de las dos no significa nada.
+ */
 function ModalCuenta({ fila, grupos, onCerrar, onGuardado }: {
   fila: RankItem; grupos: string[]; onCerrar: () => void; onGuardado: () => void;
 }) {
   const [grupo, setGrupo] = useState(fila.grupo === "(sin grupo)" ? "" : fila.grupo);
-  const [semilla, setSemilla] = useState(fila.semilla == null ? "" : String(fila.semilla));
-  const [desde, setDesde] = useState(fila.desde_fecha ?? "");
-  const [nota, setNota] = useState(fila.nota ?? "");
+  const [pesos, setPesos] = useState("");
+  const [mtr, setMtr] = useState("");
+  const [fecha, setFecha] = useState(fila.fecha_arrastre ?? "");
   const [guardando, setGuardando] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -350,18 +357,15 @@ function ModalCuenta({ fila, grupos, onCerrar, onGuardado }: {
           body: JSON.stringify({ account: fila.cuenta, grupo }),
         });
       }
-      if (semilla !== "" && desde !== "") {
-        await fetchJson("/api/ap5/semilla", {
+      if (fecha && (pesos !== "" || mtr !== "")) {
+        await fetchJson("/api/ap5/acumulado", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             account: fila.cuenta,
-            // La moneda viaja SIEMPRE y no tiene default: una semilla sin
-            // moneda es justo el error que la PK viene a impedir.
-            currency: fila.moneda,
-            semilla: Number(semilla),
-            desde_fecha: desde,
-            nota,
+            acumulado_pesos: Number(pesos || 0),
+            acumulado_mtr: Number(mtr || 0),
+            fecha,
           }),
         });
       }
@@ -381,7 +385,12 @@ function ModalCuenta({ fila, grupos, onCerrar, onGuardado }: {
       >
         <div className="px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-brand)]">
           <div className="text-[11px] font-semibold text-white">{fila.nombre}</div>
-          <div className="text-[9px] text-white/70">cuenta {fila.cuenta} · {fila.moneda}</div>
+          <div className="text-[9px] text-white/70">
+            cuenta {fila.cuenta}
+            {fila.cargado
+              ? ` · arrastre cargado hasta ${fila.fecha_arrastre ?? "—"}`
+              : " · sin arrastre cargado"}
+          </div>
         </div>
 
         <div className="p-3 space-y-3 text-[11px]">
@@ -389,7 +398,7 @@ function ModalCuenta({ fila, grupos, onCerrar, onGuardado }: {
             <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">Grupo</span>
             <input
               list="ap5-grupos" value={grupo} onChange={(e) => setGrupo(e.target.value)}
-              placeholder="Cooperativas / MUNDO ACA"
+              placeholder="COOPERATIVAS / MUNDO ACA"
               className="w-full mt-0.5 bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1"
             />
             <datalist id="ap5-grupos">{grupos.map((g) => <option key={g} value={g} />)}</datalist>
@@ -400,31 +409,34 @@ function ModalCuenta({ fila, grupos, onCerrar, onGuardado }: {
 
           <div className="grid grid-cols-2 gap-2">
             <label className="block">
-              <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">Semilla</span>
+              <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">Acumulado Pesos</span>
               <input
-                value={semilla} onChange={(e) => setSemilla(e.target.value)} inputMode="decimal"
+                value={pesos} onChange={(e) => setPesos(e.target.value)} inputMode="decimal"
+                placeholder="0"
                 className="w-full mt-0.5 bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1 font-mono tabular-nums"
               />
             </label>
             <label className="block">
-              <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">Desde (inclusive)</span>
+              <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">Acumulado MtR</span>
               <input
-                type="date" value={desde} onChange={(e) => setDesde(e.target.value)}
-                className="w-full mt-0.5 bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1"
+                value={mtr} onChange={(e) => setMtr(e.target.value)} inputMode="decimal"
+                placeholder="0"
+                className="w-full mt-0.5 bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1 font-mono tabular-nums"
               />
             </label>
           </div>
-          <div className="text-[9px] text-[var(--t-text-muted)] -mt-2">
-            La semilla YA contiene el arrastre hasta ese día: se suman los días POSTERIORES.
-            Incluirlo lo contaría dos veces.
-          </div>
 
           <label className="block">
-            <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">Nota</span>
+            <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">Fecha</span>
             <input
-              value={nota} onChange={(e) => setNota(e.target.value)}
+              type="date" value={fecha} onChange={(e) => setFecha(e.target.value)}
               className="w-full mt-0.5 bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1"
             />
+            <span className="text-[9px] text-[var(--t-text-muted)]">
+              Los dos importes YA contienen todo hasta este día. El sistema suma
+              los días POSTERIORES — si ponés el primer día de la serie, ese día
+              deja de contar.
+            </span>
           </label>
 
           {err && <div className="text-[var(--t-neg)]">{err}</div>}
