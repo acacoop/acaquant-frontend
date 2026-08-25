@@ -306,16 +306,32 @@ function CuadroConsolidado({ b }: { b: Consolidado }) {
 
   return (
     <Panel titulo={titulo} extra={<span className="text-[10px] text-white/70">{b.moneda}</span>}>
-      <table className="w-full text-[11px] font-mono tabular-nums">
+      {/* ⚠️ `table-fixed` + <colgroup>: los anchos los fija el CÓDIGO, no el
+          contenido. Con el `table-auto` de siempre cada columna se estira según
+          lo que le toca —y "Diferencias Acum. al Día Ant." es el header más
+          largo de todos—, así que el bloque POSICIÓN no caía exactamente sobre
+          sus tres columnas y el cuadro se leía corrido. Con anchos declarados
+          eso no puede pasar, y de paso los dos cuadros (agrícolas y U$S) quedan
+          con la MISMA grilla aunque tengan distinta cantidad de filas. */}
+      <table className="w-full table-fixed text-[11px] font-mono tabular-nums whitespace-nowrap">
+        <colgroup>
+          <col className="w-[16%]" />{/* Instrumento */}
+          <col className="w-[12%]" />{/* Compra  ┐                              */}
+          <col className="w-[12%]" />{/* Venta   ├ POSICIÓN — 38% en total       */}
+          <col className="w-[14%]" />{/* Neta    ┘                              */}
+          <col className="w-[15%]" />{/* Acum. al día     */}
+          <col className="w-[15%]" />{/* Acum. al día ant. */}
+          <col className="w-[16%]" />{/* Diaria           */}
+        </colgroup>
         <thead>
           <tr className="text-[9px] uppercase text-[var(--t-text-muted)] border-b border-[var(--t-border-2)]">
             <th rowSpan={2} className="text-left px-2 py-1 font-normal align-bottom">Instrumento</th>
-            <th colSpan={3} className="text-center px-2 py-1 font-normal border-x border-[var(--t-border-2)]">
+            <th colSpan={3} className="text-center px-2 py-1 font-normal border-x border-[var(--t-border-2)] bg-[var(--t-bg)]">
               Posición
             </th>
-            <th rowSpan={2} className="text-right px-2 py-1 font-normal align-bottom">Diferencias Acum. al Día</th>
-            <th rowSpan={2} className="text-right px-2 py-1 font-normal align-bottom">Diferencias Acum. al Día Ant.</th>
-            <th rowSpan={2} className="text-right px-2 py-1 font-normal align-bottom">Diferencia Diaria</th>
+            <th rowSpan={2} className="text-right px-2 py-1 font-normal align-bottom leading-tight">Diferencias<br />Acum. al Día</th>
+            <th rowSpan={2} className="text-right px-2 py-1 font-normal align-bottom leading-tight">Diferencias<br />Acum. al Día Ant.</th>
+            <th rowSpan={2} className="text-right px-2 py-1 font-normal align-bottom leading-tight">Diferencia<br />Diaria</th>
           </tr>
           <tr className="text-[9px] uppercase text-[var(--t-text-muted)] border-b border-[var(--t-border)]">
             <th className="text-right px-2 py-1 font-normal border-l border-[var(--t-border-2)]">Compra</th>
