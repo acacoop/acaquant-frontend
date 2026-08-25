@@ -93,6 +93,17 @@ export function TabAhora({ filas, marcarLeidos }: {
               <p className="text-[10px] text-[var(--t-text-muted)] mt-0.5">
                 {f.problema}
               </p>
+              {/* ⚠️ **EL ERROR CRUDO VA PRIMERO Y DESTACADO.** Es lo único que
+                  dice de QUIÉN es el problema: un 401 es una credencial
+                  nuestra, un 5xx es de ellos, un timeout es la red.
+                  Antes se calculaba y quedaba enterrado en `evidencia`, que
+                  esta pantalla ni leía, y en su lugar se veía una frase de
+                  molde idéntica para los cuatro proveedores. */}
+              {f.detalle && (
+                <pre className="text-[9px] text-[var(--t-text)] mt-0.5 px-1.5 py-1 border-l-2 border-[var(--t-accent)] bg-[var(--t-surface)] whitespace-pre-wrap break-all font-mono">
+                  {f.detalle}
+                </pre>
+              )}
               <p className="text-[9px] text-[var(--t-text-dim)] mt-0.5">
                 {f.que_hacer}
               </p>

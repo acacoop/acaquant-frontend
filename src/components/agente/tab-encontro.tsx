@@ -142,6 +142,11 @@ export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: 
                   <p className="text-[10px] text-[var(--t-text-muted)] mt-0.5">
                     {f.problema}
                   </p>
+                  {f.detalle && (
+                    <pre className="text-[9px] text-[var(--t-text)] mt-0.5 px-1.5 py-1 border-l-2 border-[var(--t-accent)] bg-[var(--t-surface)] whitespace-pre-wrap break-all font-mono">
+                      {f.detalle}
+                    </pre>
+                  )}
                   <p className="text-[9px] text-[var(--t-text-dim)] mt-0.5">
                     {f.que_hacer}
                   </p>

@@ -13,6 +13,8 @@ export type Hallazgo = {
   nombre: string;
   severidad: Severidad;
   problema: string;
+  // El error CRUDO, tal cual. Es lo que dice de quién es el problema.
+  detalle?: string;
   que_hacer: string;
   arreglo: string;
   arreglo_titulo?: string;
