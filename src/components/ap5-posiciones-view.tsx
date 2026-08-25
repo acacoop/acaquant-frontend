@@ -84,6 +84,7 @@ type Vista = {
   diferencias_hoy: DifHoy[]; por_instrumento: Instr[]; acumulado: Acum[];
   faltantes: Faltantes;
   requerimiento_margenes: Requerimiento;
+  activo_integrado: Requerimiento;
 };
 
 /** El requerimiento de márgenes de las cuentas elegidas.
@@ -93,11 +94,18 @@ type Vista = {
  *  cuenta en cero, y este cuadro se imprime para gerencia. */
 type Requerimiento = {
   fecha: string | null;
-  por_moneda: { moneda: string; margen: number; cuentas: number }[];
+  por_moneda: { moneda: string; importe: number; filas: number }[];
   detalle: {
-    cuenta: string; cuenta_compensacion: string; moneda: string;
-    margen: number; referencias: number; titular: string | null;
+    cuenta: string; cuenta_compensacion: string; concepto: string;
+    moneda: string; importe: number; margen: number; primas: number;
+    inter_temporal: number; campos: string; referencias: number;
+    titular: string | null;
   }[];
+  // Qué conceptos suma esta card, y cuáles de ellos NO vinieron. Si la cámara
+  // renombra `Inicial A3`, la card seguiría dibujando el número de los que sí
+  // quedaron: el aviso es lo único que lo delata.
+  conceptos: string[];
+  conceptos_faltantes: string[];
   cuentas_pedidas: number;
   cuentas_encontradas: number;
   cuentas_faltantes: string[];
@@ -270,17 +278,18 @@ export function Ap5PosicionesView() {
           ))}
         </Cabecera>
 
-        {/* El activo integrado sigue PENDIENTE, y se declara como tal en vez
-            de dibujarse vacío: un espacio en blanco se lee como "hoy no hay",
-            que es otra cosa que "no lo estamos midiendo" — y este cuadro se
-            imprime para gerencia. (Medido 2026-08-25: `AccountBalance` da un
-            agregado por cuenta de compensación que NO se puede abrir por
-            comitente, así que todavía no hay de dónde sacarlo.) */}
+        {/* Las dos salen de la MISMA respuesta (`MarginRequirementReport`),
+            sumando CONCEPTOS distintos: el requerimiento suma `Márgenes` y el
+            activo integrado `Márgenes + Inicial A3` — esto último verificado
+            contra el número real de la mesa el 2026-08-25. `AccountBalance`,
+            que parecía el método natural para el integrado, da un agregado por
+            cuenta de compensación que no se puede abrir por comitente. Qué
+            conceptos suma cada una vive en `config.py` del backend. */}
         <Cabecera titulo="Requerimiento de márgenes">
           <Margenes r={v.requerimiento_margenes} />
         </Cabecera>
         <Cabecera titulo="Activo integrado">
-          <Pendiente donde="Balance de saldos → AccountBalance" />
+          <Margenes r={v.activo_integrado} />
         </Cabecera>
       </div>
 
@@ -361,44 +370,56 @@ function Cabecera({ titulo, children }: { titulo: string; children: React.ReactN
  */
 function Margenes({ r }: { r: Requerimiento }) {
   if (!r || (r.por_moneda.length === 0 && r.cuentas_encontradas === 0)) {
-    return <Vacio texto="sin márgenes este día" />;
+    return <Vacio texto="sin datos este día" />;
   }
-  const faltan = r.cuentas_faltantes.length;
+  // Las DOS formas de que el número salga incompleto y creíble: que falte una
+  // cuenta, o que falte un concepto. Los dos conteos los hace el backend contra
+  // la base — acá sólo se dibujan.
+  const avisos = [
+    r.cuentas_faltantes.length
+      ? `faltan ${r.cuentas_faltantes.length} de ${r.cuentas_pedidas} cuentas`
+      : "",
+    r.conceptos_faltantes.length ? `sin ${r.conceptos_faltantes.join(", ")}` : "",
+  ].filter(Boolean);
   return (
     <>
       {r.por_moneda.map((m) => (
         <span key={m.moneda} className="flex items-baseline gap-1.5">
           <span className="text-[9px] text-[var(--t-text-muted)]">En {m.moneda}</span>
           <span
-            className={`font-mono tabular-nums font-semibold ${tono(m.margen)}`}
-            title={r.detalle
-              .filter((d) => d.moneda === m.moneda)
-              .map((d) => `${d.titular || d.cuenta} (${d.cuenta}/${d.cuenta_compensacion}): ${fmt0(d.margen)}`)
-              .join("\n")}
+            className="font-mono tabular-nums font-semibold"
+            title={[
+              `Conceptos: ${r.conceptos.join(" + ")}`,
+              ...r.detalle
+                .filter((d) => d.moneda === m.moneda)
+                .map(
+                  (d) =>
+                    `${d.titular || d.cuenta} (${d.cuenta}/${d.cuenta_compensacion}) · ${d.concepto}: ${fmt0(d.importe)}`,
+                ),
+            ].join("\n")}
           >
-            {fmt0(m.margen)}
+            {fmt0(m.importe)}
           </span>
         </span>
       ))}
-      {faltan > 0 && (
+      {avisos.length > 0 && (
         <span
           className="text-[10px] text-[var(--t-neg)]"
-          title={`No vinieron: ${r.cuentas_faltantes.join(", ")}`}
+          title={[
+            r.cuentas_faltantes.length
+              ? `Cuentas que no vinieron: ${r.cuentas_faltantes.join(", ")}`
+              : "",
+            r.conceptos_faltantes.length
+              ? `Conceptos declarados que no vinieron: ${r.conceptos_faltantes.join(", ")}`
+              : "",
+          ]
+            .filter(Boolean)
+            .join("\n")}
         >
-          faltan {faltan} de {r.cuentas_pedidas} cuentas
+          {avisos.join(" · ")}
         </span>
       )}
     </>
-  );
-}
-
-/** Un dato que la API publica y que todavía no traemos. Dice DÓNDE está, para
- *  que el pendiente sea accionable y no un cartel. */
-function Pendiente({ donde }: { donde: string }) {
-  return (
-    <span className="text-[11px] text-[var(--t-text-muted)]" title={`Falta el job que lo traiga · ${donde}`}>
-      sin traer <span className="text-[9px]">· falta el job</span>
-    </span>
   );
 }
 
