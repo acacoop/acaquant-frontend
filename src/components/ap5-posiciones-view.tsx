@@ -72,6 +72,7 @@ type Faltantes = {
 type Vista = {
   fecha: string | null; fecha_anterior: string | null;
   fechas: Fecha[]; rankings: Ranking[]; grupos: string[];
+  consolidado: Consolidado[];
   // El endpoint sigue trayendo estos tres bloques y la pantalla ya NO los
   // dibuja (2026-08-25: la vista es el reporte, y el reporte son los rankings).
   // Se tipan igual porque describen lo que la API devuelve de verdad — borrar el
@@ -90,10 +91,29 @@ const FAMILIA: Record<string, string> = { agro: "AGRO", dolar: "DÓLAR FUTURO", 
 // (`TAB_DE_FAMILIA`): `otros` —hoy el WTI, unidad `Bl`— va con AGRO pero
 // conserva su etiqueta, para que se vea que no son toneladas.
 type TabFam = "agro" | "dolar";
-const TABS: { id: TabFam; label: string }[] = [
+type Tab = TabFam | "consolidados";
+const TABS: { id: Tab; label: string }[] = [
   { id: "agro", label: "FUTUROS AGRO" },
   { id: "dolar", label: "FUTUROS DÓLAR" },
+  { id: "consolidados", label: "CONSOLIDADOS" },
 ];
+
+// El cuadro POR INSTRUMENTO del mail: un bloque por (tab, moneda), con su TOTAL
+// ya sumado por el backend. Acá NO se suma nada — este cuadro se imprime.
+type ConsFila = {
+  producto: string; etiqueta: string; unidad: string | null;
+  compra: number | null; venta: number | null; neta: number | null;
+  compra_contratos: number; venta_contratos: number; sin_multiplicador: number;
+  acum_hoy: number; acum_ayer: number; diaria: number;
+};
+type ConsTotal = {
+  compra: number; venta: number; neta: number;
+  acum_hoy: number; acum_ayer: number; diaria: number; sin_multiplicador: number;
+};
+type Consolidado = {
+  tab: TabFam; moneda: string; unidad: string | null; unidades: string[];
+  filas: ConsFila[]; total: ConsTotal;
+};
 
 // Verde a favor, rojo en contra. Mismos tokens que el resto de la app.
 const tono = (n: number) => (n > 0 ? "text-[var(--t-pos)]" : n < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]");
@@ -111,7 +131,7 @@ export function Ap5PosicionesView() {
   // La fecha y la tab persisten entre navegaciones: son ELECCIONES del usuario,
   // no data fetcheada (que es lo que usePersistedState no debe guardar).
   const [fecha, setFecha] = usePersistedState<string>("ap5.fecha", "");
-  const [tab, setTab] = usePersistedState<TabFam>("ap5.tab", "agro");
+  const [tab, setTab] = usePersistedState<Tab>("ap5.tab", "agro");
   const [v, setV] = useState<Vista | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Qué (fecha, recarga) es lo que está DIBUJADO. `cargando` se DERIVA de
@@ -211,10 +231,21 @@ export function Ap5PosicionesView() {
         <div className="ml-auto"><Faltantes f={v.faltantes} /></div>
       </div>
 
-      {/* ── Los rankings, y NADA más ────────────────────────────────────────
+      {tab === "consolidados" ? (
+        /* ── CONSOLIDADOS: el cuadro POR INSTRUMENTO del mail ───────────────
+           Un bloque por (tab, moneda) — agrícolas arriba, U$S abajo — con su
+           TOTAL ya sumado por el backend. */
+        <div className="flex-1 min-h-0 overflow-auto p-3 space-y-3">
+          {v.consolidado.map((b) => <CuadroConsolidado key={`${b.tab}-${b.moneda}`} b={b} />)}
+          {v.consolidado.length === 0 && (
+            <div className="text-[11px] text-[var(--t-text-dim)]">Sin posición este día.</div>
+          )}
+        </div>
+      ) : (
+      /* ── Los rankings, y NADA más ────────────────────────────────────────
           Izquierda y derecha las decidió el backend (`lado`), no un match de
           strings acá. Cada panel se estira a lo alto: la pantalla completa es
-          para las dos listas. */}
+          para las dos listas. */
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3 p-3 overflow-auto">
         {bloques.map((r) => (
           <Panel
@@ -238,6 +269,7 @@ export function Ap5PosicionesView() {
           </div>
         )}
       </div>
+      )}
 
       {editar && (
         <ModalCuenta
@@ -248,6 +280,85 @@ export function Ap5PosicionesView() {
         />
       )}
     </div>
+  );
+}
+
+/** Un cuadro del CONSOLIDADO: FUTUROS AGRÍCOLAS o FUTUROS U$S.
+ *
+ *  Cabecera de dos pisos como el mail: POSICIÓN agrupa compra/venta/neta.
+ *
+ *  ⚠️ **Acá no se suma nada.** El TOTAL viene calculado del backend, de la
+ *  misma query que las filas. Un total sumado en el navegador no se puede
+ *  verificar del lado del servidor — y este cuadro se imprime para gerencia.
+ */
+function CuadroConsolidado({ b }: { b: Consolidado }) {
+  const agro = b.tab === "agro";
+  const titulo = agro ? "FUTUROS AGRÍCOLAS" : "FUTUROS U$S";
+  // El rótulo de la posición sale de la UNIDAD real, no de un supuesto: si en
+  // el cuadro conviven dos unidades no se puede afirmar una sola.
+  const neta = b.unidad ? `Posición ${b.unidad} Neta` : "Posición Neta";
+
+  return (
+    <Panel titulo={titulo} extra={<span className="text-[10px] text-white/70">{b.moneda}</span>}>
+      <table className="w-full text-[11px] font-mono tabular-nums">
+        <thead>
+          <tr className="text-[9px] uppercase text-[var(--t-text-muted)] border-b border-[var(--t-border-2)]">
+            <th rowSpan={2} className="text-left px-2 py-1 font-normal align-bottom">Instrumento</th>
+            <th colSpan={3} className="text-center px-2 py-1 font-normal border-x border-[var(--t-border-2)]">
+              Posición
+            </th>
+            <th rowSpan={2} className="text-right px-2 py-1 font-normal align-bottom">Diferencias Acum. al Día</th>
+            <th rowSpan={2} className="text-right px-2 py-1 font-normal align-bottom">Diferencias Acum. al Día Ant.</th>
+            <th rowSpan={2} className="text-right px-2 py-1 font-normal align-bottom">Diferencia Diaria</th>
+          </tr>
+          <tr className="text-[9px] uppercase text-[var(--t-text-muted)] border-b border-[var(--t-border)]">
+            <th className="text-right px-2 py-1 font-normal border-l border-[var(--t-border-2)]">Compra</th>
+            <th className="text-right px-2 py-1 font-normal">Venta</th>
+            <th className="text-right px-2 py-1 font-normal border-r border-[var(--t-border-2)]">{neta}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {b.filas.map((r) => (
+            <tr key={r.producto} className="border-b border-[var(--t-border-2)]">
+              <td className="px-2 py-1 font-semibold">{r.etiqueta}</td>
+              {/* Sin multiplicador la cantidad en unidad NO se puede afirmar:
+                  se muestran los CONTRATOS crudos, en vez de un número 100
+                  veces más chico que parece bien. */}
+              {r.sin_multiplicador > 0 ? (
+                <td colSpan={3} className="px-2 py-1 text-[var(--t-neg)]"
+                  title={`${r.sin_multiplicador} filas sin multiplicador conocido`}>
+                  {fmt2(r.compra_contratos, 0)} / {fmt2(r.venta_contratos, 0)} contratos · sin multiplicador
+                </td>
+              ) : (
+                <>
+                  <td className="px-2 py-1 text-right">{fmt2(r.compra, 2)}</td>
+                  <td className="px-2 py-1 text-right">{fmt2(r.venta, 2)}</td>
+                  <td className="px-2 py-1 text-right font-semibold">{fmt2(r.neta, 2)}</td>
+                </>
+              )}
+              <td className={`px-2 py-1 text-right ${tono(r.acum_hoy)}`}>{fmt2(r.acum_hoy, 2)}</td>
+              <td className={`px-2 py-1 text-right ${tono(r.acum_ayer)}`}>{fmt2(r.acum_ayer, 2)}</td>
+              <td className={`px-2 py-1 text-right font-semibold ${tono(r.diaria)}`}>{fmt2(r.diaria, 2)}</td>
+            </tr>
+          ))}
+          <tr className="border-t-2 border-[var(--t-border)] bg-[var(--t-bg)]">
+            <td className="px-2 py-1 font-semibold">TOTAL</td>
+            <td className="px-2 py-1 text-right font-semibold">{fmt2(b.total.compra, 2)}</td>
+            <td className="px-2 py-1 text-right font-semibold">{fmt2(b.total.venta, 2)}</td>
+            <td className="px-2 py-1 text-right font-semibold">{fmt2(b.total.neta, 2)}</td>
+            <td className={`px-2 py-1 text-right font-semibold ${tono(b.total.acum_hoy)}`}>{fmt2(b.total.acum_hoy, 2)}</td>
+            <td className={`px-2 py-1 text-right font-semibold ${tono(b.total.acum_ayer)}`}>{fmt2(b.total.acum_ayer, 2)}</td>
+            <td className={`px-2 py-1 text-right font-semibold ${tono(b.total.diaria)}`}>{fmt2(b.total.diaria, 2)}</td>
+          </tr>
+        </tbody>
+      </table>
+      {b.total.sin_multiplicador > 0 && (
+        <div className="px-2 py-1 text-[9px] text-[var(--t-neg)] border-t border-[var(--t-border)]">
+          ⚠ La posición del TOTAL está incompleta: {b.total.sin_multiplicador} fila(s) sin
+          multiplicador conocido, así que su cantidad no se pudo expresar en {b.unidad ?? "su unidad"}.
+        </div>
+      )}
+    </Panel>
   );
 }
 
