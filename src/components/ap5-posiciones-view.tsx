@@ -235,6 +235,35 @@ export function Ap5PosicionesView() {
         <div className="ml-auto"><Faltantes f={v.faltantes} /></div>
       </div>
 
+      {/* ── La cabecera del reporte ──────────────────────────────────────────
+          Las tres cosas que la mesa pone arriba del mail. Una sola línea, sin
+          cards: el espacio es de los rankings. Va FUERA de las tabs porque
+          habla de todo — repetirla en cada una la haría parecer dos cosas. */}
+      <div className="shrink-0 flex items-stretch flex-wrap gap-px bg-[var(--t-border)] border-y border-[var(--t-border)]">
+        <Cabecera titulo="Diferencias ACA hoy">
+          {v.diferencias_hoy.length === 0 && <Vacio texto="sin diferencias este día" />}
+          {v.diferencias_hoy.map((d) => (
+            <span key={`${d.familia}-${d.moneda}`} className="flex items-baseline gap-1.5">
+              <span className="text-[9px] text-[var(--t-text-muted)]">En {d.moneda}</span>
+              <span className={`font-mono tabular-nums font-semibold ${tono(d.importe)}`}>
+                {fmt0(d.importe)}
+              </span>
+            </span>
+          ))}
+        </Cabecera>
+
+        {/* Los dos que la API publica y todavía NO pedimos. Se declaran como
+            PENDIENTES en vez de dibujarse vacíos: un espacio en blanco se lee
+            como "hoy no hay", que es otra cosa que "no lo estamos midiendo" —
+            y este cuadro se imprime para gerencia. */}
+        <Cabecera titulo="Requerimiento de márgenes">
+          <Pendiente donde="Garantías → MarginRequirementReport" />
+        </Cabecera>
+        <Cabecera titulo="Activo integrado">
+          <Pendiente donde="Balance de saldos → AccountBalance" />
+        </Cabecera>
+      </div>
+
       {tab === "consolidados" ? (
         /* ── CONSOLIDADOS: el cuadro POR INSTRUMENTO del mail ───────────────
            Un bloque por (tab, moneda) — agrícolas arriba, U$S abajo — con su
@@ -287,6 +316,30 @@ export function Ap5PosicionesView() {
       )}
     </div>
   );
+}
+
+/** Una celda de la cabecera del reporte: rótulo chico arriba, valor abajo. */
+function Cabecera({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+  return (
+    <div className="flex-1 min-w-[220px] px-3 py-1.5 bg-[var(--t-panel)]">
+      <div className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">{titulo}</div>
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-[12px]">{children}</div>
+    </div>
+  );
+}
+
+/** Un dato que la API publica y que todavía no traemos. Dice DÓNDE está, para
+ *  que el pendiente sea accionable y no un cartel. */
+function Pendiente({ donde }: { donde: string }) {
+  return (
+    <span className="text-[11px] text-[var(--t-text-muted)]" title={`Falta el job que lo traiga · ${donde}`}>
+      sin traer <span className="text-[9px]">· falta el job</span>
+    </span>
+  );
+}
+
+function Vacio({ texto }: { texto: string }) {
+  return <span className="text-[11px] text-[var(--t-text-muted)]">{texto}</span>;
 }
 
 /** Un cuadro del CONSOLIDADO: FUTUROS AGRÍCOLAS o FUTUROS U$S.
@@ -432,19 +485,22 @@ function Ladrillo({ titulo, items, total, filas, onFila }: {
               <td className={`px-2 py-0.5 text-right whitespace-nowrap ${tono(i.importe)}`}>{fmt2(i.importe, 0)}</td>
             </tr>
           ))}
-          {items.length === 0 && (
-            <tr className="border-b border-[var(--t-border-2)]">
-              <td colSpan={4} className="px-2 py-0.5 text-[var(--t-text-muted)]">—</td>
-            </tr>
-          )}
-          {Array.from({ length: items.length === 0 ? vacias - 1 : vacias }, (_, k) => (
+          {/* Las filas que faltan para llegar al tope, numeradas SIGUIENDO a las
+              que hay. Antes, con la lista vacía, se dibujaba una fila "—" y las
+              vacías arrancaban en 1 igual: quedaba —, 1, 2 … 9, o sea el puesto
+              corrido y una fila de menos. Ahora la numeración es una sola. */}
+          {Array.from({ length: vacias }, (_, k) => (
             <tr key={`vacia-${k}`} className="border-b border-[var(--t-border-2)] last:border-b-0">
               <td className="px-1 py-0.5 text-[9px] text-[var(--t-text-muted)] text-right w-6">
                 {items.length + k + 1}
               </td>
               {/* &nbsp; y no una celda vacía: una celda sin contenido colapsa y
                   la fila no reserva alto, que es justo lo que hay que evitar. */}
-              <td colSpan={3} className="px-2 py-0.5">&nbsp;</td>
+              <td colSpan={3} className="px-2 py-0.5">
+                {items.length === 0 && k === 0
+                  ? <span className="text-[var(--t-text-muted)]">— sin cuentas de este lado</span>
+                  : <>&nbsp;</>}
+              </td>
             </tr>
           ))}
         </tbody>
