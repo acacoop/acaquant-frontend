@@ -109,6 +109,11 @@ type Requerimiento = {
   // quedaron: el aviso es lo único que lo delata.
   conceptos: string[];
   conceptos_faltantes: string[];
+  // Si esta card mira SÓLO las cuentas de `AP5_CUENTAS_REQUERIMIENTO` o TODAS.
+  // El requerimiento filtra (es lo exigido a nuestras dos cuentas); el activo
+  // integrado no (es lo depositado por el ALyC entero). Cuando no filtra,
+  // `cuentas_pedidas` viene en 0 y no hay faltantes que avisar.
+  filtra_cuentas: boolean;
   cuentas_pedidas: number;
   cuentas_encontradas: number;
   cuentas_faltantes: string[];
