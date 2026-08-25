@@ -24,7 +24,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchJson } from "@/lib/fetch-json";
 import { usePersistedState } from "@/lib/use-persisted-state";
-import { fmt2, Panel } from "./ui/informe";
+import { fmt0, fmt2, Panel } from "./ui/informe";
 
 // ── Lo que devuelve el backend (espejo de api/services/ap5_posiciones.py) ────
 type Fecha = { fecha: string; filas: number; cuentas: number };
@@ -47,6 +47,10 @@ type Ranking = {
   positivos: RankItem[]; negativos: RankItem[];
   total_positivo: number; total_negativo: number;
   cuentas: number; sin_cargar: number;
+  // Cuántas filas tiene el ranking COMO MÁXIMO (lo manda el backend). La lista
+  // reserva ESE alto aunque haya menos: si cada panel se encogiera a su
+  // cantidad de filas, Cooperativas y MUNDO ACA quedarían de altos distintos.
+  top: number;
 };
 type Instr = {
   familia: string; producto: string; etiqueta: string;
@@ -258,8 +262,10 @@ export function Ap5PosicionesView() {
               </span>
             }
           >
-            <Ladrillo titulo="Ranking Top 10 +" items={r.positivos} total={r.total_positivo} onFila={setEditar} />
-            <Ladrillo titulo="Ranking Top 10 −" items={r.negativos} total={r.total_negativo} onFila={setEditar} />
+            <Ladrillo titulo={`Ranking Top ${r.top} +`} items={r.positivos}
+              total={r.total_positivo} filas={r.top} onFila={setEditar} />
+            <Ladrillo titulo={`Ranking Top ${r.top} −`} items={r.negativos}
+              total={r.total_negativo} filas={r.top} onFila={setEditar} />
           </Panel>
         ))}
 
@@ -325,30 +331,30 @@ function CuadroConsolidado({ b }: { b: Consolidado }) {
                   se muestran los CONTRATOS crudos, en vez de un número 100
                   veces más chico que parece bien. */}
               {r.sin_multiplicador > 0 ? (
-                <td colSpan={3} className="px-2 py-1 text-[var(--t-neg)]"
+                <td colSpan={3} className="px-2 py-1 text-[var(--t-neg)] border-x border-[var(--t-border-2)]"
                   title={`${r.sin_multiplicador} filas sin multiplicador conocido`}>
-                  {fmt2(r.compra_contratos, 0)} / {fmt2(r.venta_contratos, 0)} contratos · sin multiplicador
+                  {fmt0(r.compra_contratos)} / {fmt0(r.venta_contratos)} contratos · sin multiplicador
                 </td>
               ) : (
                 <>
-                  <td className="px-2 py-1 text-right">{fmt2(r.compra, 2)}</td>
-                  <td className="px-2 py-1 text-right">{fmt2(r.venta, 2)}</td>
-                  <td className="px-2 py-1 text-right font-semibold">{fmt2(r.neta, 2)}</td>
+                  <td className="px-2 py-1 text-right border-l border-[var(--t-border-2)]">{fmt0(r.compra)}</td>
+                  <td className="px-2 py-1 text-right">{fmt0(r.venta)}</td>
+                  <td className="px-2 py-1 text-right font-semibold border-r border-[var(--t-border-2)]">{fmt0(r.neta)}</td>
                 </>
               )}
-              <td className={`px-2 py-1 text-right ${tono(r.acum_hoy)}`}>{fmt2(r.acum_hoy, 2)}</td>
-              <td className={`px-2 py-1 text-right ${tono(r.acum_ayer)}`}>{fmt2(r.acum_ayer, 2)}</td>
-              <td className={`px-2 py-1 text-right font-semibold ${tono(r.diaria)}`}>{fmt2(r.diaria, 2)}</td>
+              <td className={`px-2 py-1 text-right ${tono(r.acum_hoy)}`}>{fmt0(r.acum_hoy)}</td>
+              <td className={`px-2 py-1 text-right ${tono(r.acum_ayer)}`}>{fmt0(r.acum_ayer)}</td>
+              <td className={`px-2 py-1 text-right font-semibold ${tono(r.diaria)}`}>{fmt0(r.diaria)}</td>
             </tr>
           ))}
           <tr className="border-t-2 border-[var(--t-border)] bg-[var(--t-bg)]">
             <td className="px-2 py-1 font-semibold">TOTAL</td>
-            <td className="px-2 py-1 text-right font-semibold">{fmt2(b.total.compra, 2)}</td>
-            <td className="px-2 py-1 text-right font-semibold">{fmt2(b.total.venta, 2)}</td>
-            <td className="px-2 py-1 text-right font-semibold">{fmt2(b.total.neta, 2)}</td>
-            <td className={`px-2 py-1 text-right font-semibold ${tono(b.total.acum_hoy)}`}>{fmt2(b.total.acum_hoy, 2)}</td>
-            <td className={`px-2 py-1 text-right font-semibold ${tono(b.total.acum_ayer)}`}>{fmt2(b.total.acum_ayer, 2)}</td>
-            <td className={`px-2 py-1 text-right font-semibold ${tono(b.total.diaria)}`}>{fmt2(b.total.diaria, 2)}</td>
+            <td className="px-2 py-1 text-right font-semibold border-l border-[var(--t-border-2)]">{fmt0(b.total.compra)}</td>
+            <td className="px-2 py-1 text-right font-semibold">{fmt0(b.total.venta)}</td>
+            <td className="px-2 py-1 text-right font-semibold border-r border-[var(--t-border-2)]">{fmt0(b.total.neta)}</td>
+            <td className={`px-2 py-1 text-right font-semibold ${tono(b.total.acum_hoy)}`}>{fmt0(b.total.acum_hoy)}</td>
+            <td className={`px-2 py-1 text-right font-semibold ${tono(b.total.acum_ayer)}`}>{fmt0(b.total.acum_ayer)}</td>
+            <td className={`px-2 py-1 text-right font-semibold ${tono(b.total.diaria)}`}>{fmt0(b.total.diaria)}</td>
           </tr>
         </tbody>
       </table>
@@ -373,9 +379,18 @@ function CuadroConsolidado({ b }: { b: Consolidado }) {
  *  el arrastre, no escondiéndolo. El TOTAL es de TODAS las cuentas, no del
  *  top: el ranking recorta la LISTA, no la suma. Si el total saliera de las 10
  *  filas, mostrar 10 cambiaría el número y nadie lo notaría. */
-function Ladrillo({ titulo, items, total, onFila }: {
-  titulo: string; items: RankItem[]; total: number; onFila: (i: RankItem) => void;
+function Ladrillo({ titulo, items, total, filas, onFila }: {
+  titulo: string; items: RankItem[]; total: number;
+  /** Alto RESERVADO, en filas. Ver el comentario de las filas vacías. */
+  filas: number;
+  onFila: (i: RankItem) => void;
 }) {
+  // Las filas que faltan para llegar al tope. Se dibujan VACÍAS a propósito:
+  // sin esto el panel se encoge a su cantidad de cuentas y, en FUTUROS DÓLAR
+  // —donde hay pocas—, Cooperativas y MUNDO ACA quedan de altos distintos y las
+  // dos tablas se desalinean. Reservar el alto cuesta espacio en blanco y
+  // devuelve dos cuadros que se leen en paralelo, que es como se usa el informe.
+  const vacias = Math.max(0, filas - items.length);
   return (
     <div className="border-b border-[var(--t-border)] last:border-b-0">
       <div className="flex items-center justify-between px-2 py-1 bg-[var(--t-bg)] text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">
@@ -402,8 +417,20 @@ function Ladrillo({ titulo, items, total, onFila }: {
             </tr>
           ))}
           {items.length === 0 && (
-            <tr><td className="px-2 py-1 text-[var(--t-text-muted)]">—</td></tr>
+            <tr className="border-b border-[var(--t-border-2)]">
+              <td colSpan={4} className="px-2 py-0.5 text-[var(--t-text-muted)]">—</td>
+            </tr>
           )}
+          {Array.from({ length: items.length === 0 ? vacias - 1 : vacias }, (_, k) => (
+            <tr key={`vacia-${k}`} className="border-b border-[var(--t-border-2)] last:border-b-0">
+              <td className="px-1 py-0.5 text-[9px] text-[var(--t-text-muted)] text-right w-6">
+                {items.length + k + 1}
+              </td>
+              {/* &nbsp; y no una celda vacía: una celda sin contenido colapsa y
+                  la fila no reserva alto, que es justo lo que hay que evitar. */}
+              <td colSpan={3} className="px-2 py-0.5">&nbsp;</td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
