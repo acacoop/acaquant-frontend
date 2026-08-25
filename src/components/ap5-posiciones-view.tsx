@@ -24,7 +24,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchJson } from "@/lib/fetch-json";
 import { usePersistedState } from "@/lib/use-persisted-state";
-import { Dato, fmt0, fmt2, Panel } from "./ui/informe";
+import { fmt2, Panel } from "./ui/informe";
 
 // ── Lo que devuelve el backend (espejo de api/services/ap5_posiciones.py) ────
 type Fecha = { fecha: string; filas: number; cuentas: number };
@@ -32,11 +32,17 @@ type DifHoy = { moneda: string; familia: string; importe: number; cuentas: numbe
 // `importe` ES el acumulado (no la diferencia del día): es lo que el reporte
 // de la mesa rankea. Se llama así porque el nombre del campo lo fija su rol.
 type RankItem = {
-  cuenta: string; nombre: string; moneda: string;
-  importe: number; diaria: number; semilla_cargada: boolean;
+  cuenta: string; nombre: string; moneda: string; familia: string; grupo: string;
+  importe: number; diaria: number;
+  semilla: number | null; semilla_cargada: boolean;
+  desde_fecha: string | null; nota: string | null;
 };
+// `tab` y `lado` los decide el BACKEND. La vista no compara strings de grupo —
+// que es exactamente donde se rompió el 2026-08-25: la base decía COOPERATIVAS,
+// acá estaba escrito "Cooperativas", no matcheaba, y TODO caía en el bloque de
+// "sin clasificar" con los rankings correctos y el título equivocado.
 type Ranking = {
-  familia: string; grupo: string;
+  tab: TabFam; grupo: string; lado: "izq" | "der" | "otro";
   positivos: RankItem[]; negativos: RankItem[];
   total_positivo: number; total_negativo: number;
   cuentas: number; sin_semilla: number;
@@ -56,34 +62,37 @@ type Acum = {
   movimiento: number; acumulado: number; diaria: number;
 };
 type Faltantes = {
+  // Familias que NO entran en ninguna tab (hoy `otros`: el WTI, en barriles).
+  fuera_de_tabs?: { familia: string; cuentas: number; simbolos: number }[];
   simbolos_sin_multiplicador?: { symbol: string; unidad: string | null; filas: number }[];
   cuentas_sin_nombre?: number; cuentas_sin_grupo?: number; cuentas?: number;
   cuentas_sin_semilla?: number;
 };
 type Vista = {
   fecha: string | null; fecha_anterior: string | null;
-  fechas: Fecha[]; diferencias_hoy: DifHoy[]; rankings: Ranking[];
-  por_instrumento: Instr[]; acumulado: Acum[]; grupos: string[];
+  fechas: Fecha[]; rankings: Ranking[]; grupos: string[];
+  // El endpoint sigue trayendo estos tres bloques y la pantalla ya NO los
+  // dibuja (2026-08-25: la vista es el reporte, y el reporte son los rankings).
+  // Se tipan igual porque describen lo que la API devuelve de verdad — borrar el
+  // tipo no borraría el campo, solo lo dejaría sin documentar.
+  diferencias_hoy: DifHoy[]; por_instrumento: Instr[]; acumulado: Acum[];
   faltantes: Faltantes;
 };
 
-// El nombre de la familia para mostrar. `otros` NO se esconde ni se mete dentro
-// del agro: una unidad nueva (hoy `Bl`, el WTI) tiene que VERSE, o infla
-// toneladas que no son toneladas.
+// El nombre de la familia, para los avisos. AGRO son trigo/soja/maíz (toneladas)
+// y DÓLAR FUTURO el otro. `otros` (hoy el WTI, en barriles) NO tiene tab: se
+// declara en la barra de faltantes, porque una posición sin pantalla es una
+// posición que nadie mira.
 const FAMILIA: Record<string, string> = { agro: "AGRO", dolar: "DÓLAR FUTURO", otros: "OTROS" };
 
-// Las dos tabs del reporte. `otros` NO tiene tab propia y no se esconde: cae en
-// AGRO marcado, porque hoy es el WTI (unidad `Bl`) y meterlo callado adentro del
-// agro inflaría toneladas que no son toneladas.
+// Las dos tabs del reporte. Qué familia cae en cuál lo decide el backend
+// (`TAB_DE_FAMILIA`): `otros` —hoy el WTI, unidad `Bl`— va con AGRO pero
+// conserva su etiqueta, para que se vea que no son toneladas.
 type TabFam = "agro" | "dolar";
-const TABS: { id: TabFam; label: string; familias: string[] }[] = [
-  { id: "agro", label: "FUTUROS AGRO", familias: ["agro", "otros"] },
-  { id: "dolar", label: "FUTUROS DÓLAR", familias: ["dolar"] },
+const TABS: { id: TabFam; label: string }[] = [
+  { id: "agro", label: "FUTUROS AGRO" },
+  { id: "dolar", label: "FUTUROS DÓLAR" },
 ];
-
-// Los dos lados del reporte, en su orden: Cooperativas a la IZQUIERDA, MUNDO ACA
-// a la DERECHA. Es cómo lo lee la mesa en el mail y no se reordena solo.
-const LADOS = ["Cooperativas", "MUNDO ACA"];
 
 // Verde a favor, rojo en contra. Mismos tokens que el resto de la app.
 const tono = (n: number) => (n > 0 ? "text-[var(--t-pos)]" : n < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]");
@@ -109,7 +118,7 @@ export function Ap5PosicionesView() {
   // y apaga: así el indicador no puede quedar encendido tras un error ni
   // apagado durante un refetch — los dos bugs clásicos de un flag a mano.
   const [dibujado, setDibujado] = useState<string | null>(null);
-  const [editar, setEditar] = useState<Acum | null>(null);
+  const [editar, setEditar] = useState<RankItem | null>(null);
 
   // `recarga` es el disparador explícito del botón Reintentar y del guardado del
   // modal. Un contador y no una función: así el efecto tiene UNA sola razón de
@@ -162,64 +171,15 @@ export function Ap5PosicionesView() {
     );
   }
 
-  const tabActual = TABS.find((x) => x.id === tab) ?? TABS[0];
-  const enTab = <T extends { familia: string }>(xs: T[]) =>
-    xs.filter((x) => tabActual.familias.includes(x.familia));
+  // Los bloques de ESTA tab, ya ordenados por el backend (izq · der · el resto).
+  const bloques = v.rankings.filter((r) => r.tab === tab);
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      {/* ── Barra: día, contra qué compara, y lo que la vista no puede afirmar ── */}
-      <div className="flex items-center flex-wrap gap-3 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0 text-[11px]">
-        <span className="text-[var(--t-text-muted)] uppercase tracking-wide text-[9px]">Día</span>
-        <select
-          value={v.fecha}
-          onChange={(e) => setFecha(e.target.value)}
-          className="bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1 text-[11px]"
-        >
-          {v.fechas.map((f) => (
-            <option key={f.fecha} value={f.fecha}>
-              {fmtFecha(f.fecha)} · {f.cuentas} cuentas
-            </option>
-          ))}
-        </select>
-        {/* El día anterior NO es "ayer": es el hábil previo CON POSICIÓN. Se
-            muestra porque toda la columna "acum. al día ant." depende de él. */}
-        <span className="text-[var(--t-text-muted)]">
-          compara contra <b className="text-[var(--t-text-dim)]">{fmtFecha(v.fecha_anterior)}</b>
-        </span>
-        {cargando && <span className="text-[var(--t-text-muted)]">actualizando…</span>}
-        <div className="ml-auto"><Faltantes f={v.faltantes} /></div>
-      </div>
-
-      {/* ── LAS CARDS, a lo ancho y ARRIBA de las tabs ─────────────────────────
-          Van acá y no adentro de cada tab a propósito: son el encabezado del
-          reporte y hablan de TODO (agro y dólar juntos, cada uno en su moneda).
-          Repetirlas en las dos tabs las haría parecer dos cosas distintas. */}
-      <div className="shrink-0 px-3 pt-3">
-        <div className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] mb-1">
-          Diferencias ACA hoy — las monedas NO se suman (el agro liquida en Dólar MtR y el dólar futuro en Pesos)
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
-          {v.diferencias_hoy.map((d) => (
-            <Dato
-              key={`${d.familia}-${d.moneda}`}
-              label={`${FAMILIA[d.familia] ?? d.familia} · ${d.moneda}`}
-              valor={fmt2(d.importe, 0)}
-              sub={`${d.cuentas} cuentas`}
-              tono={d.importe > 0 ? "pos" : d.importe < 0 ? "neg" : null}
-            />
-          ))}
-          {/* Las otras dos cards del reporte NO se dibujan vacías: la API las
-              publica (MarginRequirementReport / CollateralAssignment) pero
-              todavía no las pedimos ni las guardamos. Una card en "—" se lee
-              como "hoy no hay", que es distinto de "no lo medimos". */}
-          <Pendiente titulo="Requerimiento de márgenes" />
-          <Pendiente titulo="Activo integrado" />
-        </div>
-      </div>
-
-      {/* ── Las dos tabs del reporte ──────────────────────────────────────── */}
-      <div className="flex items-center gap-1 px-3 pt-3 shrink-0">
+      {/* ── Barra: día, tabs y lo que la vista no puede afirmar ─────────────
+          Todo en UNA sola línea. La pantalla es el reporte y el reporte son los
+          rankings: cualquier cosa que no sea eso les come alto. */}
+      <div className="flex items-center flex-wrap gap-2 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0 text-[11px]">
         {TABS.map((x) => (
           <button
             key={x.id}
@@ -233,157 +193,49 @@ export function Ap5PosicionesView() {
             {x.label}
           </button>
         ))}
+
+        <span className="ml-2 text-[var(--t-text-muted)] uppercase tracking-wide text-[9px]">Día</span>
+        <select
+          value={v.fecha}
+          onChange={(e) => setFecha(e.target.value)}
+          className="bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1 text-[11px]"
+        >
+          {v.fechas.map((f) => (
+            <option key={f.fecha} value={f.fecha}>
+              {fmtFecha(f.fecha)} · {f.cuentas} cuentas
+            </option>
+          ))}
+        </select>
+        {cargando && <span className="text-[var(--t-text-muted)]">actualizando…</span>}
+        <div className="ml-auto"><Faltantes f={v.faltantes} /></div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-auto p-3 space-y-3">
-        {/* ── Los dos lados, en el orden del mail: Cooperativas · MUNDO ACA ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
-          {LADOS.map((lado) => {
-            const r = enTab(v.rankings).find((x) => x.grupo === lado);
-            return (
-              <Panel
-                key={lado}
-                titulo={lado}
-                extra={
-                  <span className="text-[10px] text-white/70">
-                    {r ? `${r.cuentas} cuentas` : "sin cuentas"}
-                    {r && r.sin_semilla > 0 && ` · ${r.sin_semilla} sin semilla`}
-                  </span>
-                }
-              >
-                {r ? (
-                  <>
-                    <Ladrillo titulo="Ranking Top 10 +" items={r.positivos} total={r.total_positivo} />
-                    <Ladrillo titulo="Ranking Top 10 −" items={r.negativos} total={r.total_negativo} />
-                  </>
-                ) : (
-                  <div className="px-2 py-2 text-[11px] text-[var(--t-text-dim)]">
-                    Ninguna cuenta de este grupo tiene posición de {tabActual.label.toLowerCase()}.
-                  </div>
-                )}
-              </Panel>
-            );
-          })}
-        </div>
+      {/* ── Los rankings, y NADA más ────────────────────────────────────────
+          Izquierda y derecha las decidió el backend (`lado`), no un match de
+          strings acá. Cada panel se estira a lo alto: la pantalla completa es
+          para las dos listas. */}
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3 p-3 overflow-auto">
+        {bloques.map((r) => (
+          <Panel
+            key={`${r.tab}-${r.grupo}`}
+            titulo={r.grupo}
+            className="min-h-0"
+            extra={
+              <span className="text-[10px] text-white/70">
+                {r.cuentas} cuentas{r.sin_semilla > 0 && ` · ${r.sin_semilla} sin semilla`}
+              </span>
+            }
+          >
+            <Ladrillo titulo="Ranking Top 10 +" items={r.positivos} total={r.total_positivo} onFila={setEditar} />
+            <Ladrillo titulo="Ranking Top 10 −" items={r.negativos} total={r.total_negativo} onFila={setEditar} />
+          </Panel>
+        ))}
 
-        {/* Lo que quedó sin clasificar. Se ve, en vez de repartirse a dedo: una
-            cuenta sin grupo no pertenece a ninguno de los dos rankings, y
-            esconderla haría que los totales no cierren contra el mail. */}
-        {enTab(v.rankings)
-          .filter((r) => !LADOS.includes(r.grupo))
-          .map((r) => (
-            <Panel
-              key={r.grupo}
-              titulo={`${r.grupo} — falta cargarles el grupo en Manager`}
-              extra={<span className="text-[10px] text-white/70">{r.cuentas} cuentas</span>}
-            >
-              <Ladrillo titulo="Ranking Top 10 +" items={r.positivos} total={r.total_positivo} />
-              <Ladrillo titulo="Ranking Top 10 −" items={r.negativos} total={r.total_negativo} />
-            </Panel>
-          ))}
-
-        {/* ── Posición por instrumento (CANTIDADES, no importes) ───────────── */}
-        <Panel titulo="POR INSTRUMENTO — posición en su unidad">
-          <table className="w-full text-[11px] font-mono tabular-nums">
-            <thead className="sticky top-0 bg-[var(--t-panel)]">
-              <tr className="text-[9px] uppercase text-[var(--t-text-muted)] border-b border-[var(--t-border)]">
-                <th className="text-left px-2 py-1 font-normal">Producto</th>
-                <th className="text-left px-2 py-1 font-normal">Un.</th>
-                <th className="text-right px-2 py-1 font-normal">Compra</th>
-                <th className="text-right px-2 py-1 font-normal">Venta</th>
-                <th className="text-right px-2 py-1 font-normal">Neta</th>
-                <th className="text-right px-2 py-1 font-normal">Dif. del día</th>
-                <th className="text-right px-2 py-1 font-normal">Acum. día ant.</th>
-                <th className="text-right px-2 py-1 font-normal">Acum. al día</th>
-              </tr>
-            </thead>
-            <tbody>
-              {enTab(v.por_instrumento).map((r) => (
-                <tr key={`${r.familia}-${r.producto}`} className="border-b border-[var(--t-border-2)]">
-                  <td className="px-2 py-1">
-                    {r.etiqueta}
-                    <span className="ml-1 text-[9px] text-[var(--t-text-muted)]">{FAMILIA[r.familia] ?? r.familia}</span>
-                  </td>
-                  <td className="px-2 py-1 text-[var(--t-text-dim)]">{r.unidad ?? "—"}</td>
-                  {/* Sin multiplicador la cantidad en unidad NO se puede afirmar:
-                      se muestran los CONTRATOS crudos y se marca, en vez de
-                      dibujar un número 100 veces más chico que parece bien. */}
-                  {r.sin_multiplicador > 0 ? (
-                    <td colSpan={3} className="px-2 py-1 text-[var(--t-neg)]" title={`${r.sin_multiplicador} filas sin multiplicador conocido`}>
-                      {fmt0(r.compra_contratos)} / {fmt0(r.venta_contratos)} contratos · sin multiplicador
-                    </td>
-                  ) : (
-                    <>
-                      <td className="px-2 py-1 text-right">{fmt0(r.compra)}</td>
-                      <td className="px-2 py-1 text-right">{fmt0(r.venta)}</td>
-                      <td className={`px-2 py-1 text-right font-semibold ${tono(r.neta ?? 0)}`}>{fmt0(r.neta)}</td>
-                    </>
-                  )}
-                  <td className={`px-2 py-1 text-right ${tono(r.diaria)}`}>{fmt2(r.diaria, 0)}</td>
-                  <td className={`px-2 py-1 text-right ${tono(r.acum_ayer)}`}>{fmt2(r.acum_ayer, 0)}</td>
-                  <td className={`px-2 py-1 text-right font-semibold ${tono(r.acum_hoy)}`}>{fmt2(r.acum_hoy, 0)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {/* Un acumulado sin decir DESDE CUÁNDO se lee como histórico completo,
-              y no lo es: la cámara manda la diferencia diaria, no el arrastre. */}
-          {v.por_instrumento[0]?.acumulado_desde && (
-            <div className="px-2 py-1 text-[9px] text-[var(--t-text-muted)] border-t border-[var(--t-border)]">
-              El acumulado por producto arranca en {fmtFecha(v.por_instrumento[0].acumulado_desde)} — es
-              nuestro primer día guardado, no el arrastre histórico. El arrastre vive en la semilla por cuenta.
-            </div>
-          )}
-        </Panel>
-
-        {/* ── Acumulado por cuenta ────────────────────────────────────────── */}
-        <Panel
-          titulo="ACUMULADO POR CUENTA"
-          extra={<span className="text-[10px] text-white/70">click en una fila para cargar semilla o grupo</span>}
-        >
-          <table className="w-full text-[11px] font-mono tabular-nums">
-            <thead className="sticky top-0 bg-[var(--t-panel)]">
-              <tr className="text-[9px] uppercase text-[var(--t-text-muted)] border-b border-[var(--t-border)]">
-                <th className="text-left px-2 py-1 font-normal">Cuenta</th>
-                <th className="text-left px-2 py-1 font-normal">Grupo</th>
-                <th className="text-left px-2 py-1 font-normal">Moneda</th>
-                <th className="text-right px-2 py-1 font-normal">Dif. del día</th>
-                <th className="text-right px-2 py-1 font-normal">Semilla</th>
-                <th className="text-right px-2 py-1 font-normal">Movimiento</th>
-                <th className="text-right px-2 py-1 font-normal">Acumulado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {enTab(v.acumulado).map((a) => (
-                <tr
-                  key={`${a.cuenta}-${a.moneda}`}
-                  onClick={() => setEditar(a)}
-                  className="border-b border-[var(--t-border-2)] cursor-pointer hover:bg-[var(--t-accent)]/5"
-                >
-                  <td className="px-2 py-1">
-                    {a.nombre}
-                    <span className="ml-1 text-[9px] text-[var(--t-text-muted)]">{a.cuenta}</span>
-                  </td>
-                  <td className="px-2 py-1 text-[var(--t-text-dim)]">{a.grupo}</td>
-                  <td className="px-2 py-1 text-[var(--t-text-dim)]">{a.moneda}</td>
-                  <td className={`px-2 py-1 text-right ${tono(a.diaria)}`}>{fmt2(a.diaria, 0)}</td>
-                  {/* `semilla = null` NO es cero: es "nadie cargó el arrastre".
-                      El acumulado de esa cuenta está INCOMPLETO y tiene que
-                      decirlo, no mostrar un número que parece completo. */}
-                  <td className="px-2 py-1 text-right">
-                    {a.semilla_cargada
-                      ? fmt2(a.semilla, 0)
-                      : <span className="text-[var(--t-text-muted)]" title="sin semilla: el acumulado arranca en nuestro primer día guardado">sin cargar</span>}
-                  </td>
-                  <td className={`px-2 py-1 text-right ${tono(a.movimiento)}`}>{fmt2(a.movimiento, 0)}</td>
-                  <td className={`px-2 py-1 text-right font-semibold ${tono(a.acumulado)}`}>
-                    {fmt2(a.acumulado, 0)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Panel>
+        {bloques.length === 0 && (
+          <div className="text-[11px] text-[var(--t-text-dim)]">
+            Ninguna cuenta tiene acumulado en {TABS.find((x) => x.id === tab)?.label.toLowerCase()}.
+          </div>
+        )}
       </div>
 
       {editar && (
@@ -398,26 +250,12 @@ export function Ap5PosicionesView() {
   );
 }
 
-/** Una card del reporte que TODAVÍA no tenemos. Se dibuja distinta (gris, con el
- *  motivo) en vez de mostrar "—": un guión se lee como "hoy dio cero", y eso es
- *  otra cosa que "no lo estamos midiendo". */
-function Pendiente({ titulo }: { titulo: string }) {
-  return (
-    <div
-      className="px-3 py-2 border border-dashed border-[var(--t-border-2)] bg-transparent"
-      title="La API de la cámara lo publica (MarginRequirementReport / CollateralAssignment) pero todavía no lo pedimos ni lo guardamos."
-    >
-      <div className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">{titulo}</div>
-      <div className="text-[13px] font-semibold text-[var(--t-text-muted)]">sin traer</div>
-      <div className="text-[9px] text-[var(--t-text-muted)]">falta el job</div>
-    </div>
-  );
-}
-
 /** Medio ranking (a favor / en contra). El TOTAL es de TODAS las cuentas, no del
  *  top: el ranking recorta la LISTA, no la suma. Si el total saliera de las 10
  *  filas, mostrar 10 cambiaría el número y nadie lo notaría. */
-function Ladrillo({ titulo, items, total }: { titulo: string; items: RankItem[]; total: number }) {
+function Ladrillo({ titulo, items, total, onFila }: {
+  titulo: string; items: RankItem[]; total: number; onFila: (i: RankItem) => void;
+}) {
   return (
     <div className="border-b border-[var(--t-border)] last:border-b-0">
       <div className="flex items-center justify-between px-2 py-1 bg-[var(--t-bg)] text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">
@@ -429,7 +267,12 @@ function Ladrillo({ titulo, items, total }: { titulo: string; items: RankItem[];
       <table className="w-full text-[11px] font-mono tabular-nums">
         <tbody>
           {items.map((i, n) => (
-            <tr key={i.cuenta} className="border-b border-[var(--t-border-2)] last:border-b-0">
+            <tr
+              key={i.cuenta}
+              onClick={() => onFila(i)}
+              title="cargar grupo o semilla"
+              className="border-b border-[var(--t-border-2)] last:border-b-0 cursor-pointer hover:bg-[var(--t-accent)]/5"
+            >
               <td className="px-1 py-0.5 text-[9px] text-[var(--t-text-muted)] text-right w-6">{n + 1}</td>
               <td className="px-2 py-0.5 truncate max-w-0 w-full" title={`${i.nombre} (${i.cuenta})`}>
                 {i.nombre}
@@ -460,7 +303,13 @@ function Ladrillo({ titulo, items, total }: { titulo: string; items: RankItem[];
  *  un total plausible al que le falta algo. */
 function Faltantes({ f }: { f: Faltantes }) {
   const sinMult = f.simbolos_sin_multiplicador ?? [];
+  const fuera = f.fuera_de_tabs ?? [];
   const avisos: string[] = [];
+  // Lo primero: una posición que no se dibuja en ninguna tab. Es lo que más
+  // fácil pasa desapercibido, justamente porque no está en pantalla.
+  for (const x of fuera) {
+    avisos.push(`${FAMILIA[x.familia] ?? x.familia}: ${x.cuentas} cuenta(s) fuera de las tabs`);
+  }
   if (sinMult.length) avisos.push(`${sinMult.length} símbolo(s) sin multiplicador`);
   if (f.cuentas_sin_grupo) avisos.push(`${f.cuentas_sin_grupo} sin grupo`);
   if (f.cuentas_sin_nombre) avisos.push(`${f.cuentas_sin_nombre} sin nombre`);
@@ -481,7 +330,7 @@ function Faltantes({ f }: { f: Faltantes }) {
  *  la SEMILLA del acumulado (la cámara manda la diferencia del día, no el
  *  arrastre). */
 function ModalCuenta({ fila, grupos, onCerrar, onGuardado }: {
-  fila: Acum; grupos: string[]; onCerrar: () => void; onGuardado: () => void;
+  fila: RankItem; grupos: string[]; onCerrar: () => void; onGuardado: () => void;
 }) {
   const [grupo, setGrupo] = useState(fila.grupo === "(sin grupo)" ? "" : fila.grupo);
   const [semilla, setSemilla] = useState(fila.semilla == null ? "" : String(fila.semilla));
