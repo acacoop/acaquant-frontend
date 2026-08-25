@@ -1,0 +1,516 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+
+import { fetchJson } from "@/lib/fetch-json";
+import { fmtMoney, fmtMoneyFull } from "@/lib/fmt-money";
+import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
+
+// Tab PROFUNDIDAD DE CLIENTES (dentro de OPERADORES).
+//
+// Una fila por MES. Contesta "cuánta base tengo, cuánta está viva y cuánto deja"
+// a lo largo del ejercicio. Tres cosas la separan del resto de la vista:
+//
+//  1. **NO usa el Desde/Hasta de la barra** — su eje ES el tiempo, así que un corte
+//     por fecha la vaciaría. La barra esconde ese control mientras esta tab está
+//     activa (si se viera y no hiciera nada, parecería rota).
+//  2. **Sí hereda los filtros madre** (el pedido: "lo que el usuario elija en
+//     NIVEL 3 figura acá"). Se dibujan como chips arriba de la tabla para que no
+//     haya que subir a la barra a ver contra qué scope está leyendo el número.
+//  3. **Ancho completo**, sin paneles laterales.
+//
+// El navegador NO deriva NADA: los ratios, los labels (`jul-25`) y los totales
+// vienen del backend, de la misma query que dibuja la fila. Cada celda se abre y
+// muestra las cuentas que la componen — mismo patrón que el modal de DÍAS SIN
+// OPERAR y que el detalle por celda de Tesorería.
+
+type Fila = {
+  mes: string; label: string; ini: string; fin: string; en_curso: boolean;
+  clientes: number;
+  con_aum: number | null;
+  sin_aum: number | null;
+  activos: number;
+  ratio_actividad: number | null;
+  aranceles: number | null;
+  arancel_por_activo: number | null;
+  aum: number | null;
+  aum_snapshot: string | null;
+  aum_desfasaje_dias: number | null;
+  mep_aranceles: number | null;
+  mep_aum: number | null;
+  fuera_universo: { activos: number; aranceles: number };
+};
+type Resp = {
+  moneda: string; desde: string; hasta: string; filas: Fila[];
+  meta: { sin_alta: number; advertencias: string[]; fuentes: Record<string, string> };
+};
+
+type ItemDetalle = {
+  id_cuenta: string; denominacion: string; operador_nombre: string | null;
+  nivel_1: string | null; nivel_3: string | null; fecha_alta_legajo: string | null;
+  aum: number | null; n_boletos: number; arancel: number | null;
+  ultima_op: string | null; activo: boolean;
+};
+type Detalle = {
+  mes: string; label: string; ini: string; fin: string;
+  metrica: Metrica; titulo: string; moneda: string;
+  mep_aranceles: number | null; mep_aum: number | null;
+  snapshot_aum: string | null; desfasaje_dias: number | null;
+  ecuacion: string;
+  totales: Record<string, number | null>;
+  n_total: number; limite: number; items: ItemDetalle[];
+};
+
+type Metrica =
+  | "clientes" | "con_aum" | "sin_aum" | "activos"
+  | "ratio_actividad" | "aranceles" | "arancel_por_activo" | "aum";
+
+// Definición ÚNICA de las columnas: el header, de qué campo sale, cómo se formatea
+// y qué métrica audita. La tabla y el export se generan de acá, así que no pueden
+// mostrar cosas distintas.
+type Col = {
+  k: Metrica;
+  label: string;
+  ayuda: string;
+  tipo: "int" | "pct" | "money";
+};
+const COLS: Col[] = [
+  { k: "clientes", label: "Clientes", tipo: "int",
+    ayuda: "Cuentas activas con legajo dado de alta al último día del mes." },
+  { k: "con_aum", label: "Con AuM", tipo: "int",
+    ayuda: "Cuentas con valuación > 0 en la foto de tenencia del último día del mes." },
+  { k: "sin_aum", label: "Sin AuM", tipo: "int",
+    ayuda: "Clientes − cuentas con AuM." },
+  { k: "activos", label: "Activos", tipo: "int",
+    ayuda: "Cuentas con al menos una operación entre el 1º y el último día del mes." },
+  { k: "ratio_actividad", label: "Ratio activ.", tipo: "pct",
+    ayuda: "Activos / clientes." },
+  { k: "aranceles", label: "Aranceles", tipo: "money",
+    ayuda: "Suma de aranceles de los boletos del mes (incluye el cierre de caución)." },
+  { k: "arancel_por_activo", label: "Aranc. / activo", tipo: "money",
+    ayuda: "Aranceles del mes / cuentas activas del mes." },
+  { k: "aum", label: "AuM", tipo: "money",
+    ayuda: "Suma del AuM de todos los clientes en la foto del último día del mes." },
+];
+
+const fmtInt = (n: number | null | undefined) =>
+  n == null ? "—" : n.toLocaleString("es-AR");
+const fmtPct = (n: number | null | undefined) =>
+  n == null ? "—" : `${(n * 100).toLocaleString("es-AR", { maximumFractionDigits: 1 })}%`;
+const fmtFecha = (iso: string | null | undefined) =>
+  !iso ? "—" : `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+
+function valorCelda(f: Fila, c: Col): number | null {
+  return f[c.k] as number | null;
+}
+function textoCelda(f: Fila, c: Col): string {
+  const v = valorCelda(f, c);
+  if (v == null) return "—";
+  return c.tipo === "int" ? fmtInt(v) : c.tipo === "pct" ? fmtPct(v) : fmtMoney(v);
+}
+function tituloCelda(f: Fila, c: Col): string {
+  const v = valorCelda(f, c);
+  const exacto = v == null ? "sin dato" : c.tipo === "money" ? fmtMoneyFull(v)
+    : c.tipo === "pct" ? fmtPct(v) : fmtInt(v);
+  return `${c.label} · ${f.label}: ${exacto}\n${c.ayuda}${v == null ? "" : "\nClick para ver las cuentas."}`;
+}
+
+// Chips de los filtros madre activos. El pedido fue explícito con NIVEL 3, pero se
+// muestran TODOS los que estén puestos: contar solo uno mientras el backend cruza
+// ocho haría que la tabla diga menos de lo que hace.
+function chipsDeFiltros(f: Filtros): { label: string; vals: string[] }[] {
+  const out: { label: string; vals: string[] }[] = [];
+  const push = (label: string, vals: string[]) => { if (vals?.length) out.push({ label, vals }); };
+  push("Operador", f.operador);
+  push("Nivel 1", f.nivel1);
+  push("Nivel 2", f.nivel2);
+  push("Nivel 3", f.nivel3);
+  push("Nivel 4", f.nivel4);
+  push("Nivel 5", f.nivel5);
+  push("Referido", f.referido);
+  push("División", f.division);
+  return out;
+}
+
+export type Filtros = {
+  operador: string[]; nivel1: string[]; nivel2: string[]; nivel3: string[];
+  nivel4: string[]; nivel5: string[]; referido: string[]; division: string[];
+};
+
+const arrQS = (key: string, vals: string[]) =>
+  (vals ?? []).map((v) => `&${key}=${encodeURIComponent(v)}`).join("");
+function filtrosQS(f: Filtros): string {
+  return arrQS("operador", f.operador) + arrQS("nivel_1", f.nivel1)
+    + arrQS("nivel_2", f.nivel2) + arrQS("nivel_3", f.nivel3)
+    + arrQS("nivel_4", f.nivel4) + arrQS("nivel_5", f.nivel5)
+    + arrQS("referido", f.referido) + arrQS("division", f.division);
+}
+
+export function ProfundidadClientesView(
+  { moneda = "ARS", ...filtros }: { moneda?: "ARS" | "USD" } & Filtros,
+) {
+  const f: Filtros = filtros;
+  const qs = filtrosQS(f);
+  const url = `/api/operaciones/comercial/profundidad?moneda=${moneda}${qs}`;
+  // La respuesta viaja JUNTO con la url que la produjo. Así "estoy cargando" se
+  // DERIVA (`res.url !== url`) en vez de ser un tercer estado que hay que
+  // resetear a mano en el efecto: un `setLoading(true)` sincrónico encadena
+  // renders y, si alguna rama se olvida de apagarlo, la vista queda en "cargando"
+  // para siempre mostrando datos viejos.
+  const [res, setRes] = useState<{ url: string; d: Resp | null; err: string | null } | null>(null);
+  const [celda, setCelda] = useState<{ mes: string; metrica: Metrica } | null>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      try {
+        const r = await fetchJson<Resp>(url);
+        if (vivo) setRes({ url, d: r, err: null });
+      } catch (e) {
+        if (vivo) setRes({ url, d: null, err: e instanceof Error ? e.message : String(e) });
+      }
+    })();
+    return () => { vivo = false; };
+  }, [url]);
+
+  const fresco = res?.url === url ? res : null;
+  const d = fresco?.d ?? null;
+  const err = fresco?.err ?? null;
+  const loading = fresco === null;
+
+  const chips = useMemo(() => chipsDeFiltros(f), [qs]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const filas = d?.filas ?? [];
+
+  const exportar = () => void exportToXlsx({
+    filename: `profundidad-clientes-${timestampSuffix()}.xlsx`,
+    sheets: [{
+      name: "Profundidad",
+      title: `Moneda ${d?.moneda ?? moneda}`
+        + (chips.length ? ` · ${chips.map((c) => `${c.label}: ${c.vals.join(", ")}`).join(" · ")}` : " · sin filtros"),
+      rows: filas.map((r) => ({
+        mes: r.label, fin: r.fin, clientes: r.clientes, con_aum: r.con_aum,
+        sin_aum: r.sin_aum, activos: r.activos,
+        // El Excel se lee con formato de %, así que el ratio va en escala 0-100.
+        ratio: r.ratio_actividad == null ? null : r.ratio_actividad * 100,
+        aranceles: r.aranceles, arancel_por_activo: r.arancel_por_activo,
+        aum: r.aum, aum_snapshot: r.aum_snapshot,
+      })),
+      columns: [
+        { header: "Mes", key: "mes", format: "text", width: 10 },
+        { header: "Último día", key: "fin", format: "date", width: 12 },
+        { header: "Clientes", key: "clientes", format: "integer" },
+        { header: "Con AuM", key: "con_aum", format: "integer" },
+        { header: "Sin AuM", key: "sin_aum", format: "integer" },
+        { header: "Activos", key: "activos", format: "integer" },
+        { header: "Ratio activ.", key: "ratio", format: "percent" },
+        { header: "Aranceles", key: "aranceles", format: "currency", width: 18 },
+        { header: "Aranc. / activo", key: "arancel_por_activo", format: "currency", width: 16 },
+        { header: "AuM", key: "aum", format: "currency", width: 20 },
+        { header: "Foto AuM", key: "aum_snapshot", format: "date", width: 12 },
+      ],
+    }],
+  });
+
+  return (
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+
+      {/* ── Cabecera: qué se está mirando y contra qué scope ───────────────── */}
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0 flex-wrap">
+        <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">
+          Profundidad de clientes
+        </span>
+        <span className="text-[9px] text-[var(--t-text-muted)]">
+          {d ? `${d.desde} → ${d.hasta}` : "…"} · todo medido al ÚLTIMO día de cada mes · {d?.moneda ?? moneda}
+        </span>
+
+        {/* Filtros madre activos. Sin filtros lo dice explícito: "sin filtro" y
+            "no cargó" no se pueden ver igual. */}
+        <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)] ml-2">Filtros</span>
+        {chips.length === 0 ? (
+          <span className="text-[9px] px-1.5 py-0.5 border border-[var(--t-border-2)] text-[var(--t-text-dim)]">
+            toda la mesa
+          </span>
+        ) : chips.map((c) => (
+          <span key={c.label}
+            title={`${c.label}: ${c.vals.join(", ")}`}
+            className="text-[9px] px-1.5 py-0.5 border border-[var(--t-accent)] bg-[var(--t-accent)]/10 text-[var(--t-text)] max-w-[260px] truncate">
+            <span className="text-[var(--t-text-muted)] uppercase tracking-wide">{c.label}:</span>{" "}
+            {c.vals.join(", ")}
+          </span>
+        ))}
+
+        <div className="ml-auto flex items-center gap-2">
+          {loading && <span className="text-[9px] text-[var(--t-text-muted)]">cargando…</span>}
+          {err && <span className="text-[9px] text-[#ff7777]">{err}</span>}
+          <button onClick={exportar} disabled={!filas.length}
+            className="text-[10px] px-2 py-0.5 border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-40">
+            ↓ XLSX
+          </button>
+        </div>
+      </div>
+
+      {/* ── Tabla: 100% del ancho ──────────────────────────────────────────── */}
+      <div className="flex-1 min-h-0 overflow-auto">
+        <table className="w-full text-[12px]">
+          <thead className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] sticky top-0 bg-[var(--t-panel)] z-10">
+            <tr className="border-b border-[var(--t-border-2)]">
+              <th className="px-3 py-2 text-left font-normal w-[12%]">Mes</th>
+              {COLS.map((c) => (
+                <th key={c.k} title={c.ayuda} className="px-3 py-2 text-right font-normal">
+                  {c.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filas.map((r) => (
+              <tr key={r.mes} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]">
+                <td className="px-3 py-1.5 whitespace-nowrap"
+                  title={`${r.ini} → ${r.fin}`}>
+                  <span className="font-semibold">{r.label}</span>
+                  <span className="ml-1.5 text-[9px] text-[var(--t-text-muted)]">
+                    al {fmtFecha(r.fin)}
+                  </span>
+                  {r.en_curso && (
+                    <span className="ml-1.5 text-[8px] px-1 border border-[var(--t-accent)] text-[var(--t-accent)] uppercase tracking-wide"
+                      title="El mes todavía no terminó: los aranceles y la actividad son parciales.">
+                      en curso
+                    </span>
+                  )}
+                </td>
+                {COLS.map((c) => {
+                  const v = valorCelda(r, c);
+                  const auditable = v != null;
+                  // La foto de AuM puede no caer justo en el último día del mes
+                  // (no hubo snapshot). Se marca en la celda en vez de dibujar el
+                  // número como si fuera del 31.
+                  const desfasada = (c.k === "aum" || c.k === "con_aum" || c.k === "sin_aum")
+                    && !!r.aum_desfasaje_dias;
+                  return (
+                    <td key={c.k}
+                      onClick={auditable ? () => setCelda({ mes: r.mes, metrica: c.k }) : undefined}
+                      title={tituloCelda(r, c)
+                        + (desfasada ? `\nFoto de tenencia del ${fmtFecha(r.aum_snapshot)} (${r.aum_desfasaje_dias} días antes del cierre de mes).` : "")}
+                      className={
+                        "px-3 py-1.5 text-right tabular-nums " +
+                        (auditable
+                          ? "cursor-pointer hover:bg-[var(--t-accent)]/15 hover:text-[var(--t-accent)]"
+                          : "text-[var(--t-text-muted)]")
+                      }>
+                      {textoCelda(r, c)}
+                      {desfasada && <span className="ml-1 text-[9px] text-[var(--t-text-muted)]">*</span>}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+            {!filas.length && (
+              <tr><td colSpan={COLS.length + 1} className="px-3 py-6 text-center text-[var(--t-text-muted)] text-[11px]">
+                {loading ? "cargando…" : err ? "no se pudo leer la tabla" : "sin meses para mostrar"}
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ── Pie: lo que el número NO dice ──────────────────────────────────── */}
+      {d && (
+        <div className="px-3 py-1.5 border-t border-[var(--t-border-2)] bg-[var(--t-surface)] text-[9px] text-[var(--t-text-muted)] shrink-0 space-y-0.5">
+          <div>Click en cualquier celda → las cuentas que la componen.</div>
+          {d.meta.advertencias.map((a) => <div key={a}>⚠ {a}</div>)}
+        </div>
+      )}
+
+      {celda && (
+        <ModalCelda key={`${celda.mes}|${celda.metrica}`} mes={celda.mes} metrica={celda.metrica}
+          moneda={moneda} qs={qs} onCerrar={() => setCelda(null)} />
+      )}
+    </div>
+  );
+}
+
+// ── Modal de auditoría de UNA celda ──────────────────────────────────────────
+// No recalcula nada: pide al backend las cuentas de esa celda con los MISMOS
+// predicados y el MISMO snapshot que la tabla, y muestra los totales que él
+// devuelve — calculados sobre TODAS las cuentas, antes del límite de la lista.
+function ModalCelda(
+  { mes, metrica, moneda, qs, onCerrar }:
+  { mes: string; metrica: Metrica; moneda: string; qs: string; onCerrar: () => void },
+) {
+  const [d, setD] = useState<Detalle | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCerrar(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onCerrar]);
+
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      try {
+        const r = await fetchJson<Detalle>(
+          `/api/operaciones/comercial/profundidad/detalle?mes=${mes}&metrica=${metrica}&moneda=${moneda}${qs}`);
+        if (vivo) setD(r);
+      } catch (e) {
+        if (vivo) setErr(e instanceof Error ? e.message : String(e));
+      }
+    })();
+    return () => { vivo = false; };
+  }, [mes, metrica, moneda, qs]);
+
+  // Buscador local sobre lo que YA vino (no re-pide: filtrar en el server cambiaría
+  // los totales y el modal dejaría de cuadrar con la tabla).
+  const items = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s || !d) return d?.items ?? [];
+    return d.items.filter((i) =>
+      i.id_cuenta.toLowerCase().includes(s) || i.denominacion.toLowerCase().includes(s));
+  }, [d, q]);
+
+  const exportar = () => d && void exportToXlsx({
+    filename: `profundidad-${d.metrica}-${d.mes}-${timestampSuffix()}.xlsx`,
+    sheets: [{
+      name: "Detalle",
+      title: `${d.titulo} · ${d.label} · ${d.ecuacion}`,
+      rows: d.items,
+      columns: [
+        { header: "Cuenta", key: "id_cuenta", format: "text", width: 12 },
+        { header: "Cliente", key: "denominacion", format: "text", width: 34 },
+        { header: "Operador", key: "operador_nombre", format: "text", width: 22 },
+        { header: "Nivel 1", key: "nivel_1", format: "text", width: 16 },
+        { header: "Nivel 3", key: "nivel_3", format: "text", width: 20 },
+        { header: "Alta legajo", key: "fecha_alta_legajo", format: "date", width: 12 },
+        { header: "AuM", key: "aum", format: "currency", width: 18 },
+        { header: "Boletos", key: "n_boletos", format: "integer" },
+        { header: "Arancel", key: "arancel", format: "currency", width: 16 },
+        { header: "Última op", key: "ultima_op", format: "date", width: 12 },
+      ],
+    }],
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onCerrar}>
+      <div className="w-full max-w-[1500px] max-h-[86vh] flex flex-col bg-[var(--t-panel)] border border-[var(--t-border-2)] shadow-2xl"
+        onClick={(e) => e.stopPropagation()}>
+
+        <div className="px-3 py-2 bg-[#094293] text-white flex items-center gap-2 shrink-0">
+          <span className="flex-1 text-[11px] uppercase tracking-widest font-semibold truncate">
+            {d ? `${d.titulo} · ${d.label}` : "cargando…"}
+          </span>
+          <button onClick={exportar} disabled={!d?.items?.length}
+            className="text-[10px] px-2 py-0.5 border border-white/40 hover:bg-white/10 disabled:opacity-40">
+            ↓ XLSX
+          </button>
+          <button onClick={onCerrar} className="text-[12px] px-2 hover:opacity-70">✕</button>
+        </div>
+
+        {/* La cuenta del número, explícita — el modal existe para contestar
+            "¿de dónde sale esto?", no para mostrar otra tabla. */}
+        <div className="px-3 py-2 border-b border-[var(--t-border)] shrink-0 flex items-center gap-5 flex-wrap">
+          {d && <>
+            <Dato label="Período" value={`${fmtFecha(d.ini)} → ${fmtFecha(d.fin)}`} />
+            <Dato label="Clientes" value={fmtInt(d.totales.clientes)} />
+            <Dato label="Con AuM" value={fmtInt(d.totales.con_aum)} />
+            <Dato label="Activos" value={fmtInt(d.totales.activos)} />
+            <Dato label="Ratio activ." value={fmtPct(d.totales.ratio_actividad)} />
+            <Dato label={`Aranceles (${d.moneda})`} value={fmtMoneyFull(d.totales.aranceles)} />
+            <Dato label={`AuM (${d.moneda})`} value={fmtMoneyFull(d.totales.aum)} />
+            <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)] max-w-[46%] text-right">
+              {d.ecuacion}
+            </span>
+          </>}
+          {err && <span className="text-[10px] text-[#ff7777]">{err}</span>}
+        </div>
+
+        <div className="px-3 py-1 border-b border-[var(--t-border)] shrink-0 flex items-center gap-3 text-[9px] text-[var(--t-text-muted)]">
+          <span>
+            Foto de AuM: {fmtFecha(d?.snapshot_aum)}
+            {!!d?.desfasaje_dias && ` (${d.desfasaje_dias} días antes del cierre de mes)`}
+          </span>
+          {d?.mep_aum != null && <span>· MEP AuM {d.mep_aum.toLocaleString("es-AR")}</span>}
+          {d?.mep_aranceles != null && <span>· MEP aranceles {d.mep_aranceles.toLocaleString("es-AR")}</span>}
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="buscar cuenta / cliente…"
+            className="ml-auto bg-transparent border border-[var(--t-border-2)] px-2 py-0.5 text-[10px] outline-none focus:border-[var(--t-accent)]" />
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-auto">
+          <table className="w-full table-fixed text-[11px]">
+            <thead className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] sticky top-0 bg-[var(--t-panel)]">
+              <tr className="border-b border-[var(--t-border)]">
+                <th className="px-2 py-1.5 text-left font-normal w-[8%]">Cuenta</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[24%]">Cliente</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[14%]">Operador</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[11%]">Nivel 1</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[13%]">Nivel 3</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[8%]">Alta</th>
+                <th className="px-2 py-1.5 text-right font-normal w-[10%]">AuM</th>
+                <th className="px-2 py-1.5 text-right font-normal w-[5%]">Bol.</th>
+                <th className="px-2 py-1.5 text-right font-normal w-[9%]">Arancel</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[8%]">Última op</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((i) => (
+                <tr key={i.id_cuenta} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]">
+                  <td className="px-2 py-1 font-mono align-top">{i.id_cuenta}</td>
+                  {/* `whitespace-normal`: globals.css pone `td { white-space: nowrap }`
+                      y las denominaciones largas se montan sobre la columna siguiente. */}
+                  <td className="px-2 py-1 whitespace-normal break-words align-top" title={i.denominacion}>
+                    {i.denominacion}
+                  </td>
+                  <td className="px-2 py-1 whitespace-normal break-words text-[var(--t-text-dim)] align-top">
+                    {i.operador_nombre || "—"}
+                  </td>
+                  <td className="px-2 py-1 whitespace-normal break-words text-[var(--t-text-dim)] align-top">{i.nivel_1 || "—"}</td>
+                  <td className="px-2 py-1 whitespace-normal break-words text-[var(--t-text-dim)] align-top">{i.nivel_3 || "—"}</td>
+                  <td className="px-2 py-1 tabular-nums align-top">{fmtFecha(i.fecha_alta_legajo)}</td>
+                  <td className="px-2 py-1 text-right tabular-nums align-top"
+                    title={i.aum != null ? fmtMoneyFull(i.aum) : undefined}>
+                    {i.aum == null ? "—" : fmtMoney(i.aum)}
+                  </td>
+                  <td className="px-2 py-1 text-right tabular-nums align-top">{i.n_boletos || "—"}</td>
+                  <td className="px-2 py-1 text-right tabular-nums align-top"
+                    title={i.arancel != null ? fmtMoneyFull(i.arancel) : undefined}>
+                    {i.arancel ? fmtMoney(i.arancel) : "—"}
+                  </td>
+                  <td className="px-2 py-1 tabular-nums align-top">{fmtFecha(i.ultima_op)}</td>
+                </tr>
+              ))}
+              {!items.length && (
+                <tr><td colSpan={10} className="px-2 py-3 text-center text-[var(--t-text-muted)]">
+                  {d ? "ninguna cuenta compone esta celda" : err ? "" : "cargando…"}
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {d && (
+          <div className="px-3 py-1.5 border-t border-[var(--t-border-2)] bg-[var(--t-surface)] text-[9px] text-[var(--t-text-muted)] flex items-center gap-3 shrink-0">
+            <span>
+              {items.length === d.items.length
+                ? `${d.items.length} cuentas`
+                : `${items.length} de ${d.items.length} cuentas (buscador)`}
+              {d.n_total > d.items.length && ` · listadas ${d.items.length} de ${d.n_total} (tope ${d.limite})`}
+            </span>
+            <span className="ml-auto">
+              Los totales de arriba se calculan sobre las {d.n_total} cuentas, no sobre las listadas.
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Dato({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col">
+      <span className="text-[9px] text-[var(--t-text-muted)] tracking-wide uppercase">{label}</span>
+      <span className="text-[12px] tabular-nums text-[var(--t-text)]">{value}</span>
+    </div>
+  );
+}
