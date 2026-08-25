@@ -83,6 +83,24 @@ type Vista = {
   // tipo no borraría el campo, solo lo dejaría sin documentar.
   diferencias_hoy: DifHoy[]; por_instrumento: Instr[]; acumulado: Acum[];
   faltantes: Faltantes;
+  requerimiento_margenes: Requerimiento;
+};
+
+/** El requerimiento de márgenes de las cuentas elegidas.
+ *
+ *  `cuentas_pedidas` / `cuentas_encontradas` los cuenta el BACKEND, no esta
+ *  pantalla: una cuenta que dejó de venir se ve exactamente igual que una
+ *  cuenta en cero, y este cuadro se imprime para gerencia. */
+type Requerimiento = {
+  fecha: string | null;
+  por_moneda: { moneda: string; margen: number; cuentas: number }[];
+  detalle: {
+    cuenta: string; cuenta_compensacion: string; moneda: string;
+    margen: number; referencias: number; titular: string | null;
+  }[];
+  cuentas_pedidas: number;
+  cuentas_encontradas: number;
+  cuentas_faltantes: string[];
 };
 
 // El nombre de la familia, para los avisos. AGRO son trigo/soja/maíz (toneladas)
@@ -252,12 +270,14 @@ export function Ap5PosicionesView() {
           ))}
         </Cabecera>
 
-        {/* Los dos que la API publica y todavía NO pedimos. Se declaran como
-            PENDIENTES en vez de dibujarse vacíos: un espacio en blanco se lee
-            como "hoy no hay", que es otra cosa que "no lo estamos midiendo" —
-            y este cuadro se imprime para gerencia. */}
+        {/* El activo integrado sigue PENDIENTE, y se declara como tal en vez
+            de dibujarse vacío: un espacio en blanco se lee como "hoy no hay",
+            que es otra cosa que "no lo estamos midiendo" — y este cuadro se
+            imprime para gerencia. (Medido 2026-08-25: `AccountBalance` da un
+            agregado por cuenta de compensación que NO se puede abrir por
+            comitente, así que todavía no hay de dónde sacarlo.) */}
         <Cabecera titulo="Requerimiento de márgenes">
-          <Pendiente donde="Garantías → MarginRequirementReport" />
+          <Margenes r={v.requerimiento_margenes} />
         </Cabecera>
         <Cabecera titulo="Activo integrado">
           <Pendiente donde="Balance de saldos → AccountBalance" />
@@ -325,6 +345,50 @@ function Cabecera({ titulo, children }: { titulo: string; children: React.ReactN
       <div className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">{titulo}</div>
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-[12px]">{children}</div>
     </div>
+  );
+}
+
+/** REQUERIMIENTO DE MÁRGENES: la Σ de las cuentas elegidas, POR MONEDA.
+ *
+ *  Tres reglas, y las tres vienen de cómo está armada la vista:
+ *
+ *  1. **Un número por moneda, nunca uno solo.** Sumar Pesos con Dólar da un
+ *     número que no significa nada. Es la misma regla del resto de AP5.
+ *  2. **Acá no se suma nada.** Los totales los calcula el backend, en la misma
+ *     query que trae el detalle — así la card no puede contradecir a la tabla.
+ *  3. **Si falta una cuenta, se dice.** Con dos cuentas y una sola presente el
+ *     número igual sale y se ve creíble; el aviso es lo único que lo delata.
+ */
+function Margenes({ r }: { r: Requerimiento }) {
+  if (!r || (r.por_moneda.length === 0 && r.cuentas_encontradas === 0)) {
+    return <Vacio texto="sin márgenes este día" />;
+  }
+  const faltan = r.cuentas_faltantes.length;
+  return (
+    <>
+      {r.por_moneda.map((m) => (
+        <span key={m.moneda} className="flex items-baseline gap-1.5">
+          <span className="text-[9px] text-[var(--t-text-muted)]">En {m.moneda}</span>
+          <span
+            className={`font-mono tabular-nums font-semibold ${tono(m.margen)}`}
+            title={r.detalle
+              .filter((d) => d.moneda === m.moneda)
+              .map((d) => `${d.titular || d.cuenta} (${d.cuenta}/${d.cuenta_compensacion}): ${fmt0(d.margen)}`)
+              .join("\n")}
+          >
+            {fmt0(m.margen)}
+          </span>
+        </span>
+      ))}
+      {faltan > 0 && (
+        <span
+          className="text-[10px] text-[var(--t-neg)]"
+          title={`No vinieron: ${r.cuentas_faltantes.join(", ")}`}
+        >
+          faltan {faltan} de {r.cuentas_pedidas} cuentas
+        </span>
+      )}
+    </>
   );
 }
 
