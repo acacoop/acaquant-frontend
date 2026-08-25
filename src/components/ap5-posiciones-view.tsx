@@ -222,7 +222,7 @@ export function Ap5PosicionesView() {
             className="min-h-0"
             extra={
               <span className="text-[10px] text-white/70">
-                {r.cuentas} cuentas{r.sin_semilla > 0 && ` · ${r.sin_semilla} sin semilla`}
+                {r.cuentas} cuentas
               </span>
             }
           >
@@ -250,7 +250,15 @@ export function Ap5PosicionesView() {
   );
 }
 
-/** Medio ranking (a favor / en contra). El TOTAL es de TODAS las cuentas, no del
+/** Medio ranking (a favor / en contra).
+ *
+ *  ⚠️ **Acá NO se marca la cuenta sin semilla** (2026-08-25, pedido del user:
+ *  esta vista se imprime como PDF para gerencia). El aviso sigue existiendo,
+ *  pero UNA sola vez y en la barra de herramientas — que es de la mesa, no del
+ *  informe. Ojo con lo que eso significa: sin semilla el acumulado arranca en
+ *  nuestro primer día guardado y no es el arrastre real, así que el orden del
+ *  top puede no ser el del mail. El cartel se sacó; el problema se cierra
+ *  cargando las semillas, no escondiéndolas. El TOTAL es de TODAS las cuentas, no del
  *  top: el ranking recorta la LISTA, no la suma. Si el total saliera de las 10
  *  filas, mostrar 10 cambiaría el número y nadie lo notaría. */
 function Ladrillo({ titulo, items, total, onFila }: {
@@ -276,15 +284,6 @@ function Ladrillo({ titulo, items, total, onFila }: {
               <td className="px-1 py-0.5 text-[9px] text-[var(--t-text-muted)] text-right w-6">{n + 1}</td>
               <td className="px-2 py-0.5 truncate max-w-0 w-full" title={`${i.nombre} (${i.cuenta})`}>
                 {i.nombre}
-                {/* Sin semilla el acumulado arranca en nuestro primer día: la
-                    cuenta puede estar en el puesto equivocado y tiene que
-                    poder decirlo, no quedar igual que una completa. */}
-                {!i.semilla_cargada && (
-                  <span className="ml-1 text-[9px] text-[var(--t-text-muted)]"
-                    title="sin semilla cargada: el acumulado arranca en nuestro primer día guardado">
-                    ·sin semilla
-                  </span>
-                )}
               </td>
               <td className="px-2 py-0.5 text-[9px] text-[var(--t-text-muted)] whitespace-nowrap">{i.moneda}</td>
               <td className={`px-2 py-0.5 text-right whitespace-nowrap ${tono(i.importe)}`}>{fmt2(i.importe, 0)}</td>
