@@ -95,11 +95,14 @@ type Vista = {
 type Requerimiento = {
   fecha: string | null;
   por_moneda: { moneda: string; importe: number; filas: number }[];
+  // Una fila por CONCEPTO (`Márgenes`, `Inicial A3`, …). `importe` es `margen`
+  // con el signo ya dado vuelta — `primas` e `inter_temporal` viajan porque la
+  // cámara los manda, pero NO son parte del número: `Márgenes` trae un
+  // `inter_temporal` no nulo que no cuenta.
   detalle: {
     cuenta: string; cuenta_compensacion: string; concepto: string;
     moneda: string; importe: number; margen: number; primas: number;
-    inter_temporal: number; campos: string; referencias: number;
-    titular: string | null;
+    inter_temporal: number; referencias: number; titular: string | null;
   }[];
   // Qué conceptos suma esta card, y cuáles de ellos NO vinieron. Si la cámara
   // renombra `Inicial A3`, la card seguiría dibujando el número de los que sí
