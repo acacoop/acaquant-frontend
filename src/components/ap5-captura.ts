@@ -52,13 +52,20 @@ function centrar(s: string, w = W_NUM): string {
  *  posición, no resultado, y pintarlas de verde/rojo sugiere una ganancia o una
  *  pérdida donde sólo hay toneladas.
  */
+/*  ⚠️ **`fmt` recibe el ÍNDICE de la columna.** Hay cuadros donde no todas las
+ *  columnas se formatean igual —en POSICIONES DE ACA conviven cantidades sin
+ *  decimales, precios con dos y un porcentaje— y un solo formateador para todas
+ *  obligaría a pre-formatear a mano, que es justo por donde la imagen y la
+ *  pantalla empiezan a decir cosas distintas. Los llamadores que no lo usan
+ *  siguen pasando `(n) => …` sin cambiar nada. */
 export function celdas(valores: (string | number | null)[],
-                       fmt: (n: number) => string,
-                       tonoDesde = 0): Celda[] {
+                       fmt: (n: number, i: number) => string,
+                       tonoDesde = 0,
+                       ancho = W_NUM): Celda[] {
     return valores.map((v, i) => {
-        if (typeof v === "string") return { texto: centrar(v) };
-        if (v === null) return { texto: centrar("—") };
-        const texto = centrar(fmt(v));
+        if (typeof v === "string") return { texto: centrar(v, ancho) };
+        if (v === null) return { texto: centrar("—", ancho) };
+        const texto = centrar(fmt(v, i), ancho);
         return i >= tonoDesde ? { texto, tono: v >= 0 ? "pos" : "neg" } : { texto };
     });
 }
@@ -76,13 +83,21 @@ export async function copiarTab(o: {
   titulo: string;
   fecha: string;
   archivo: string;
+  /** Apila las tablas en UNA sola columna en vez de repartirlas en dos.
+   *
+   *  ⚠️ Es una decisión de ANCHO, no de gusto. Una tabla de siete columnas
+   *  numéricas ya mide ~125 caracteres; dos al lado se van a ~250 y la imagen
+   *  sale con el doble del ancho de un mail, donde nadie la lee sin hacer zoom.
+   *  Con pocas columnas —el consolidado, los rankings— dos al lado entran bien
+   *  y aprovechan el alto. */
+  unaColumna?: boolean;
 }): Promise<"copiado" | "descargado" | "error"> {
   const { copiarReporte } = await import("@/lib/reporte-imagen");
   return copiarReporte({
     // Todas las columnas del mismo ancho: sin esto, FUTUROS U$S —que tiene
     // etiquetas más cortas— salía notoriamente más angosta que la de agro.
     mismoAncho: true,
-    columnas: enDosColumnas(o.tablas),
+    columnas: o.unaColumna ? [o.tablas] : enDosColumnas(o.tablas),
     titulo: o.titulo,
     fecha: o.fecha,
     firma: FIRMA,

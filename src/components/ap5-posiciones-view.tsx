@@ -197,6 +197,20 @@ type TotalAca = {
 // ganancia o una pérdida donde no hay ninguna.
 const TONO_DESDE = 3;
 
+// ── POSICIONES DE ACA en la imagen ─────────────────────────────────────────
+// El formateador va POR COLUMNA porque las siete no son lo mismo: cantidad y
+// nocional son enteros, los precios llevan dos decimales y el porcentaje lleva
+// su signo `%`. Con un solo formateador, los precios salían redondeados a
+// entero en el mail y enteros en pantalla no — la imagen y la vista diciendo
+// cosas distintas es exactamente lo que este módulo trata de evitar.
+//   0 CANTIDAD · 1 NOCIONAL · 2 P.ENTRADA · 3 P.AJUSTE · 4 DIF PX · 5 DIF % ·
+//   6 DIFERENCIAS
+const FMT_ACA = (n: number, i: number) =>
+  i === 5 ? `${fmt2(n, 2)}%` : i === 2 || i === 3 || i === 4 ? fmt2(n, 2) : fmt2(n, 0);
+// Verde/rojo sólo de DIF PX en adelante: cantidad, nocional y los precios son
+// datos de la POSICIÓN, no resultado.
+const TONO_DESDE_ACA = 4;
+
 const TABS: { id: Tab; label: string }[] = [
   { id: "agro", label: "FUTUROS AGRO" },
   { id: "dolar", label: "FUTUROS DÓLAR" },
@@ -350,9 +364,50 @@ export function Ap5PosicionesView() {
     // El MISMO formateador que la pantalla: formatear dos veces es como la
     // imagen y la vista terminan diciendo cosas distintas.
     const plata = (n: number) => fmt2(n, 0);
+    // POSICIONES DE ACA habla de UNA cuenta, así que la imagen no se puede
+    // generar hasta que estén las filas de la cuenta ELEGIDA: con las de la
+    // anterior saldría un cuadro creíble y de otra cuenta.
+    if (tab === "aca" && aca?.cuenta !== cuentaAca) {
+      setAviso("Todavía cargando la cuenta");
+      window.setTimeout(() => setAviso(null), 6000);
+      return;
+    }
     setCopiando(true);
     const tablas: TablaImagen[] =
-      tab === "consolidados"
+      tab === "aca"
+        ? LADOS_ACA.map((l) => {
+            const filas = (aca?.filas ?? []).filter((f) => f.familia === l.familia);
+            const totales = (aca?.totales ?? []).filter((t) => t.familia === l.familia);
+            const unaMoneda = totales.length <= 1;
+            return {
+              titulo: l.titulo,
+              filas: [
+                { cuenta: "SÍMBOLO",
+                  valor: celdas(["CANTIDAD", l.etiquetaNocional, "P. ENTRADA",
+                                 "P. AJUSTE", "DIF PX", "DIF %", "DIFERENCIAS"],
+                                plata) },
+                ...filas.map((f) => ({
+                  cuenta: f.symbol,
+                  valor: celdas(
+                    [f.cantidad, f.nocional, f.entrada, f.ajuste,
+                     f.dif_px, f.dif_pct, f.diferencias],
+                    FMT_ACA, TONO_DESDE_ACA),
+                })),
+                // Un total por MONEDA, igual que en pantalla: dos monedas
+                // sumadas juntas dan un número que no existe.
+                // En el mail no hay tooltip que explique un hueco: si algún
+                // símbolo quedó sin nocional, el total lo dice en el rótulo.
+                ...totales.map((t) => ({
+                  cuenta: `TOTAL${unaMoneda ? "" : ` ${t.moneda ?? "sin moneda"}`}`
+                    + (t.sin_multiplicador > 0 ? ` · ${t.sin_multiplicador} sin nocional` : ""),
+                  destacada: true,
+                  valor: celdas(["", "", "", "", "", "", t.diferencias],
+                                FMT_ACA, TONO_DESDE_ACA),
+                })),
+              ],
+            };
+          })
+      : tab === "consolidados"
         ? v.consolidado.map((b) => ({
             titulo: `${b.tab === "agro" ? "FUTUROS AGRÍCOLAS" : "FUTUROS U$S"} · ${b.moneda}`,
             filas: [
@@ -390,11 +445,21 @@ export function Ap5PosicionesView() {
           ]);
 
     const nombre = TABS.find((x) => x.id === tab)?.label ?? "";
+    // En POSICIONES DE ACA el título lleva la CUENTA: la imagen se va a un mail
+    // y ahí ya no está el desplegable que dice de cuál es.
+    const cuentaNombre = cuentasAca.find((c) => c.cuenta === cuentaAca)?.nombre ?? cuentaAca;
     const r = await copiarTab({
       tablas: tablas.filter((t) => t.filas.length > 1 || tab !== "consolidados"),
-      titulo: `Posiciones y diferencias · ${nombre}`,
+      titulo: tab === "aca"
+        ? `Posiciones de ACA · ${cuentaNombre}`
+        : `Posiciones y diferencias · ${nombre}`,
       fecha: fmtFecha(v.fecha),
-      archivo: `ap5-${tab}-${v.fecha ?? "hoy"}.png`,
+      // Siete columnas numéricas por tabla: apiladas entran en el ancho de un
+      // mail, al lado se van al doble.
+      unaColumna: tab === "aca",
+      archivo: tab === "aca"
+        ? `ap5-aca-${cuentaAca}-${v.fecha ?? "hoy"}.png`
+        : `ap5-${tab}-${v.fecha ?? "hoy"}.png`,
     });
     setCopiando(false);
     // El plan B NO es un error: el objetivo es que la imagen llegue al mail, y
