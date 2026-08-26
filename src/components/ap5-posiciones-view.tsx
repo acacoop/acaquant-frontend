@@ -22,7 +22,7 @@
 // ranking en otro **sin que nada falle**.
 
 import { useCallback, useEffect, useState } from "react";
-import { fetchJson } from "@/lib/fetch-json";
+import { fetchJson, getJSON } from "@/lib/fetch-json";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { fmt0, fmt2, Panel } from "./ui/informe";
 import { celdas, copiarTab } from "./ap5-captura";
@@ -144,7 +144,31 @@ const FAMILIA: Record<string, string> = { agro: "AGRO", dolar: "DÓLAR FUTURO", 
 // (`TAB_DE_FAMILIA`): `otros` —hoy el WTI, unidad `Bl`— va con AGRO pero
 // conserva su etiqueta, para que se vea que no son toneladas.
 type TabFam = "agro" | "dolar";
-type Tab = TabFam | "consolidados";
+type Tab = TabFam | "consolidados" | "aca";
+
+/** Una cuenta propia del desplegable de POSICIONES DE ACA. Se MUESTRA el nombre
+ *  y se MANDA el número: la identidad es el número (REGLA #9). `conocida = false`
+ *  = todavía no está en `ap5.cuentas`, así que sale con su número en vez de
+ *  desaparecer del desplegable sin explicación. */
+type CuentaAca = { cuenta: string; nombre: string; conocida: boolean };
+
+/** Una fila de POSICIONES DE ACA: un símbolo de la cuenta elegida.
+ *
+ *  `cantidad` es UN número con signo —positivo comprado, negativo vendido— y no
+ *  las dos columnas de la base con una en cero.
+ *
+ *  ⚠️ `dif_px` y `dif_pct` son del PRECIO, no del resultado: en una posición
+ *  vendida un precio que sube es una pérdida, y acá igual sale positivo. El
+ *  signo de la posición está en `cantidad`. */
+type FilaAca = {
+  symbol: string; familia: string; unidad: string | null; moneda: string | null;
+  cantidad: number;
+  entrada: number | null; ajuste: number | null;
+  dif_px: number | null; dif_pct: number | null;
+  /** Cuántas filas de la base se agregaron: un precio promedio de una pata y
+   *  uno de tres no son la misma evidencia. */
+  patas: number;
+};
 // Del consolidado sólo ACUM. y DIARIA llevan verde/rojo: COMPRA, VENTA y NETA
 // son cantidades de la POSICIÓN —toneladas, contratos— y pintarlas sugiere una
 // ganancia o una pérdida donde no hay ninguna.
@@ -154,6 +178,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "agro", label: "FUTUROS AGRO" },
   { id: "dolar", label: "FUTUROS DÓLAR" },
   { id: "consolidados", label: "CONSOLIDADOS" },
+  { id: "aca", label: "POSICIONES DE ACA" },
 ];
 
 // El cuadro POR INSTRUMENTO del mail: un bloque por (tab, moneda), con su TOTAL
@@ -205,6 +230,16 @@ export function Ap5PosicionesView() {
   // ⚠️ Los hooks van ANTES de los `return` de error/carga: React exige el
   // MISMO orden en cada render, y declararlos después los saltea cuando la
   // vista corta temprano.
+  // POSICIONES DE ACA: su propio filtro y su propio request. No entra en
+  // `/vista` porque depende de una elección del usuario — meterlo ahí obligaría
+  // a recargar TODA la pantalla cada vez que se cambia de cuenta.
+  const [cuentasAca, setCuentasAca] = useState<CuentaAca[]>([]);
+  const [cuentaAca, setCuentaAca] = usePersistedState<string>("ap5.aca.cuenta", "");
+  // ⚠️ El estado guarda QUÉ CUENTA trajo, no sólo las filas. Así «cargando» se
+  // DERIVA (`aca?.cuenta !== cuentaAca`) en vez de setearse al principio del
+  // efecto — un `setState` síncrono ahí dispara un render de más y lo prohíbe
+  // `react-hooks/set-state-in-effect`.
+  const [aca, setAca] = useState<{ cuenta: string; filas: FilaAca[] } | null>(null);
   const [copiando, setCopiando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const recargar = useCallback(() => setRecarga((n) => n + 1), []);
@@ -228,6 +263,29 @@ export function Ap5PosicionesView() {
       .finally(() => { if (!cancelado) setDibujado(pedido); });
     return () => { cancelado = true; };
   }, [recarga, pedido]);
+
+  // El desplegable se pide UNA vez: la allowlist no cambia entre renders.
+  useEffect(() => {
+    let cancelado = false;
+    getJSON<CuentaAca[]>("/api/ap5/aca/cuentas").then((d) => {
+      if (cancelado || !d?.length) return;
+      setCuentasAca(d);
+      setCuentaAca((c) => (c && d.some((x) => x.cuenta === c) ? c : d[0].cuenta));
+    });
+    return () => { cancelado = true; };
+  }, [setCuentaAca]);
+
+  useEffect(() => {
+    if (tab !== "aca" || !cuentaAca) return;
+    let cancelado = false;
+    const pedida = cuentaAca;
+    // `fetchJson` TIRA con el detalle: un 403 y "no hay posición" NO se pueden
+    // dibujar igual.
+    fetchJson<{ filas: FilaAca[] }>(`/api/ap5/aca?cuenta=${encodeURIComponent(pedida)}`)
+      .then((d) => { if (!cancelado) setAca({ cuenta: pedida, filas: d.filas ?? [] }); })
+      .catch(() => { if (!cancelado) setAca({ cuenta: pedida, filas: [] }); });
+    return () => { cancelado = true; };
+  }, [tab, cuentaAca, recarga]);
 
   if (error) {
     return (
@@ -340,6 +398,19 @@ export function Ap5PosicionesView() {
           </button>
         ))}
 
+        {tab === "aca" && cuentasAca.length > 0 && (
+          <select
+            value={cuentaAca}
+            onChange={(e) => setCuentaAca(e.target.value)}
+            title="Sólo las cuentas propias de ACA"
+            className="bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1 text-[11px]"
+          >
+            {cuentasAca.map((c) => (
+              <option key={c.cuenta} value={c.cuenta}>{c.nombre}</option>
+            ))}
+          </select>
+        )}
+
         {/* ⚠️ **NO hay selector de día** (2026-08-26). `ap5.portfolio` guarda
             DOS días —uno para el acumulado y el anterior para poder restar la
             diaria— así que no hay nada que elegir. Un desplegable con una sola
@@ -408,7 +479,27 @@ export function Ap5PosicionesView() {
         </Cabecera>
       </div>
 
-      {tab === "consolidados" ? (
+      {tab === "aca" ? (
+        /* ── POSICIONES DE ACA: la posición abierta de UNA cuenta propia ─────
+           MITAD y MITAD: agro a la izquierda, dólar a la derecha, cada lado con
+           su banda de color. Es lo que permite leer las dos sin confundirlas —
+           son unidades distintas (toneladas contra dólares) y a simple vista dos
+           tablas iguales parecen la misma cosa. */
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3 p-3 overflow-auto">
+          {aca?.cuenta !== cuentaAca ? (
+            <div className="text-[11px] text-[var(--t-text-dim)]">Cargando…</div>
+          ) : (
+            LADOS_ACA.map((l) => (
+              <TablaAca
+                key={l.familia}
+                titulo={l.titulo}
+                color={l.color}
+                filas={aca.filas.filter((f) => f.familia === l.familia)}
+              />
+            ))
+          )}
+        </div>
+      ) : tab === "consolidados" ? (
         /* ── CONSOLIDADOS: el cuadro POR INSTRUMENTO del mail ───────────────
            Un bloque por (tab, moneda) — agrícolas arriba, U$S abajo — con su
            TOTAL ya sumado por el backend. */
@@ -547,6 +638,103 @@ function Margenes({ r }: { r: Requerimiento }) {
 
 function Vacio({ texto }: { texto: string }) {
   return <span className="text-[11px] text-[var(--t-text-muted)]">{texto}</span>;
+}
+
+// Los dos lados de POSICIONES DE ACA. El color de la banda es lo que separa
+// AGRO de DÓLAR de un vistazo: son unidades distintas —toneladas contra
+// dólares— y dos tablas iguales lado a lado se leen como la misma cosa.
+const LADOS_ACA = [
+  { familia: "agro", titulo: "FUTUROS AGRO", color: "#f5cf60" },
+  { familia: "dolar", titulo: "DÓLAR FUTURO", color: "#9fcb92" },
+] as const;
+
+/** La posición abierta de un lado (agro o dólar), una fila por símbolo.
+ *
+ *  ⚠️ **CANTIDAD es un número con signo, no dos columnas.** La base trae
+ *  `long_qty` y `short_qty` con una en cero; mostrar las dos obliga a leer dos
+ *  celdas para saber si está comprado o vendido.
+ *
+ *  ⚠️ **El color va SÓLO en las dos columnas de diferencia.** La cantidad, el
+ *  precio de entrada y el de ajuste son datos de la posición, no resultado:
+ *  pintarlos sugiere una ganancia donde sólo hay un precio.
+ */
+function TablaAca({ titulo, color, filas }: {
+  titulo: string; color: string; filas: FilaAca[];
+}) {
+  return (
+    <div className="min-h-0 flex flex-col border border-[var(--t-border)]">
+      <div
+        className="px-2 py-1 text-center text-[11px] font-bold tracking-wide text-[#1c2430]"
+        style={{ background: color }}
+      >
+        {titulo}
+      </div>
+      <div className="flex-1 min-h-0 overflow-auto">
+        <table className="w-full table-fixed border-collapse text-[11px]">
+          <colgroup>
+            <col style={{ width: "30%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "15%" }} />
+            <col style={{ width: "15%" }} />
+            <col style={{ width: "13%" }} />
+            <col style={{ width: "13%" }} />
+          </colgroup>
+          <thead>
+            <tr className="bg-[var(--t-panel-2)] text-[var(--t-text-muted)]">
+              {["SÍMBOLO", "CANTIDAD", "P. ENTRADA", "P. AJUSTE", "DIF PX", "DIF %"]
+                .map((h, i) => (
+                  <th key={h}
+                      className={`px-2 py-1 text-[9px] uppercase tracking-wide font-semibold ${
+                        i === 0 ? "text-left" : "text-center"}`}>
+                    {h}
+                  </th>
+                ))}
+            </tr>
+          </thead>
+          <tbody className="font-mono tabular-nums">
+            {filas.map((f) => (
+              <tr key={f.symbol} className="border-t border-[var(--t-border)]">
+                <td className="px-2 py-0.5 font-sans truncate" title={
+                  f.patas > 1
+                    ? `${f.symbol} · precio de entrada ponderado sobre ${f.patas} patas`
+                    : f.symbol
+                }>
+                  {f.symbol}
+                  {/* Un promedio de una pata y uno de tres no son la misma
+                      evidencia: si se agregó más de una fila, se dice. */}
+                  {f.patas > 1 && (
+                    <span className="ml-1 text-[9px] text-[var(--t-text-muted)]">
+                      ×{f.patas}
+                    </span>
+                  )}
+                </td>
+                <td className="px-2 py-0.5 text-center">{fmt0(f.cantidad)}</td>
+                <td className="px-2 py-0.5 text-center">
+                  {f.entrada === null ? "—" : fmt2(f.entrada, 2)}
+                </td>
+                <td className="px-2 py-0.5 text-center">
+                  {f.ajuste === null ? "—" : fmt2(f.ajuste, 2)}
+                </td>
+                <td className={`px-2 py-0.5 text-center ${f.dif_px === null ? "" : tono(f.dif_px)}`}>
+                  {f.dif_px === null ? "—" : fmt2(f.dif_px, 2)}
+                </td>
+                <td className={`px-2 py-0.5 text-center ${f.dif_pct === null ? "" : tono(f.dif_pct)}`}>
+                  {f.dif_pct === null ? "—" : `${fmt2(f.dif_pct, 2)}%`}
+                </td>
+              </tr>
+            ))}
+            {filas.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-2 py-3 text-center text-[var(--t-text-dim)]">
+                  Sin posición abierta en esta cuenta.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 /** Un cuadro del CONSOLIDADO: FUTUROS AGRÍCOLAS o FUTUROS U$S.
