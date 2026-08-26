@@ -43,7 +43,7 @@ export function ayudaDe(clave: string, c: Record<string, number>): Ayuda | null 
       "la lista como si estuvieran desaprovechados.",
     columnas: [
       { c: "Arancel 12m", v: "Lo que la cuenta dejó de arancel en los últimos 12 meses." },
-      { c: "Tiene (prom. 12m)", v: "El promedio de lo que la cuenta tuvo en los últimos " +
+      { c: "AUM (prom. 12m)", v: "El promedio de lo que la cuenta tuvo en los últimos " +
           "12 meses: se toma una foto de la tenencia a fin de cada mes y se promedian " +
           "las 12. NO es la foto de hoy. Un mes en el que la cuenta no aparece cuenta " +
           "como cero." },

@@ -220,7 +220,7 @@ export function CuantitativoView(
             { header: "Cliente", key: "denominacion", format: "text" as const, width: 34 },
             { header: "Operador", key: "operador_nombre", format: "text" as const, width: 22 },
             { header: "Arancel 12m", key: "arancel", format: "currency" as const, width: 18 },
-            { header: "Tiene (prom. 12m)", key: "aum", format: "currency" as const, width: 20 },
+            { header: "AUM (prom. 12m)", key: "aum", format: "currency" as const, width: 20 },
             { header: "ROA ($ por millón)", key: "roa_pesos_millon", format: "currency" as const, width: 18 },
             { header: "ROA (bps)", key: "roa_bps", format: "number" as const },
             { header: "Cupo", key: "cupo", format: "currency" as const, width: 20 },
@@ -482,12 +482,12 @@ function Conoce(
           <th className={TH + " text-left"}>Operador</th>
           {col("arancel", `Arancel ${d.meses ?? 12}m`,
             `Lo que la cuenta dejó de arancel en los últimos ${d.meses ?? 12} meses.`)}
-          {col("aum", `Tiene (prom. ${d.meses ?? 12}m)`,
+          {col("aum", `AUM (prom. ${d.meses ?? 12}m)`,
             `El AuM PROMEDIO de los últimos ${d.meses ?? 12} meses (una foto de tenencia por fin de mes), NO la foto de hoy. Es el divisor del ROA, así que el ROA se verifica dividiendo estas dos columnas.`)}
           {col("roa", `ROA (${d.moneda === "USD" ? "US$" : "$"} por millón)`,
             `De cada millón que el cliente tiene guardado, cuántos ${d.moneda === "USD" ? "dólares" : "pesos"} nos deja por año. Es el arancel de 12 meses dividido el promedio de lo que tuvo, llevado a esa escala. Debajo del piso no se calcula: dividir por casi nada da un número que no significa nada.`)}
           {col("cupo", "Cupo", "Cupo transaccional del custodio. Carga manual por Excel, sin fecha de carga registrada.")}
-          {col("sow", "SOW", "Tiene ÷ Cupo. Qué parte de la plata que el custodio le reconoce está acá.")}
+          {col("sow", "SOW", "AUM ÷ Cupo. Qué parte de la plata que el custodio le reconoce está acá.")}
           <th className={TH + " text-left"}>Operación favorita</th>
         </tr></thead>
         <tbody>
