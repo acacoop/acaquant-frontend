@@ -52,6 +52,16 @@ export type FilaImagen = {
 export type TablaImagen = {
   titulo: string;
   filas: FilaImagen[];
+  /** Color de la banda del título. Sin esto, la banda gris de siempre.
+   *
+   *  Es para los cuadros donde el color **separa cosas que se leen distinto**:
+   *  en POSICIONES DE ACA, agro y dólar tienen las mismas columnas pero unidades
+   *  distintas (toneladas contra dólares), y dos tablas iguales una debajo de la
+   *  otra se leen como la misma. El color tiene que ser el MISMO que el de la
+   *  pantalla: si difieren, la captura y la vista se ven como dos informes. */
+  color?: string;
+  /** Título centrado en la banda en vez de pegado a la izquierda. */
+  centrado?: boolean;
   /** Alto RESERVADO en filas. Si la tabla trae menos, se dibujan filas vacías
    *  hasta llegar. Es lo que mantiene alineadas dos tablas que están una al
    *  lado de la otra: sin esto, un Top 10 con 8 cuentas queda más corto y la
@@ -227,15 +237,19 @@ export async function reporteComoImagen(o: Opciones): Promise<Blob | null> {
     let y = BARRA_H + PAD;
     for (const t of col) {
       // Título del banco, sobre su banda.
-      ctx.fillStyle = BANDA;
+      ctx.fillStyle = t.color ?? BANDA;
       ctx.fillRect(colX, y, w, H_TITULO);
       ctx.strokeStyle = LINEA;
       ctx.lineWidth = 1;
       ctx.strokeRect(colX + 0.5, y + 0.5, w - 1, H_TITULO - 1);
       ctx.fillStyle = TINTA;
       ctx.font = F_TITULO_TABLA;
+      ctx.textAlign = t.centrado ? "center" : "left";
+      ctx.fillText(t.titulo.toUpperCase(),
+                   t.centrado ? colX + w / 2 : colX + CELDA_X, y + H_TITULO / 2);
+      // Vuelve al default: las filas de abajo dan por sentado que arranca en
+      // "left" y una tabla centrada corrompería a la siguiente.
       ctx.textAlign = "left";
-      ctx.fillText(t.titulo.toUpperCase(), colX + CELDA_X, y + H_TITULO / 2);
       y += H_TITULO;
 
       for (const f of t.filas) {

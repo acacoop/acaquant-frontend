@@ -385,6 +385,12 @@ export function Ap5PosicionesView() {
             const unaMoneda = totales.length <= 1;
             return {
               titulo: l.titulo,
+              // La MISMA banda de color que en pantalla, y centrada igual: es
+              // lo que separa agro de dólar de un vistazo —mismas columnas,
+              // unidades distintas— y si la imagen la dibujara gris, la captura
+              // y la vista se verían como dos informes distintos.
+              color: l.color,
+              centrado: true,
               filas: [
                 { cuenta: "SÍMBOLO",
                   valor: celdas(["CANTIDAD", l.etiquetaNocional, "P. ENTRADA",
