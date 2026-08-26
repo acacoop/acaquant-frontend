@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { MultiSelect } from "@/components/ui/multi-select";
 import { fetchJson } from "@/lib/fetch-json";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
 
 // Tab PROFUNDIDAD DE CLIENTES (dentro de OPERADORES).
@@ -39,8 +41,19 @@ type Fila = {
   mep_aum: number | null;
   fuera_universo: { activos: number; aranceles: number };
 };
+// Encabezados YA ESCRITOS por el backend. Con el filtro puesto, RATIO deja de ser
+// "actividad" y pasa a ser penetración del producto — ese texto NO se arma acá.
+type Columnas = {
+  activos: string; ratio_actividad: string; aranceles: string;
+  arancel_por_activo: string; sufijo: string | null;
+};
+type OpcionOp = { valor: string; label: string; n_boletos: number };
 type Resp = {
   moneda: string; desde: string; hasta: string; filas: Fila[];
+  operacion: string[];
+  operaciones_disponibles: OpcionOp[];
+  columnas: Columnas;
+  columnas_filtradas: Metrica[];
   meta: { sin_alta: number; advertencias: string[]; fuentes: Record<string, string> };
 };
 
@@ -53,6 +66,7 @@ type ItemDetalle = {
 type Detalle = {
   mes: string; label: string; ini: string; fin: string;
   metrica: Metrica; titulo: string; moneda: string;
+  operacion: string[]; operacion_label: string | null;
   mep_aranceles: number | null; mep_aum: number | null;
   snapshot_aum: string | null; desfasaje_dias: number | null;
   ecuacion: string;
@@ -69,10 +83,17 @@ type Metrica =
 // mostrar cosas distintas.
 type Col = {
   k: Metrica;
-  label: string;
+  label: string;          // el default; con filtro puesto lo pisa `columnas` del backend
   ayuda: string;
   tipo: "int" | "pct" | "money";
 };
+
+// El texto del encabezado cuando hay filtro NO se arma acá: viene de `columnas`.
+// Si el front lo derivara, la pantalla podría nombrar una cosa y el backend contar otra.
+function headerDe(c: Col, columnas: Columnas | undefined): string {
+  const v = columnas?.[c.k as keyof Columnas];
+  return typeof v === "string" ? v : c.label;
+}
 const COLS: Col[] = [
   { k: "clientes", label: "Clientes", tipo: "int",
     ayuda: "Cuentas activas con legajo dado de alta al último día del mes." },
@@ -159,7 +180,10 @@ export function ProfundidadClientesView(
   { moneda = "ARS", ...filtros }: { moneda?: "ARS" | "USD" } & Filtros,
 ) {
   const f: Filtros = filtros;
-  const qs = filtrosQS(f);
+  // El filtro de OPERACIÓN vive en ESTA vista, no en la barra madre: solo acota
+  // esta tabla, y en la barra parecería que aplica a las otras solapas.
+  const [operacion, setOperacion] = usePersistedState<string[]>("profundidad.operacion", []);
+  const qs = filtrosQS(f) + arrQS("operacion", operacion);
   const url = `/api/operaciones/comercial/profundidad?moneda=${moneda}${qs}`;
   // La respuesta viaja JUNTO con la url que la produjo. Así "estoy cargando" se
   // DERIVA (`res.url !== url`) en vez de ser un tercer estado que hay que
@@ -189,13 +213,21 @@ export function ProfundidadClientesView(
 
   const chips = useMemo(() => chipsDeFiltros(f), [qs]);   // eslint-disable-line react-hooks/exhaustive-deps
   const filas = d?.filas ?? [];
+  // Qué columnas acota el filtro lo DECIDE el backend (`columnas_filtradas`): acá
+  // solo se usa para apagar las otras. Si la lista se escribiera de este lado,
+  // podría contradecir lo que el backend efectivamente filtró.
+  const hayFiltro = (d?.operacion?.length ?? 0) > 0;
+  const filtradas = useMemo(() => new Set(d?.columnas_filtradas ?? []), [d?.columnas_filtradas]);
 
   const exportar = () => void exportToXlsx({
     filename: `profundidad-clientes-${timestampSuffix()}.xlsx`,
     sheets: [{
       name: "Profundidad",
+      // El título deja constancia del scope: una planilla exportada con un filtro
+      // puesto y sin decirlo es indistinguible de una sin filtrar.
       title: `Moneda ${d?.moneda ?? moneda}`
-        + (chips.length ? ` · ${chips.map((c) => `${c.label}: ${c.vals.join(", ")}`).join(" · ")}` : " · sin filtros"),
+        + (d?.columnas?.sufijo ? ` · Operación: ${d.columnas.sufijo}` : "")
+        + (chips.length ? ` · ${chips.map((c) => `${c.label}: ${c.vals.join(", ")}`).join(" · ")}` : " · sin filtros de cliente"),
       rows: filas.map((r) => ({
         mes: r.label, fin: r.fin, clientes: r.clientes, con_aum: r.con_aum,
         sin_aum: r.sin_aum, activos: r.activos,
@@ -210,10 +242,10 @@ export function ProfundidadClientesView(
         { header: "Clientes", key: "clientes", format: "integer" },
         { header: "Con AuM", key: "con_aum", format: "integer" },
         { header: "Sin AuM", key: "sin_aum", format: "integer" },
-        { header: "Activos", key: "activos", format: "integer" },
-        { header: "Ratio activ.", key: "ratio", format: "percent" },
-        { header: "Aranceles", key: "aranceles", format: "currency", width: 18 },
-        { header: "Aranc. / activo", key: "arancel_por_activo", format: "currency", width: 16 },
+        { header: d?.columnas?.activos ?? "Activos", key: "activos", format: "integer", width: 16 },
+        { header: d?.columnas?.ratio_actividad ?? "Ratio activ.", key: "ratio", format: "percent", width: 16 },
+        { header: d?.columnas?.aranceles ?? "Aranceles", key: "aranceles", format: "currency", width: 20 },
+        { header: d?.columnas?.arancel_por_activo ?? "Aranc. / activo", key: "arancel_por_activo", format: "currency", width: 16 },
         { header: "AuM", key: "aum", format: "currency", width: 20 },
         { header: "Foto AuM", key: "aum_snapshot", format: "date", width: 12 },
       ],
@@ -248,7 +280,24 @@ export function ProfundidadClientesView(
           </span>
         ))}
 
+        {/* El filtro de OPERACIÓN acota SOLO lo que se operó (activos/ratio/aranceles).
+            Las opciones las manda el backend leyéndolas de la base — nunca van
+            escritas acá, así un valor nuevo aparece solo. */}
+        {operacion.length > 0 && (
+          <span title="El filtro de operación NO toca clientes, con AuM, sin AuM ni AuM: esas columnas son la base entera."
+            className="text-[9px] px-1.5 py-0.5 border border-[var(--t-accent)] bg-[var(--t-accent)]/10 text-[var(--t-text)]">
+            <span className="text-[var(--t-text-muted)] uppercase tracking-wide">Operación:</span>{" "}
+            {(d?.operaciones_disponibles ?? [])
+              .filter((o) => operacion.includes(o.valor))
+              .map((o) => o.label).join(", ") || operacion.join(", ")}
+          </span>
+        )}
+
         <div className="ml-auto flex items-center gap-2">
+          <MultiSelect label="Operación" selected={operacion} onChange={setOperacion}
+            options={(d?.operaciones_disponibles ?? []).map((o) => ({
+              value: o.valor, label: o.label, n: o.n_boletos }))}
+            width="max-w-[200px]" />
           {loading && <span className="text-[9px] text-[var(--t-text-muted)]">cargando…</span>}
           {err && <span className="text-[9px] text-[#ff7777]">{err}</span>}
           <button onClick={exportar} disabled={!filas.length}
@@ -264,11 +313,22 @@ export function ProfundidadClientesView(
           <thead className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] sticky top-0 bg-[var(--t-panel)] z-10">
             <tr className="border-b border-[var(--t-border-2)]">
               <th className="px-3 py-2 text-left font-normal w-[12%]">Mes</th>
-              {COLS.map((c) => (
-                <th key={c.k} title={c.ayuda} className="px-3 py-2 text-right font-normal">
-                  {c.label}
-                </th>
-              ))}
+              {COLS.map((c) => {
+                // Con filtro puesto, la columna que NO acota se dibuja apagada: si
+                // se vieran todas iguales, un 5% al lado de un 1.408 parece que se
+                // derrumbó el negocio en vez de "5% de la base usa este producto".
+                const acota = hayFiltro && filtradas.has(c.k);
+                const base = hayFiltro && !filtradas.has(c.k);
+                return (
+                  <th key={c.k}
+                    title={c.ayuda + (base ? "\nEl filtro de operación NO toca esta columna: es la base entera." : "")}
+                    className={"px-3 py-2 text-right font-normal " +
+                      (acota ? "text-[var(--t-accent)] " : "") +
+                      (base ? "opacity-50 " : "")}>
+                    {headerDe(c, d?.columnas)}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -302,6 +362,7 @@ export function ProfundidadClientesView(
                         + (desfasada ? `\nFoto de tenencia del ${fmtFecha(r.aum_snapshot)} (${r.aum_desfasaje_dias} días antes del cierre de mes).` : "")}
                       className={
                         "px-3 py-1.5 text-right tabular-nums " +
+                        (hayFiltro && !filtradas.has(c.k) ? "text-[var(--t-text-dim)] " : "") +
                         (auditable
                           ? "cursor-pointer hover:bg-[var(--t-accent)]/15 hover:text-[var(--t-accent)]"
                           : "text-[var(--t-text-muted)]")
@@ -330,8 +391,11 @@ export function ProfundidadClientesView(
         </div>
       )}
 
+      {/* `qs` ya lleva la operación: el modal filtra IGUAL que la tabla o abrirías
+          una celda de 47 y saldrían 389 cuentas. Va en la `key` para que cambiar el
+          filtro con el modal abierto lo remonte en vez de dejar datos viejos. */}
       {celda && (
-        <ModalCelda key={`${celda.mes}|${celda.metrica}`} mes={celda.mes} metrica={celda.metrica}
+        <ModalCelda key={`${celda.mes}|${celda.metrica}|${qs}`} mes={celda.mes} metrica={celda.metrica}
           moneda={moneda} qs={qs} onCerrar={() => setCelda(null)} />
       )}
     </div>
@@ -408,6 +472,12 @@ function ModalCelda(
         <div className="px-3 py-2 bg-[#094293] text-white flex items-center gap-2 shrink-0">
           <span className="flex-1 text-[11px] uppercase tracking-widest font-semibold truncate">
             {d ? `${d.titulo} · ${d.label}` : "cargando…"}
+            {/* Un modal filtrado y uno sin filtrar NO se pueden ver igual. */}
+            {d?.operacion_label && (
+              <span className="ml-2 normal-case tracking-normal font-normal opacity-90">
+                · solo {d.operacion_label.toLowerCase()}
+              </span>
+            )}
           </span>
           <button onClick={exportar} disabled={!d?.items?.length}
             className="text-[10px] px-2 py-0.5 border border-white/40 hover:bg-white/10 disabled:opacity-40">
