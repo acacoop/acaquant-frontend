@@ -35,21 +35,33 @@ type PuntoMes = {
 };
 type Share = {
   operacion: string | null; label: string; volumen: number; pct: number;
-  n_boletos: number; arancel: number; solo_arancel: boolean;
+  n_boletos: number; n_boletos_cierre: number; arancel: number; solo_arancel: boolean;
 };
+type PuntoAum = { mes: string; label: string; aum: number | null; foto: string | null };
+type Posicion = { unidad: string; valuacion: number; pct: number };
+type Fusion = { de: string; a: string; arancel: number };
 export type Perfil = {
   id_cuenta: string; denominacion: string; operador_nombre: string | null;
   nivel_1: string | null; nivel_3: string | null; estado: string | null;
   moneda: string; desde: string; hasta: string; meses: number;
+  hoy: string;
   ultima_op: Ultima | null;
   serie_aranceles: PuntoMes[];
+  serie_aum: PuntoAum[];
+  tenencia: { fecha_snapshot: string | null; total: number; posiciones: Posicion[] };
   share_operacion: Share[];
+  fusiones: Fusion[];
   totales: {
     arancel: number; arancel_por_mes: number; volumen: number;
     n_boletos: number; meses_operados: number;
   };
   fuentes: Record<string, string>;
 };
+
+// El encabezado y las filas del share comparten UNA sola definición de grilla:
+// dos listas de columnas separadas se desalinean el día que alguien toca una.
+const GRID_SHARE = { gridTemplateColumns: "170px 1fr 62px 130px 130px" } as const;
+const GRID_SHARE_CLS = "grid items-center gap-3";
 
 const fmtFecha = (iso: string | null | undefined) =>
   !iso ? "—" : `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
@@ -60,8 +72,6 @@ export function PerfilClienteModal(
 ) {
   const [d, setD] = useState<Perfil | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  // recharts a veces mide 0 al montarse dentro de un overlay y no se recupera solo.
-  const vk = useViewportKey();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCerrar(); };
@@ -140,41 +150,84 @@ export function PerfilClienteModal(
               )}
             </Seccion>
 
-            {/* ── 2) ARANCEL MES A MES ────────────────────────────────────── */}
-            <Seccion titulo={`Arancel por mes · últimos ${d.meses}`}
-              derecha={`total ${fmtMoneyFull(d.totales.arancel)} · ${fmtMoneyFull(d.totales.arancel_por_mes)} por mes · operó ${d.totales.meses_operados} de ${d.meses}`}>
-              {/* Una sola serie → sin leyenda: el título dice qué es. El valor
-                  exacto va en el hover, no repetido sobre cada barra. */}
-              <div className="h-[190px] -ml-2">
-                <ResponsiveContainer key={vk} width="100%" height="100%">
-                  <BarChart data={d.serie_aranceles} barCategoryGap="22%"
-                    margin={{ top: 6, right: 8, bottom: 4, left: 4 }}>
-                    <CartesianGrid stroke="var(--t-border)" vertical={false} />
-                    <XAxis dataKey="label" tickLine={false}
-                      tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
-                      axisLine={{ stroke: "var(--t-border-2)" }} />
-                    <YAxis tickLine={false} width={62}
-                      tick={{ fill: "var(--t-text-muted)", fontSize: 10 }}
-                      axisLine={false}
-                      tickFormatter={(v: number) => fmtMoney(v)} />
-                    <Tooltip
-                      cursor={{ fill: "var(--t-surface)" }}
-                      contentStyle={{
-                        background: "var(--t-panel)", border: "1px solid var(--t-border-2)",
-                        borderRadius: 0, fontSize: 12,
-                      }}
-                      labelStyle={{ color: "var(--t-text)", fontWeight: 600 }}
-                      itemStyle={{ color: "var(--t-text-dim)" }}
-                      formatter={(v, _n, item) => {
-                        const pto = (item as { payload?: PuntoMes })?.payload;
-                        const n = typeof v === "number" ? v : Number(v ?? 0);
-                        return [`${fmtMoneyFull(n)} · ${pto?.n_boletos ?? 0} boletos`, "Arancel"];
-                      }} />
-                    <Bar dataKey="arancel" fill="var(--t-accent)" radius={[3, 3, 0, 0]}
-                      maxBarSize={46} isAnimationActive={false} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+            {/* ── 2) LOS DOS GRÁFICOS, LADO A LADO ────────────────────────────
+                Cada uno más chico que el de antes: dos preguntas distintas —cuánto
+                deja y cuánta plata tiene— caben en el alto que ocupaba una sola.
+                Comparten el eje X (los mismos meses) pero NUNCA el eje Y: son
+                escalas de cosas distintas y superponerlas es de manual. */}
+            <div className="grid gap-0 border-b border-[var(--t-border)]"
+              style={{ gridTemplateColumns: "1fr 1fr" }}>
+              <Grafico titulo={`Arancel por mes · últimos ${d.meses}`}
+                derecha={`${fmtMoneyFull(d.totales.arancel)} · operó ${d.totales.meses_operados}/${d.meses}`}
+                borde>
+                <BarChart data={d.serie_aranceles} barCategoryGap="20%"
+                  margin={{ top: 6, right: 6, bottom: 2, left: 0 }}>
+                  <CartesianGrid stroke="var(--t-border)" vertical={false} />
+                  <EjeX /><EjeY />
+                  <Tip formatter={(v, _n, item) => {
+                    const pto = (item as { payload?: PuntoMes })?.payload;
+                    return [`${fmtMoneyFull(Number(v ?? 0))} · ${pto?.n_boletos ?? 0} boletos`,
+                            "Arancel"];
+                  }} />
+                  <Bar dataKey="arancel" fill="var(--t-accent)" radius={[3, 3, 0, 0]}
+                    maxBarSize={34} isAnimationActive={false} />
+                </BarChart>
+              </Grafico>
+
+              {/* Un mes sin foto de tenencia llega como `null` y recharts deja el
+                  hueco: es lo correcto. Dibujarlo en cero sería inventar una caída
+                  a cero que nunca pasó. */}
+              <Grafico titulo="AuM del cliente · fin de cada mes"
+                derecha={d.tenencia.fecha_snapshot
+                  ? `hoy ${fmtMoneyFull(d.tenencia.total)}` : "sin foto"}>
+                <BarChart data={d.serie_aum} barCategoryGap="20%"
+                  margin={{ top: 6, right: 6, bottom: 2, left: 0 }}>
+                  <CartesianGrid stroke="var(--t-border)" vertical={false} />
+                  <EjeX /><EjeY />
+                  <Tip formatter={(v, _n, item) => {
+                    const pto = (item as { payload?: PuntoAum })?.payload;
+                    if (pto?.aum == null) return ["sin foto de tenencia ese mes", "AuM"];
+                    return [`${fmtMoneyFull(Number(v ?? 0))} · foto del ${fmtFecha(pto.foto)}`,
+                            "AuM"];
+                  }} />
+                  <Bar dataKey="aum" fill="var(--t-text-dim)" radius={[3, 3, 0, 0]}
+                    maxBarSize={34} isAnimationActive={false} />
+                </BarChart>
+              </Grafico>
+            </div>
+
+            {/* ── LA TENENCIA DE HOY ──────────────────────────────────────── */}
+            <Seccion titulo="Qué tiene hoy"
+              derecha={d.tenencia.fecha_snapshot
+                ? `${fmtMoneyFull(d.tenencia.total)} · foto del ${fmtFecha(d.tenencia.fecha_snapshot)}`
+                : undefined}>
+              {d.tenencia.posiciones.length === 0 ? (
+                <div className="text-[12px] text-[var(--t-text-muted)]">
+                  {d.tenencia.fecha_snapshot
+                    ? "la cuenta no tiene posiciones en la última foto"
+                    : "todavía no hay ninguna foto de tenencia"}
+                </div>
+              ) : (
+                <div className="grid gap-x-6 gap-y-0.5"
+                  style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
+                  {d.tenencia.posiciones.slice(0, 24).map((x) => (
+                    <div key={x.unidad} className="flex items-baseline gap-2 text-[12px]">
+                      <span className="truncate flex-1" title={x.unidad}>{x.unidad}</span>
+                      <span className="tabular-nums text-[var(--t-text-dim)]">
+                        {fmtMoneyFull(x.valuacion)}
+                      </span>
+                      <span className="tabular-nums text-[var(--t-text-muted)] w-[52px] text-right">
+                        {x.pct}%
+                      </span>
+                    </div>
+                  ))}
+                  {d.tenencia.posiciones.length > 24 && (
+                    <div className="text-[11px] text-[var(--t-text-muted)]">
+                      … y {d.tenencia.posiciones.length - 24} posiciones más
+                    </div>
+                  )}
+                </div>
+              )}
             </Seccion>
 
             {/* ── 3) EN QUÉ OPERA — share del volumen ─────────────────────── */}
@@ -186,10 +239,21 @@ export function PerfilClienteModal(
                 </div>
               ) : (
                 <div className="flex flex-col gap-1">
+                  {/* Qué es cada número se dice UNA vez, en el encabezado. Repetir
+                      la palabra «arancel» en cada fila leía como si fuera parte del
+                      nombre del tipo de operación. */}
+                  <div className={`${GRID_SHARE_CLS} text-[9.5px] uppercase tracking-widest
+                                   text-[var(--t-text-muted)] pb-1 border-b border-[var(--t-border)]`}
+                    style={GRID_SHARE}>
+                    <span>Tipo de operación</span>
+                    <span />
+                    <span className="text-right">%</span>
+                    <span className="text-right">Volumen</span>
+                    <span className="text-right">Arancel</span>
+                  </div>
                   {d.share_operacion.map((s) => (
-                    <div key={s.operacion ?? s.label}
-                      className="grid items-center gap-3 text-[12.5px]"
-                      style={{ gridTemplateColumns: "170px 1fr 62px 130px 130px" }}>
+                    <div key={s.operacion ?? s.label} className={`${GRID_SHARE_CLS} text-[12.5px]`}
+                      style={GRID_SHARE}>
                       <span className="truncate" title={s.label}>{s.label}</span>
                       {/* La barra es escala relativa al mayor, para que un 3% se
                           vea; el número exacto está al lado y no se deduce de ella. */}
@@ -205,7 +269,7 @@ export function PerfilClienteModal(
                         {fmtMoneyFull(s.volumen)}
                       </span>
                       <span className="tabular-nums text-right text-[var(--t-text-dim)]">
-                        arancel {fmtMoneyFull(s.arancel)}
+                        {fmtMoneyFull(s.arancel)}
                         {/* Un tipo puede dejar arancel SIN volumen propio: todo su
                             arancel vive en el cierre, que el volumen excluye. */}
                         {s.solo_arancel && (
@@ -250,6 +314,66 @@ function Seccion(
       </div>
       {children}
     </section>
+  );
+}
+
+/**
+ * Marco de un gráfico: título, apunte a la derecha y el alto FIJO.
+ *
+ * El alto es fijo (y chico) a propósito: son dos gráficos al lado del otro y
+ * si cada uno se estirara con su contenido dejarían de estar alineados por el
+ * eje X, que es lo único que comparten (los mismos meses). El eje Y NO se
+ * comparte — son escalas de cosas distintas.
+ */
+function Grafico(
+  { titulo, derecha, borde, children }:
+  { titulo: string; derecha?: string; borde?: boolean; children: React.ReactElement },
+) {
+  // recharts a veces mide 0 al montarse dentro de un overlay y no se recupera solo.
+  const vk = useViewportKey();
+  return (
+    <section className={`px-4 py-3 min-w-0${borde ? " border-r border-[var(--t-border)]" : ""}`}>
+      <div className="flex items-baseline gap-3 mb-2">
+        <h3 className="text-[9.5px] uppercase tracking-widest text-[var(--t-accent)] font-semibold">
+          {titulo}
+        </h3>
+        {derecha && (
+          <span className="ml-auto text-[10px] tabular-nums text-[var(--t-text-muted)] truncate">
+            {derecha}
+          </span>
+        )}
+      </div>
+      <div className="h-[150px]">
+        <ResponsiveContainer key={vk} width="100%" height="100%">
+          {children}
+        </ResponsiveContainer>
+      </div>
+    </section>
+  );
+}
+
+function EjeX() {
+  return (
+    <XAxis dataKey="label" tick={{ fill: "var(--t-text-muted)", fontSize: 9 }}
+      axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false} interval="preserveStartEnd" />
+  );
+}
+
+function EjeY() {
+  return (
+    <YAxis tick={{ fill: "var(--t-text-muted)", fontSize: 9 }} axisLine={false} tickLine={false}
+      width={52} tickFormatter={(v) => fmtMoney(Number(v))} />
+  );
+}
+
+function Tip({ formatter }: { formatter: React.ComponentProps<typeof Tooltip>["formatter"] }) {
+  return (
+    <Tooltip cursor={{ fill: "var(--t-surface)", opacity: 0.5 }} formatter={formatter}
+      contentStyle={{
+        background: "var(--t-surface)", border: "1px solid var(--t-border-2)",
+        fontSize: 11, fontFamily: "JetBrains Mono, monospace",
+      }}
+      labelStyle={{ color: "var(--t-text)" }} />
   );
 }
 

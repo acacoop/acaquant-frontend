@@ -56,7 +56,7 @@ type ItemPerdio = {
   id_cuenta: string; denominacion: string; operador_nombre: string | null;
   nivel_1: string | null; nivel_3: string | null;
   aum_antes: number; aum_hoy: number; caida_pct: number;
-  retiro: number | null; que_paso: string; alerta: boolean;
+  retiro: number | null;
 };
 type Resp = {
   mes: string; label: string; ini: string; fin: string; moneda: string;
@@ -193,10 +193,12 @@ export function CuantitativoView(
       n: d?.perdieron_aum.n ?? null },
   ];
 
-  const EXPLICA: Record<Solapa, React.ReactNode> = {
+  const EXPLICA: Record<Solapa, React.ReactNode | null> = {
     importan: <>Los que juntan el <B>{cortes.pct_arancel ?? 80}%</B> del arancel de {d?.label ?? "el mes"}. Dos preguntas los ordenan: <B>cuánto dejan</B> y <B>cada cuánto aparecen</B>.</>,
     apagan: <>Cada cliente tiene <B>su propio ritmo</B>. Entra el que lleva más del <B>{cortes.multiplo ?? 3}×</B> de lo que suele tardar. Quien opera poco no tiene ritmo medible y no entra.</>,
-    perdieron: <>Tienen mucho menos que hace <B>{cortes.meses_atras ?? 3} meses</B>.{d?.foto_aum.libro_pct != null && <> En el mismo período el AuM del libro {d.foto_aum.libro_pct < 0 ? "bajó" : "subió"} <B>{Math.abs(d.foto_aum.libro_pct)}%</B>.</>}</>,
+    // PERDIERON AuM va SIN frase: los cortes de al lado ya dicen qué entra, y el
+    // dato del libro vive arriba de la tabla, que es donde se usa para comparar.
+    perdieron: null,
   };
 
   const exportar = () => {
@@ -232,7 +234,6 @@ export function CuantitativoView(
           { header: "Tiene", key: "aum_hoy", format: "currency" as const, width: 20 },
           { header: "Caída %", key: "caida_pct", format: "percent" as const },
           { header: "Retiró", key: "retiro", format: "currency" as const, width: 20 },
-          { header: "Qué pasó", key: "que_paso", format: "text" as const, width: 22 },
         ] };
     void exportToXlsx({
       filename: `cuantitativo-${solapa}-${d.mes}-${timestampSuffix()}.xlsx`,
@@ -281,8 +282,7 @@ export function CuantitativoView(
       {/* ── UNA franja: la frase explica Y configura. Nunca envuelve. ──────── */}
       <div className="flex items-center gap-2.5 px-4 py-2 border-b border-[var(--t-border)] shrink-0
                       overflow-x-auto whitespace-nowrap text-[12px] text-[var(--t-text-dim)]">
-        <span>{EXPLICA[solapa]}</span>
-        <span className="opacity-30">·</span>
+        {EXPLICA[solapa] && <><span>{EXPLICA[solapa]}</span><span className="opacity-30">·</span></>}
         {CORTES_DE[solapa].map((k) => (
           <span key={k} className="inline-flex items-center gap-1.5 shrink-0"
             title={d?.cortes_def?.[k]?.que}>
@@ -359,7 +359,12 @@ export function CuantitativoView(
         </div>
       )}
 
-      {/* ── Contexto: en las TRES solapas, nunca escondido en una ─────────── */}
+      {/* ── Contexto ───────────────────────────────────────────────────────
+          Va en las solapas que hablan de ARANCEL. En PERDIERON AuM no: ahí el
+          "el del medio deja $29.849" no tiene nada que ver con una caída de AuM
+          y sólo confunde. El contexto que SÍ sirve ahí —cuánto bajó el libro—
+          está pegado a la tabla. */}
+      {solapa !== "perdieron" && (
       <div className="flex items-baseline gap-2 px-4 py-1.5 border-b border-[var(--t-border)]
                       bg-[var(--t-surface)] shrink-0 overflow-x-auto whitespace-nowrap
                       text-[11px] text-[var(--t-text-muted)]">
@@ -377,6 +382,7 @@ export function CuantitativoView(
         <span><N>{fmtInt(d?.contexto.cuantos_80)}</N> hacen el <N>80%</N></span>
         {d?.contexto.top10_pct != null && <><Sep /><span>los 10 más grandes, el <N>{d.contexto.top10_pct}%</N></span></>}
       </div>
+      )}
 
       {/* ── Cuerpo ────────────────────────────────────────────────────────── */}
       <div className="flex-1 min-h-0 overflow-auto">
@@ -559,39 +565,50 @@ function Perdieron({ d, abrir }: { d: Resp | null; abrir: (id: string) => void }
   }
   return (
     <>
+      {/* El único contexto que sirve acá, pegado a la tabla: sin saber cuánto bajó
+          el libro entero no se puede decir si una caída es del cliente o del
+          mercado. Es un HECHO, no un veredicto por fila. */}
+      {f.libro_pct != null && (
+        <div className="px-4 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface)]
+                        text-[11px] text-[var(--t-text-muted)]">
+          En el mismo período el AuM de TODO el libro{" "}
+          {f.libro_pct < 0 ? "bajó" : "subió"}{" "}
+          <span className="tabular-nums font-semibold text-[var(--t-text-dim)]">
+            {Math.abs(f.libro_pct)}%
+          </span>
+          {" — comparalo contra la caída de cada fila."}
+        </div>
+      )}
       <table className="w-full">
         <thead><tr>
           <th className={TH + " text-left"}>Cuenta</th>
           <th className={TH + " text-left"}>Cliente</th>
           <th className={TH + " text-left"}>Operador</th>
+          <th className={TH + " text-left"}>Nivel 3</th>
           <th className={TH + " text-right"}>Tenía ({fmtFecha(f.snapshot_antes)})</th>
           <th className={TH + " text-right"}>Tiene ({fmtFecha(f.snapshot_hoy)})</th>
           <th className={TH + " text-right"}>Caída</th>
           <th className={TH + " text-right"}>Retiró</th>
-          <th className={TH + " text-left"}>Qué pasó</th>
         </tr></thead>
         <tbody>
           {d.perdieron_aum.items.map((i) => (
+            // Se tinta por un HECHO (retiró plata), no por un rótulo: acá había
+            // una columna "QUÉ PASÓ" que etiquetaba cada fila y se sacó — eran
+            // inferencias con el mismo aspecto que los datos de al lado.
             <tr key={i.id_cuenta} onClick={() => abrir(i.id_cuenta)}
               title="Ver la ficha operativa del cliente"
               className={"cursor-pointer hover:bg-[var(--t-surface)] " +
-              (i.alerta ? "bg-[var(--t-tint-red)]" : "")}>
+                (i.retiro ? "bg-[var(--t-tint-red)]" : "")}>
               <td className={TD + " text-left text-[var(--t-text-muted)]"}>[{i.id_cuenta}]</td>
               <td className={TDN}>{i.denominacion}</td>
               <td className={TDN + " text-[var(--t-text-dim)] text-[12px]"}>{i.operador_nombre || "—"}</td>
+              <td className={TDN + " text-[var(--t-text-dim)] text-[12px]"}>{i.nivel_3 || "—"}</td>
               <td className={TD + " text-right"}>{fmtMoneyFull(i.aum_antes)}</td>
               <td className={TD + " text-right"}>{fmtMoneyFull(i.aum_hoy)}</td>
               <td className={TD + " text-right text-[var(--t-neg)]"}>−{i.caida_pct}%</td>
-              <td className={TD + " text-right " + (i.retiro ? "text-[var(--t-neg)]" : "text-[var(--t-text-muted)]")}>
+              <td className={TD + " text-right " +
+                (i.retiro ? "text-[var(--t-neg)]" : "text-[var(--t-text-muted)]")}>
                 {i.retiro ? fmtMoneyFull(i.retiro) : "nada"}
-              </td>
-              {/* El veredicto no es un modelo: sale de dos hechos (cuánto cayó y si
-                  retiró). Cayó a cero sin retirar = se llevó los títulos a otro
-                  agente, que es lo peor y hoy no se ve en ningún lado. */}
-              <td className={TDN + " text-[12px] " +
-                (i.que_paso === "Se llevó los títulos" ? "text-[var(--t-neg)] font-semibold"
-                  : i.alerta ? "text-[var(--t-text)]" : "text-[var(--t-text-dim)]")}>
-                {i.que_paso}
               </td>
             </tr>
           ))}
@@ -601,3 +618,4 @@ function Perdieron({ d, abrir }: { d: Resp | null; abrir: (id: string) => void }
     </>
   );
 }
+
