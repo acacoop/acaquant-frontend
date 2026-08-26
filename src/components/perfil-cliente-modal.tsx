@@ -60,8 +60,9 @@ export type Perfil = {
 
 // El encabezado y las filas del share comparten UNA sola definición de grilla:
 // dos listas de columnas separadas se desalinean el día que alguien toca una.
-const GRID_SHARE = { gridTemplateColumns: "170px 1fr 62px 130px 130px" } as const;
-const GRID_SHARE_CLS = "grid items-center gap-3";
+const GRID_SHARE = { gridTemplateColumns: "minmax(96px, 1fr) 68px 44px 76px 76px" } as const;
+const GRID_TEN = { gridTemplateColumns: "minmax(96px, 1fr) 92px 46px" } as const;
+const GRID_SHARE_CLS = "grid items-center gap-2";
 
 const fmtFecha = (iso: string | null | undefined) =>
   !iso ? "—" : `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
@@ -100,7 +101,7 @@ export function PerfilClienteModal(
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       onClick={onCerrar}>
-      <div className="w-full max-w-[1000px] max-h-[88vh] flex flex-col bg-[var(--t-panel)]
+      <div className="w-full max-w-[1280px] max-h-[90vh] flex flex-col bg-[var(--t-panel)]
                       border border-[var(--t-border-2)] shadow-2xl" onClick={(e) => e.stopPropagation()}>
 
         <div className="px-3 py-2 bg-[#094293] text-white flex items-center gap-2 shrink-0">
@@ -121,30 +122,30 @@ export function PerfilClienteModal(
             <Seccion titulo="Última operación"
               derecha={d.operador_nombre ? `${d.operador_nombre}${d.nivel_3 ? ` · ${d.nivel_3}` : ""}` : undefined}>
               {u ? (
-                <div className="flex items-baseline gap-2.5 flex-wrap text-[13px]">
+                // Una sola línea y chica: acá lo que se busca es CUÁNDO fue y QUÉ
+                // fue. El importe y el arancel de ese boleto suelto no dicen nada
+                // —el arancel del período está en el gráfico de al lado— y eran lo
+                // que hacía que la línea no entrara y se partiera en dos.
+                <div className="flex items-baseline gap-2 flex-wrap text-[11.5px]">
                   <span className="font-semibold tabular-nums">{fmtFecha(u.fecha)}</span>
                   {u.dias != null && (
-                    <span className="text-[var(--t-text-muted)] text-[12px]">
+                    <span className="text-[var(--t-text-muted)]">
                       hace {u.dias} {u.dias === 1 ? "día" : "días"}
                     </span>
                   )}
                   <Punto />
                   <span>{u.tipo_operacion || u.operacion_label}</span>
                   <Punto />
-                  <span className="font-medium">{u.instrumento || "—"}</span>
-                  {u.mercado && <><Punto /><span className="text-[var(--t-text-dim)]">{u.mercado}</span></>}
-                  <Punto />
-                  <span className="tabular-nums">{fmtMoneyFull(u.bruto)} {u.moneda}</span>
-                  <Punto />
-                  <span className="tabular-nums text-[var(--t-text-dim)]">
-                    arancel {fmtMoneyFull(u.arancel)}
+                  <span className="font-medium truncate max-w-[46ch]" title={u.instrumento ?? ""}>
+                    {u.instrumento || "—"}
                   </span>
-                  <span className="ml-auto text-[10px] font-mono text-[var(--t-text-muted)]">
+                  {u.mercado && <><Punto /><span className="text-[var(--t-text-dim)]">{u.mercado}</span></>}
+                  <span className="ml-auto text-[9.5px] font-mono text-[var(--t-text-muted)]">
                     boleto {u.boleto ?? "—"}{u.es_cierre ? " · cierre" : ""}
                   </span>
                 </div>
               ) : (
-                <div className="text-[12px] text-[var(--t-text-muted)]">
+                <div className="text-[11.5px] text-[var(--t-text-muted)]">
                   la cuenta no registra boletos — nunca operó
                 </div>
               )}
@@ -196,92 +197,112 @@ export function PerfilClienteModal(
               </Grafico>
             </div>
 
-            {/* ── LA TENENCIA DE HOY ──────────────────────────────────────── */}
-            <Seccion titulo="Qué tiene hoy"
-              derecha={d.tenencia.fecha_snapshot
-                ? `${fmtMoneyFull(d.tenencia.total)} · foto del ${fmtFecha(d.tenencia.fecha_snapshot)}`
-                : undefined}>
-              {d.tenencia.posiciones.length === 0 ? (
-                <div className="text-[12px] text-[var(--t-text-muted)]">
-                  {d.tenencia.fecha_snapshot
-                    ? "la cuenta no tiene posiciones en la última foto"
-                    : "todavía no hay ninguna foto de tenencia"}
-                </div>
-              ) : (
-                <div className="grid gap-x-6 gap-y-0.5"
-                  style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
-                  {d.tenencia.posiciones.slice(0, 24).map((x) => (
-                    <div key={x.unidad} className="flex items-baseline gap-2 text-[12px]">
-                      <span className="truncate flex-1" title={x.unidad}>{x.unidad}</span>
-                      <span className="tabular-nums text-[var(--t-text-dim)]">
-                        {fmtMoneyFull(x.valuacion)}
-                      </span>
-                      <span className="tabular-nums text-[var(--t-text-muted)] w-[52px] text-right">
-                        {x.pct}%
-                      </span>
-                    </div>
-                  ))}
-                  {d.tenencia.posiciones.length > 24 && (
-                    <div className="text-[11px] text-[var(--t-text-muted)]">
-                      … y {d.tenencia.posiciones.length - 24} posiciones más
-                    </div>
-                  )}
-                </div>
-              )}
-            </Seccion>
+            {/* ── 3) LOS DOS INVENTARIOS, LADO A LADO ──────────────────────
+                EN QUÉ OPERA y QUÉ TIENE HOY son la misma pregunta en dos tiempos
+                (por dónde entra la plata / dónde está parada hoy), y ninguno de
+                los dos necesita el ancho entero: la barra estirada de punta a
+                punta no agregaba información, solo ancho. Compartir la banda deja
+                que cada nombre entre completo en su mitad. */}
+            <div className="grid gap-0 border-b border-[var(--t-border)]"
+              style={{ gridTemplateColumns: "1fr 1fr" }}>
 
-            {/* ── 3) EN QUÉ OPERA — share del volumen ─────────────────────── */}
-            <Seccion titulo="En qué opera · share del volumen"
-              derecha={`${fmtMoneyFull(d.totales.volumen)} operados en ${d.meses} meses`}>
-              {d.share_operacion.length === 0 ? (
-                <div className="text-[12px] text-[var(--t-text-muted)]">
-                  sin operaciones en la ventana
-                </div>
-              ) : (
-                <div className="flex flex-col gap-1">
-                  {/* Qué es cada número se dice UNA vez, en el encabezado. Repetir
-                      la palabra «arancel» en cada fila leía como si fuera parte del
-                      nombre del tipo de operación. */}
-                  <div className={`${GRID_SHARE_CLS} text-[9.5px] uppercase tracking-widest
-                                   text-[var(--t-text-muted)] pb-1 border-b border-[var(--t-border)]`}
-                    style={GRID_SHARE}>
-                    <span>Tipo de operación</span>
-                    <span />
-                    <span className="text-right">%</span>
-                    <span className="text-right">Volumen</span>
-                    <span className="text-right">Arancel</span>
+              <Seccion titulo="En qué opera · share del volumen"
+                derecha={`${fmtMoneyFull(d.totales.volumen)} en ${d.meses} meses`} borde plano>
+                {d.share_operacion.length === 0 ? (
+                  <div className="text-[11.5px] text-[var(--t-text-muted)]">
+                    sin operaciones en la ventana
                   </div>
-                  {d.share_operacion.map((s) => (
-                    <div key={s.operacion ?? s.label} className={`${GRID_SHARE_CLS} text-[12.5px]`}
+                ) : (
+                  <div className="flex flex-col gap-0.5">
+                    {/* Qué es cada número se dice UNA vez, en el encabezado. Repetir
+                        la palabra «arancel» en cada fila leía como si fuera parte del
+                        nombre del tipo de operación. */}
+                    <div className={`${GRID_SHARE_CLS} text-[9px] uppercase tracking-widest
+                                     text-[var(--t-text-muted)] pb-1 border-b border-[var(--t-border)]`}
                       style={GRID_SHARE}>
-                      <span className="truncate" title={s.label}>{s.label}</span>
-                      {/* La barra es escala relativa al mayor, para que un 3% se
-                          vea; el número exacto está al lado y no se deduce de ella. */}
-                      <span className="h-[10px] bg-[var(--t-surface)] block">
-                        <span className="h-full bg-[var(--t-accent)] block"
-                          style={{ width: `${Math.max(2, (s.pct / maxPct) * 100)}%` }} />
-                      </span>
-                      <span className="tabular-nums text-right font-semibold">
-                        {s.pct.toLocaleString("es-AR", { minimumFractionDigits: 2 })}%
-                      </span>
-                      <span className="tabular-nums text-right text-[var(--t-text-dim)]"
-                        title={`${s.n_boletos} boletos`}>
-                        {fmtMoneyFull(s.volumen)}
-                      </span>
-                      <span className="tabular-nums text-right text-[var(--t-text-dim)]">
-                        {fmtMoneyFull(s.arancel)}
-                        {/* Un tipo puede dejar arancel SIN volumen propio: todo su
-                            arancel vive en el cierre, que el volumen excluye. */}
-                        {s.solo_arancel && (
-                          <span className="ml-1 text-[var(--t-accent)]"
-                            title="Todo su arancel está en el cierre, que no cuenta como volumen">*</span>
-                        )}
-                      </span>
+                      <span>Tipo de operación</span>
+                      <span />
+                      <span className="text-right">%</span>
+                      <span className="text-right">Volumen</span>
+                      <span className="text-right">Arancel</span>
                     </div>
-                  ))}
-                </div>
-              )}
-            </Seccion>
+                    {d.share_operacion.map((s) => (
+                      <div key={s.operacion ?? s.label} className={`${GRID_SHARE_CLS} text-[11.5px]`}
+                        style={GRID_SHARE}>
+                        <span className="truncate" title={s.label}>{s.label}</span>
+                        {/* La barra es escala relativa al mayor, para que un 3% se
+                            vea; el número exacto está al lado y no se deduce de ella. */}
+                        <span className="h-[9px] bg-[var(--t-surface)] block">
+                          <span className="h-full bg-[var(--t-accent)] block"
+                            style={{ width: `${Math.max(2, (s.pct / maxPct) * 100)}%` }} />
+                        </span>
+                        <span className="tabular-nums text-right font-semibold">
+                          {s.pct.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%
+                        </span>
+                        <span className="tabular-nums text-right text-[var(--t-text-dim)]"
+                          title={`${s.n_boletos} boletos · ${fmtMoneyFull(s.volumen)}`}>
+                          {fmtMoney(s.volumen)}
+                        </span>
+                        <span className="tabular-nums text-right text-[var(--t-text-dim)]"
+                          title={fmtMoneyFull(s.arancel)}>
+                          {fmtMoney(s.arancel)}
+                          {/* Un tipo puede dejar arancel SIN volumen propio: todo su
+                              arancel vive en el cierre, que el volumen excluye. */}
+                          {s.solo_arancel && (
+                            <span className="ml-0.5 text-[var(--t-accent)]"
+                              title="Todo su arancel está en el cierre, que no cuenta como volumen">*</span>
+                          )}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Seccion>
+
+              {/* Una posición por línea, no en columnas: los nombres de la unidad
+                  son largos («[#UBS301060001] #UBS3010600 01 - …») y partidos en dos
+                  columnas se cortaban tanto que no se distinguía uno de otro. */}
+              <Seccion titulo="Qué tiene hoy" plano
+                derecha={d.tenencia.fecha_snapshot
+                  ? `${fmtMoneyFull(d.tenencia.total)} · ${fmtFecha(d.tenencia.fecha_snapshot)}`
+                  : undefined}>
+                {d.tenencia.posiciones.length === 0 ? (
+                  <div className="text-[11.5px] text-[var(--t-text-muted)]">
+                    {d.tenencia.fecha_snapshot
+                      ? "la cuenta no tiene posiciones en la última foto"
+                      : "todavía no hay ninguna foto de tenencia"}
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-0.5">
+                    <div className="grid items-center gap-3 text-[9px] uppercase tracking-widest
+                                    text-[var(--t-text-muted)] pb-1 border-b border-[var(--t-border)]"
+                      style={GRID_TEN}>
+                      <span>Especie</span>
+                      <span className="text-right">Valuación</span>
+                      <span className="text-right">%</span>
+                    </div>
+                    {d.tenencia.posiciones.slice(0, 20).map((x) => (
+                      <div key={x.unidad} className="grid items-baseline gap-3 text-[11.5px]"
+                        style={GRID_TEN}>
+                        <span className="truncate" title={x.unidad}>{x.unidad}</span>
+                        <span className="tabular-nums text-right text-[var(--t-text-dim)]"
+                          title={fmtMoneyFull(x.valuacion)}>
+                          {fmtMoney(x.valuacion)}
+                        </span>
+                        <span className="tabular-nums text-right text-[var(--t-text-muted)]">
+                          {x.pct}%
+                        </span>
+                      </div>
+                    ))}
+                    {d.tenencia.posiciones.length > 20 && (
+                      <div className="text-[10px] text-[var(--t-text-muted)] pt-0.5">
+                        … y {d.tenencia.posiciones.length - 20} posiciones más
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Seccion>
+            </div>
 
             <div className="px-4 py-2 border-t border-[var(--t-border-2)] bg-[var(--t-surface)]
                             text-[9px] text-[var(--t-text-muted)] space-y-0.5">
@@ -297,17 +318,19 @@ export function PerfilClienteModal(
 }
 
 function Seccion(
-  { titulo, derecha, children }:
-  { titulo: string; derecha?: string; children: React.ReactNode },
+  { titulo, derecha, borde, plano, children }:
+  { titulo: string; derecha?: string; borde?: boolean; plano?: boolean; children: React.ReactNode },
 ) {
   return (
-    <section className="px-4 py-3 border-b border-[var(--t-border)]">
+    <section className={"px-4 py-3 min-w-0"
+      + (plano ? "" : " border-b border-[var(--t-border)]")
+      + (borde ? " border-r border-[var(--t-border)]" : "")}>
       <div className="flex items-baseline gap-3 mb-2">
         <h3 className="text-[9.5px] uppercase tracking-widest text-[var(--t-accent)] font-semibold">
           {titulo}
         </h3>
         {derecha && (
-          <span className="ml-auto text-[10px] tabular-nums text-[var(--t-text-muted)]">
+          <span className="ml-auto text-[10px] tabular-nums text-[var(--t-text-muted)] truncate">
             {derecha}
           </span>
         )}

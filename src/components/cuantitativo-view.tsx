@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { fetchJson } from "@/lib/fetch-json";
-import { PanelAyuda } from "./cuantitativo-ayuda";
+import { ModalAyuda } from "./cuantitativo-ayuda";
 import { PerfilClienteModal } from "./perfil-cliente-modal";
 import { fmtMoneyFull } from "@/lib/fmt-money";
 import { usePersistedState } from "@/lib/use-persisted-state";
@@ -132,9 +132,10 @@ export function CuantitativoView(
   // Click en una fila → la ficha operativa del cliente. Vive en el shell y no en
   // cada tabla: así una sola pieza sabe abrirlo y las tres listas pueden usarlo.
   const [ficha, setFicha] = useState<string | null>(null);
-  // La ayuda arranca CERRADA (no le come alto a la tabla) pero se recuerda: el que
-  // la quiere siempre a la vista la deja abierta y no la vuelve a pedir.
-  const [ayuda, setAyuda] = usePersistedState<boolean>("cuanti.ayuda", false);
+  // La ayuda sale en MODAL, encima de todo: no le come alto a la tabla y no hace
+  // falta cerrarla para seguir. Por eso NO se recuerda abierta — un overlay que
+  // aparece solo cada vez que entrás a la vista se cierra sin leerse.
+  const [ayuda, setAyuda] = useState(false);
   const [mes, setMes] = usePersistedState<string>("cuanti.mes", "");
   // Los cortes son DE CADA USUARIO: se guardan en la sesión, no en la base. Cada
   // uno explora sin moverle la lista al de al lado.
@@ -301,11 +302,10 @@ export function CuantitativoView(
           </span>
         ))}
         <span className="ml-auto flex items-center gap-2 shrink-0">
-          <button onClick={() => setAyuda((v) => !v)}
-            aria-expanded={ayuda}
-            className={"text-[10px] px-2 py-0.5 border " +
-              (ayuda ? "border-[var(--t-accent)] text-[var(--t-accent)]"
-                     : "border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:text-[var(--t-accent)]")}>
+          <button onClick={() => setAyuda(true)} aria-haspopup="dialog"
+            className="text-[10px] px-2 py-0.5 border border-[var(--t-border-2)]
+                       text-[var(--t-text-muted)] hover:text-[var(--t-accent)]
+                       hover:border-[var(--t-accent)]">
             ¿Cómo se interpretan los datos?
           </button>
           {cargando && <span className="text-[9px] text-[var(--t-text-muted)]">cargando…</span>}
@@ -318,8 +318,6 @@ export function CuantitativoView(
           )}
         </span>
       </div>
-
-      {ayuda && <PanelAyuda clave={solapa} onCerrar={() => setAyuda(false)} />}
 
       {/* ── El cuadrante, en UNA línea y como FILTRO ──────────────────────── */}
       {/* Los dos ejes (deja mucho/poco × viene seguido/salteado) siguen ahí: cada
@@ -391,6 +389,10 @@ export function CuantitativoView(
         {solapa === "perdieron" && <Perdieron d={d} abrir={setFicha} />}
         {!d && !err && <div className="px-4 py-6 text-[11px] text-[var(--t-text-muted)]">cargando…</div>}
       </div>
+
+      {ayuda && (
+        <ModalAyuda clave={solapa} cortes={cortes} onCerrar={() => setAyuda(false)} />
+      )}
 
       {ficha && (
         <PerfilClienteModal key={ficha} idCuenta={ficha} moneda={moneda}
