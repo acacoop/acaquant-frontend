@@ -42,7 +42,7 @@ export type ItemConoce = {
   id_cuenta: string; denominacion: string; operador_nombre: string | null;
   nivel_1: string | null; segmento: string | null;
   arancel: number; aum: number | null; aum_hoy: number;
-  roa_bps: number | null; roa_motivo: string | null;
+  roa_bps: number | null; roa_pesos_millon: number | null; roa_motivo: string | null;
   cupo: number | null; sow_pct: number | null;
   operacion_fav: string | null; operacion_fav_arancel: number | null;
   n_tipos: number;
@@ -56,6 +56,7 @@ export type RespConoce = {
   aviso?: string;
   contexto?: {
     n_clientes: number; roa_promedio: number | null; roa_mediana: number | null;
+    roa_promedio_pesos: number | null; roa_mediana_pesos: number | null;
     n_con_roa: number; sow_mediana: number | null; n_con_cupo: number;
     aum_mediana: number | null; arancel_total: number; n_sin_arancel: number;
   };
@@ -220,6 +221,7 @@ export function CuantitativoView(
             { header: "Operador", key: "operador_nombre", format: "text" as const, width: 22 },
             { header: "Arancel 12m", key: "arancel", format: "currency" as const, width: 18 },
             { header: "Tiene (prom. 12m)", key: "aum", format: "currency" as const, width: 20 },
+            { header: "ROA ($ por millón)", key: "roa_pesos_millon", format: "currency" as const, width: 18 },
             { header: "ROA (bps)", key: "roa_bps", format: "number" as const },
             { header: "Cupo", key: "cupo", format: "currency" as const, width: 20 },
             { header: "SOW %", key: "sow_pct", format: "percent" as const },
@@ -330,17 +332,21 @@ export function CuantitativoView(
             y el número se mueve en el acto. Separados, nadie ata una cosa con la otra. */}
         {solapa === "conoce" && segmento && dc?.contexto && (
           <span className="inline-flex items-baseline gap-1.5 shrink-0"
-            title={`Promedio simple de los ${dc.contexto.n_con_roa} clientes con ROA medible.`
-              + (dc.contexto.roa_mediana != null
-                 ? ` El del medio rinde ${dc.contexto.roa_mediana} bps — si están lejos uno del otro, hay pocas cuentas tirando del promedio.`
+            title={`Promedio simple de los ${dc.contexto.n_con_roa} clientes con ROA medible`
+              + (dc.contexto.roa_promedio != null ? ` (${dc.contexto.roa_promedio} bps)` : "")
+              + "."
+              + (dc.contexto.roa_mediana_pesos != null
+                 ? ` El del medio deja $${dc.contexto.roa_mediana_pesos.toLocaleString("es-AR")} — si están lejos uno del otro, hay pocas cuentas tirando del promedio.`
                  : "")}>
             <span className="opacity-30">·</span>
             <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
               ROA promedio
             </span>
             <span className="text-[13px] font-semibold tabular-nums text-[var(--t-accent)]">
-              {dc.contexto.roa_promedio != null ? `${dc.contexto.roa_promedio} bps` : "—"}
+              {dc.contexto.roa_promedio_pesos != null
+                ? fmtMoneyFull(dc.contexto.roa_promedio_pesos) : "—"}
             </span>
+            <span className="text-[9px] text-[var(--t-text-muted)]">por cada millón</span>
           </span>
         )}
         <span className="ml-auto flex items-center gap-2 shrink-0">
@@ -478,7 +484,8 @@ function Conoce(
             `Lo que la cuenta dejó de arancel en los últimos ${d.meses ?? 12} meses.`)}
           {col("aum", `Tiene (prom. ${d.meses ?? 12}m)`,
             `El AuM PROMEDIO de los últimos ${d.meses ?? 12} meses (una foto de tenencia por fin de mes), NO la foto de hoy. Es el divisor del ROA, así que el ROA se verifica dividiendo estas dos columnas.`)}
-          {col("roa", "ROA", "Arancel 12m ÷ Tiene, en bps (100 bps = 1%). Debajo del piso no se calcula: dividir por casi nada da un número que no significa nada.")}
+          {col("roa", `ROA (${d.moneda === "USD" ? "US$" : "$"} por millón)`,
+            `De cada millón que el cliente tiene guardado, cuántos ${d.moneda === "USD" ? "dólares" : "pesos"} nos deja por año. Es el arancel de 12 meses dividido el promedio de lo que tuvo, llevado a esa escala. Debajo del piso no se calcula: dividir por casi nada da un número que no significa nada.`)}
           {col("cupo", "Cupo", "Cupo transaccional del custodio. Carga manual por Excel, sin fecha de carga registrada.")}
           {col("sow", "SOW", "Tiene ÷ Cupo. Qué parte de la plata que el custodio le reconoce está acá.")}
           <th className={TH + " text-left"}>Operación favorita</th>
@@ -503,8 +510,8 @@ function Conoce(
               <td className={TD + " text-right " +
                 (i.roa_bps != null && d.contexto?.roa_mediana != null
                   && i.roa_bps < d.contexto.roa_mediana ? "text-[var(--t-neg)]" : "")}
-                title={i.roa_motivo ?? ""}>
-                {i.roa_bps != null ? `${i.roa_bps} bps` : "—"}
+                title={i.roa_motivo ?? (i.roa_bps != null ? `${i.roa_bps} bps` : "")}>
+                {i.roa_pesos_millon != null ? fmtMoneyFull(i.roa_pesos_millon) : "—"}
               </td>
               <td className={TD + " text-right text-[var(--t-text-dim)]"}>
                 {i.cupo != null ? fmtMoneyFull(i.cupo) : "—"}
@@ -525,8 +532,8 @@ function Conoce(
       <div className="px-3 py-1.5 text-[9px] text-[var(--t-text-muted)]">
         {d.items.length} de {d.n} · ventana {d.desde} → {d.hasta} ·
         {" "}AuM = promedio de {d.foto_aum?.n_fotos ?? 0} fotos, la última del{" "}
-        {fmtFecha(d.foto_aum?.ultima)} · el ROA en rojo está por debajo de la
-        mediana del segmento.
+        {fmtFecha(d.foto_aum?.ultima)} · el ROA es lo que deja por año por cada
+        millón guardado, y en rojo está por debajo del cliente del medio del segmento.
       </div>
     </>
   );

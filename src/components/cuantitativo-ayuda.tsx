@@ -47,10 +47,11 @@ export function ayudaDe(clave: string, c: Record<string, number>): Ayuda | null 
           "12 meses: se toma una foto de la tenencia a fin de cada mes y se promedian " +
           "las 12. NO es la foto de hoy. Un mes en el que la cuenta no aparece cuenta " +
           "como cero." },
-      { c: "ROA", v: "El arancel de los últimos 12 meses dividido el promedio de lo que " +
-          "la cuenta tuvo en esos mismos 12 meses, en bps (100 bps = 1%). Los dos " +
-          "números están en las columnas de al lado, así que se verifica con una " +
-          `calculadora. Debajo de ${pisoRoa} de promedio no se calcula y dice "—".` },
+      { c: "ROA", v: "De cada millón de pesos que el cliente tiene guardado, cuántos " +
+          "pesos nos deja por año. Sale de dividir el arancel de los últimos 12 meses " +
+          "por el promedio de lo que tuvo en esos mismos 12 meses. Ejemplo: $5.100 " +
+          "quiere decir que una cuenta con $10.000.000 guardados nos deja $51.000 al " +
+          `año. Debajo de ${pisoRoa} de promedio no se calcula y dice "—".` },
       { c: "Cupo", v: "El cupo transaccional que el custodio le reconoce a la cuenta. " +
           "Se carga a mano por Excel y no queda registrada la fecha de carga." },
       { c: "SOW", v: "El promedio de lo que la cuenta tuvo en 12 meses dividido su cupo " +
@@ -61,8 +62,11 @@ export function ayudaDe(clave: string, c: Record<string, number>): Ayuda | null 
           "y cuántos tipos distintos usa." },
     ],
     notas: [
-      `ROA promedio, arriba de la tabla, es el promedio del segmento elegido. Se mueve ` +
-        `cuando movés el piso: subirlo saca cuentas del cálculo.`,
+      "ROA promedio, arriba de la tabla, es el promedio del segmento elegido — la misma " +
+        "escala que la columna: pesos por año por cada millón guardado. Se mueve cuando " +
+        "movés el piso, porque subirlo saca cuentas del cálculo.",
+      "Si preferís el número como porcentaje, está en el tooltip de cada celda en bps " +
+        "(100 bps = 1%). Es el mismo número en otra escala.",
       "El ROA en rojo está por debajo del ROA del cliente que queda justo en el medio " +
         "del segmento.",
       "Las filas pintadas son cuentas que TIENEN plata y no dejaron un solo peso de " +
