@@ -19,6 +19,9 @@ export const revalidate = 0;
 
 const NO_STORE = { "Cache-Control": "no-store" };
 
+// Filtros madre por nivel de la barra de NEGOCIO · AUM (multi-valor).
+const NIVELES = ["nivel_1", "nivel_2", "nivel_3", "nivel_5"] as const;
+
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
@@ -33,8 +36,10 @@ export async function GET(req: Request) {
     if (moneda) q.set("moneda", moneda);
     const operador = url.searchParams.get("operador");
     if (operador) q.set("operador", operador);
-    const nivel1 = url.searchParams.get("nivel_1");
-    if (nivel1) q.set("nivel_1", nivel1);
+    // Los niveles son MULTI: se reenvían como params repetidos (`&nivel_1=A&nivel_1=B`),
+    // que es lo que `scope_aum` parsea como lista. Un `set` los aplastaría a uno solo
+    // y el filtro achicaría de menos sin que nada falle.
+    for (const n of NIVELES) for (const v of url.searchParams.getAll(n)) q.append(n, v);
     const suffix = q.toString() ? `?${q}` : "";
 
     const data = await apiFetch<BackendResp>(
