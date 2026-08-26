@@ -17,18 +17,29 @@
  * numéricas se alinean con `padStart`: la imagen se dibuja en **monoespaciada**,
  * así que un ancho fijo por columna queda perfectamente alineado.
  */
-import type { FilaImagen, TablaImagen } from "@/lib/reporte-imagen";
+import type { Celda, FilaImagen, TablaImagen } from "@/lib/reporte-imagen";
 
 const FIRMA = "Hecho en ACAQuant";
 
 /** Ancho de cada columna numérica del consolidado, en caracteres. */
 const W_NUM = 12;
 
-const num = (s: string) => s.padStart(W_NUM);
-
-/** Las N celdas numéricas de una fila, alineadas para monoespaciada. */
-export function celdas(valores: string[]): string {
-  return valores.map(num).join("");
+/** Las N celdas numéricas de una fila, cada una con su tono.
+ *
+ *  ⚠️ **El tono es POR CELDA, no por fila.** Pintar la fila entera del color de
+ *  una columna deja números positivos en rojo —el `20.000` de COMPRA de un
+ *  producto vendido— y un positivo en rojo se lee como negativo.
+ *
+ *  El `padStart` es lo que las alinea: la imagen se dibuja en monoespaciada, así
+ *  que un ancho fijo en caracteres es un ancho fijo en píxeles.
+ */
+export function celdas(valores: (string | number | null)[],
+                       fmt: (n: number) => string): Celda[] {
+  return valores.map((v) => {
+    if (typeof v === "string") return { texto: v.padStart(W_NUM) };
+    if (v === null) return { texto: "—".padStart(W_NUM) };
+    return { texto: fmt(v).padStart(W_NUM), tono: v >= 0 ? "pos" : "neg" };
+  });
 }
 
 export type Bloque = { titulo: string; filas: FilaImagen[] };
@@ -47,6 +58,9 @@ export async function copiarTab(o: {
 }): Promise<"copiado" | "descargado" | "error"> {
   const { copiarReporte } = await import("@/lib/reporte-imagen");
   return copiarReporte({
+    // Todas las columnas del mismo ancho: sin esto, FUTUROS U$S —que tiene
+    // etiquetas más cortas— salía notoriamente más angosta que la de agro.
+    mismoAncho: true,
     columnas: enDosColumnas(o.tablas),
     titulo: o.titulo,
     fecha: o.fecha,

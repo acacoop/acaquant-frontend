@@ -257,6 +257,9 @@ export function Ap5PosicionesView() {
   // consulta— para que la imagen no pueda decir otra cosa que lo que se ve.
   async function copiar() {
     if (!v) return;
+    // El MISMO formateador que la pantalla: formatear dos veces es como la
+    // imagen y la vista terminan diciendo cosas distintas.
+    const plata = (n: number) => fmt2(n, 0);
     setCopiando(true);
     const tablas: TablaImagen[] =
       tab === "consolidados"
@@ -264,35 +267,33 @@ export function Ap5PosicionesView() {
             titulo: `${b.tab === "agro" ? "FUTUROS AGRÍCOLAS" : "FUTUROS U$S"} · ${b.moneda}`,
             filas: [
               { cuenta: "INSTRUMENTO",
-                valor: celdas(["COMPRA", "VENTA", "NETA", "ACUM.", "DIARIA"]) },
+                valor: celdas(["COMPRA", "VENTA", "NETA", "ACUM.", "DIARIA"], plata) },
               ...b.filas.map((f) => ({
                 cuenta: f.etiqueta,
-                valor: celdas([
-                  f.compra === null ? "—" : fmt2(f.compra, 0),
-                  f.venta === null ? "—" : fmt2(f.venta, 0),
-                  f.neta === null ? "—" : fmt2(f.neta, 0),
-                  fmt2(f.acum_hoy, 0),
-                  fmt2(f.diaria, 0),
-                ]),
+                valor: celdas([f.compra, f.venta, f.neta, f.acum_hoy, f.diaria], plata),
               })),
-              { cuenta: "TOTAL", corte: true,
-                valor: celdas([
-                  fmt2(b.total.compra, 0), fmt2(b.total.venta, 0),
-                  fmt2(b.total.neta, 0), fmt2(b.total.acum_hoy, 0),
-                  fmt2(b.total.diaria, 0),
-                ]) },
+              { cuenta: "TOTAL", destacada: true,
+                valor: celdas([b.total.compra, b.total.venta, b.total.neta,
+                               b.total.acum_hoy, b.total.diaria], plata) },
             ],
           }))
         : bloques.flatMap((r) => [
+            // `filasMinimas` = el MISMO tope para todas: un Top 10 con 8
+            // cuentas reserva las 10 igual, así las cuatro tablas quedan
+            // alineadas en vez de cortarse a distinta altura.
             { titulo: `${r.grupo} · Top ${r.top} +`,
+              filasMinimas: r.top,
               filas: r.positivos.map((i, n) => ({
                 cuenta: `${n + 1}. ${i.nombre}`,
                 valor: fmt2(i.importe, 0),
+                tono: "pos" as const,
               })) },
             { titulo: `${r.grupo} · Top ${r.top} −`,
+              filasMinimas: r.top,
               filas: r.negativos.map((i, n) => ({
                 cuenta: `${n + 1}. ${i.nombre}`,
                 valor: fmt2(i.importe, 0),
+                tono: "neg" as const,
               })) },
           ]);
 
