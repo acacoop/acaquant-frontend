@@ -179,6 +179,19 @@ type FilaAca = {
    *  uno de tres no son la misma evidencia. */
   patas: number;
 };
+
+/** El TOTAL de una tabla, **sumado por el backend** sobre las mismas filas.
+ *
+ *  ⚠️ **Va por MONEDA, no por tabla.** Adentro de una misma tabla pueden
+ *  convivir símbolos que liquidan en monedas distintas, y un total que las
+ *  mezcla es un número que no existe. Si hay una sola moneda sale un TOTAL; si
+ *  hay dos, salen dos. Es la misma regla del CONSOLIDADO. */
+type TotalAca = {
+  familia: string; moneda: string | null;
+  diferencias: number; filas: number;
+  /** Cuántos símbolos de ese total no tienen multiplicador cargado. */
+  sin_multiplicador: number;
+};
 // Del consolidado sólo ACUM. y DIARIA llevan verde/rojo: COMPRA, VENTA y NETA
 // son cantidades de la POSICIÓN —toneladas, contratos— y pintarlas sugiere una
 // ganancia o una pérdida donde no hay ninguna.
@@ -249,7 +262,8 @@ export function Ap5PosicionesView() {
   // DERIVA (`aca?.cuenta !== cuentaAca`) en vez de setearse al principio del
   // efecto — un `setState` síncrono ahí dispara un render de más y lo prohíbe
   // `react-hooks/set-state-in-effect`.
-  const [aca, setAca] = useState<{ cuenta: string; filas: FilaAca[] } | null>(null);
+  const [aca, setAca] = useState<
+    { cuenta: string; filas: FilaAca[]; totales: TotalAca[] } | null>(null);
   const [copiando, setCopiando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const recargar = useCallback(() => setRecarga((n) => n + 1), []);
@@ -291,9 +305,12 @@ export function Ap5PosicionesView() {
     const pedida = cuentaAca;
     // `fetchJson` TIRA con el detalle: un 403 y "no hay posición" NO se pueden
     // dibujar igual.
-    fetchJson<{ filas: FilaAca[] }>(`/api/ap5/aca?cuenta=${encodeURIComponent(pedida)}`)
-      .then((d) => { if (!cancelado) setAca({ cuenta: pedida, filas: d.filas ?? [] }); })
-      .catch(() => { if (!cancelado) setAca({ cuenta: pedida, filas: [] }); });
+    fetchJson<{ filas: FilaAca[]; totales: TotalAca[] }>(
+      `/api/ap5/aca?cuenta=${encodeURIComponent(pedida)}`)
+      .then((d) => { if (!cancelado) setAca(
+        { cuenta: pedida, filas: d.filas ?? [], totales: d.totales ?? [] }); })
+      .catch(() => { if (!cancelado) setAca(
+        { cuenta: pedida, filas: [], totales: [] }); });
     return () => { cancelado = true; };
   }, [tab, cuentaAca, recarga]);
 
@@ -511,8 +528,8 @@ export function Ap5PosicionesView() {
                 titulo={l.titulo}
                 color={l.color}
                 etiquetaNocional={l.etiquetaNocional}
-                conDiferencias={l.conDiferencias}
                 filas={aca.filas.filter((f) => f.familia === l.familia)}
+                totales={aca.totales.filter((t) => t.familia === l.familia)}
               />
             ))
           )}
@@ -670,9 +687,8 @@ const BORDE_ACA = "#d8dde4";
 const tonoAca = (n: number | null) =>
   n === null || n === 0 ? "#5b6472" : n > 0 ? VERDE_ACA : ROJO_ACA;
 
-// El ancho de cada columna. Dos juegos porque el agro lleva una columna más.
-const COLS_ACA = ["25%", "12%", "14%", "14%", "14%", "11%", "10%"];
-const COLS_ACA_DIF = ["21%", "11%", "13%", "12%", "12%", "10%", "9%", "12%"];
+// El ancho de cada columna. Las dos tablas llevan las MISMAS ocho.
+const COLS_ACA = ["21%", "11%", "13%", "12%", "12%", "10%", "9%", "12%"];
 
 // ⚠️ Lo que la columna DIFERENCIAS **no** dice, y por eso viaja en el tooltip:
 // `daily_settlement` viene ACUMULADO de la cámara. Leerlo como el movimiento
@@ -687,13 +703,11 @@ const AVISO_DIFERENCIAS =
 // dólares nominales en el dólar futuro. Un solo rótulo «NOCIONAL» para los dos
 // obliga a acordarse de cuál es cuál.
 //
-// `conDiferencias`: sólo el agro muestra `daily_settlement`. Es lo que pidió la
-// mesa, y no es una columna inocente — ver el aviso en `TablaAca`.
 const LADOS_ACA = [
   { familia: "agro", titulo: "FUTUROS AGRO", color: "#f5cf60",
-    etiquetaNocional: "TONELADAS", conDiferencias: true },
+    etiquetaNocional: "TONELADAS" },
   { familia: "dolar", titulo: "DÓLAR FUTURO", color: "#9fcb92",
-    etiquetaNocional: "NOCIONAL U$S", conDiferencias: false },
+    etiquetaNocional: "NOCIONAL U$S" },
 ] as const;
 
 /** La posición abierta de un lado (agro o dólar), una fila por símbolo.
@@ -712,15 +726,17 @@ const LADOS_ACA = [
  *  DIFERENCIAS). Cantidad, nocional, entrada y ajuste son datos de la POSICIÓN,
  *  no resultado: pintarlos sugiere una ganancia donde sólo hay un precio.
  */
-function TablaAca({ titulo, color, etiquetaNocional, conDiferencias, filas }: {
+function TablaAca({ titulo, color, etiquetaNocional, filas, totales }: {
   titulo: string; color: string; etiquetaNocional: string;
-  conDiferencias: boolean; filas: FilaAca[];
+  filas: FilaAca[]; totales: TotalAca[];
 }) {
-  const cols = conDiferencias ? COLS_ACA_DIF : COLS_ACA;
+  const cols = COLS_ACA;
   const cabeceras = [
     "SÍMBOLO", "CANTIDAD", etiquetaNocional, "P. ENTRADA", "P. AJUSTE",
-    "DIF PX", "DIF %", ...(conDiferencias ? ["DIFERENCIAS"] : []),
+    "DIF PX", "DIF %", "DIFERENCIAS",
   ];
+  // Con UNA moneda alcanza «TOTAL»; con dos hay que decir cuál es cada uno.
+  const unaMoneda = totales.length <= 1;
   return (
     <div className="min-h-0 flex flex-col border" style={{ borderColor: BORDE_ACA }}>
       <div
@@ -787,13 +803,11 @@ function TablaAca({ titulo, color, etiquetaNocional, conDiferencias, filas }: {
                     style={{ color: tonoAca(f.dif_pct) }}>
                   {f.dif_pct === null ? "—" : `${fmt2(f.dif_pct, 2)}%`}
                 </td>
-                {conDiferencias && (
-                  <td className="px-2 py-0.5 text-center"
-                      title={AVISO_DIFERENCIAS}
-                      style={{ color: tonoAca(f.diferencias) }}>
-                    {fmt0(f.diferencias)}
-                  </td>
-                )}
+                <td className="px-2 py-0.5 text-center"
+                    title={AVISO_DIFERENCIAS}
+                    style={{ color: tonoAca(f.diferencias) }}>
+                  {fmt0(f.diferencias)}
+                </td>
               </tr>
             ))}
             {filas.length === 0 && (
@@ -805,6 +819,44 @@ function TablaAca({ titulo, color, etiquetaNocional, conDiferencias, filas }: {
               </tr>
             )}
           </tbody>
+          {/* ── El TOTAL de DIFERENCIAS ──────────────────────────────────
+              UNA fila POR MONEDA: adentro de una misma tabla pueden convivir
+              símbolos que liquidan en monedas distintas, y un total que las
+              suma juntas es un número que no existe.
+
+              ⚠️ **El número lo suma el BACKEND**, de las mismas filas que se
+              dibujan arriba. Acá no se suma nada: un total calculado en el
+              navegador no se puede verificar del lado del servidor, y este
+              cuadro se captura para el mail.
+
+              Sólo se totaliza DIFERENCIAS. Cantidad, nocional y los precios
+              no se suman: un precio promedio de promedios no significa nada,
+              y sumar toneladas de soja con las de trigo tampoco. */}
+          {totales.length > 0 && (
+            <tfoot className="font-mono tabular-nums">
+              {totales.map((t) => (
+                <tr key={t.moneda ?? "-"} className="border-t-2"
+                    style={{ borderColor: "#98a1ad", background: "#eef1f5" }}>
+                  <td colSpan={cols.length - 1}
+                      className="px-2 py-1 font-sans font-semibold text-[10px] tracking-wide">
+                    TOTAL{unaMoneda ? "" : ` ${t.moneda ?? "sin moneda"}`}
+                    {/* Un total al que le faltan símbolos, callado, se lee
+                        como el total completo. */}
+                    {t.sin_multiplicador > 0 && (
+                      <span className="ml-2 font-normal" style={{ color: "#8a929e" }}>
+                        ({t.sin_multiplicador} sin multiplicador: sin nocional)
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-2 py-1 text-center font-semibold"
+                      title={AVISO_DIFERENCIAS}
+                      style={{ color: tonoAca(t.diferencias) }}>
+                    {fmt0(t.diferencias)}
+                  </td>
+                </tr>
+              ))}
+            </tfoot>
+          )}
         </table>
       </div>
     </div>
