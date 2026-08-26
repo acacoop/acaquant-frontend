@@ -34,9 +34,9 @@ type DifHoy = { moneda: string; familia: string; importe: number; cuentas: numbe
 type RankItem = {
   cuenta: string; nombre: string; moneda: string; familia: string; grupo: string;
   importe: number; diaria: number;
-  // El ARRASTRE de esta moneda y si lo cargó una persona. `cargado = false` con
-  // arrastre 0 NO es lo mismo que un cero verificado — y esta vista se imprime.
-  arrastre: number; cargado: boolean; fecha_arrastre: string | null;
+  // ⚠️ `null` = NO hay día anterior con el que comparar. Distinto de 0: una
+  // cuenta nueva y una que no se movió dan el mismo cero, y esto se imprime.
+  acumulado_ayer: number | null;
 };
 // `tab` y `lado` los decide el BACKEND. La vista no compara strings de grupo —
 // que es exactamente donde se rompió el 2026-08-25: la base decía COOPERATIVAS,
@@ -46,7 +46,7 @@ type Ranking = {
   tab: TabFam; grupo: string; lado: "izq" | "der" | "otro";
   positivos: RankItem[]; negativos: RankItem[];
   total_positivo: number; total_negativo: number;
-  cuentas: number; sin_cargar: number;
+  cuentas: number;
   // Cuántas filas tiene el ranking COMO MÁXIMO (lo manda el backend). La lista
   // reserva ESE alto aunque haya menos: si cada panel se encogiera a su
   // cantidad de filas, Cooperativas y MUNDO ACA quedarían de altos distintos.
@@ -62,8 +62,7 @@ type Instr = {
 };
 type Acum = {
   cuenta: string; nombre: string; grupo: string; moneda: string; familia: string;
-  arrastre: number; cargado: boolean;
-  fecha_arrastre: string | null; actualizado: string | null;
+  actualizado: string | null;
   movimiento: number; acumulado: number; diaria: number;
 };
 type Faltantes = {
@@ -71,15 +70,13 @@ type Faltantes = {
   fuera_de_tabs?: { familia: string; cuentas: number; simbolos: number }[];
   simbolos_sin_multiplicador?: { symbol: string; unidad: string | null; filas: number }[];
   cuentas_sin_nombre?: number; cuentas_sin_grupo?: number; cuentas?: number;
-  cuentas_sin_cargar?: number;
 };
-/** CUÁNDO se tocó por última vez cada insumo. Son TRES relojes: la posición y
- *  los márgenes los trae el job de las 10; el arrastre lo carga una persona. Un
- *  solo "actualizado" tendría que elegir uno y taparía a los otros dos. */
+/** CUÁNDO se tocó por última vez cada insumo. Son DOS relojes: los trae el mismo
+ *  job, pero uno puede fallar y el otro no. Un solo "actualizado" taparía al
+ *  que falló. */
 type Actualizado = {
   posicion: string | null;
   margenes: string | null;
-  arrastre: string | null;
 };
 
 type Vista = {
@@ -181,7 +178,6 @@ function fmtFecha(iso: string | null): string {
 export function Ap5PosicionesView() {
   // La fecha y la tab persisten entre navegaciones: son ELECCIONES del usuario,
   // no data fetcheada (que es lo que usePersistedState no debe guardar).
-  const [fecha, setFecha] = usePersistedState<string>("ap5.fecha", "");
   const [tab, setTab] = usePersistedState<Tab>("ap5.tab", "agro");
   const [v, setV] = useState<Vista | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -194,29 +190,29 @@ export function Ap5PosicionesView() {
 
   // `recarga` es el disparador explícito del botón Reintentar y del guardado del
   // modal. Un contador y no una función: así el efecto tiene UNA sola razón de
-  // correr (cambió la fecha, o alguien pidió recargar) y no hay que acordarse de
-  // cancelar una respuesta vieja a mano en dos lugares distintos.
+  // correr y no hay que acordarse de cancelar una respuesta vieja a mano.
   const [recarga, setRecarga] = useState(0);
   const recargar = useCallback(() => setRecarga((n) => n + 1), []);
-  const pedido = `${fecha}|${recarga}`;
+  const pedido = String(recarga);
   const cargando = dibujado !== pedido;
 
   useEffect(() => {
-    // La guarda de carrera: si cambia la fecha mientras vuela un request, la
-    // respuesta vieja NO puede pisar a la nueva. Sin esto, tocar dos veces el
-    // selector deja en pantalla el día equivocado y nada falla.
+    // La guarda de carrera se queda aunque ya no haya selector: dos recargas
+    // seguidas siguen pudiendo volver desordenadas, y la vieja no puede pisar
+    // a la nueva.
     let cancelado = false;
-    const qs = fecha ? `?fecha=${encodeURIComponent(fecha)}` : "";
+    // Sin `?fecha`: el backend sirve SIEMPRE la última corrida. `ap5.portfolio`
+    // guarda dos días y no hay nada que elegir.
     // fetchJson TIRA con el detalle del backend: un 403 y "no hay datos" NO se
     // pueden dibujar igual (así se perdió una semana la tab ESTRATEGIA).
-    fetchJson<Vista>(`/api/ap5/vista${qs}`)
+    fetchJson<Vista>("/api/ap5/vista")
       .then((d) => { if (!cancelado) { setV(d); setError(null); } })
       .catch((e: unknown) => {
         if (!cancelado) setError(e instanceof Error ? e.message : String(e));
       })
       .finally(() => { if (!cancelado) setDibujado(pedido); });
     return () => { cancelado = true; };
-  }, [fecha, recarga, pedido]);
+  }, [recarga, pedido]);
 
   if (error) {
     return (
@@ -266,18 +262,17 @@ export function Ap5PosicionesView() {
           </button>
         ))}
 
+        {/* ⚠️ **NO hay selector de día** (2026-08-26). `ap5.portfolio` guarda
+            DOS días —uno para el acumulado y el anterior para poder restar la
+            diaria— así que no hay nada que elegir. Un desplegable con una sola
+            opción real invita a buscar días que ya no están. */}
         <span className="ml-2 text-[var(--t-text-muted)] uppercase tracking-wide text-[9px]">Día</span>
-        <select
-          value={v.fecha}
-          onChange={(e) => setFecha(e.target.value)}
-          className="bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1 text-[11px]"
-        >
-          {v.fechas.map((f) => (
-            <option key={f.fecha} value={f.fecha}>
-              {fmtFecha(f.fecha)} · {f.cuentas} cuentas
-            </option>
-          ))}
-        </select>
+        <span className="tabular-nums">{fmtFecha(v.fecha)}</span>
+        {v.fecha_anterior && (
+          <span className="text-[10px] text-[var(--t-text-muted)]">
+            (diaria contra {fmtFecha(v.fecha_anterior)})
+          </span>
+        )}
         {cargando && <span className="text-[var(--t-text-muted)]">actualizando…</span>}
         <div className="ml-auto"><Sello a={v.actualizado} f={v.faltantes} /></div>
       </div>
@@ -552,15 +547,12 @@ function CuadroConsolidado({ b }: { b: Consolidado }) {
 
 /** Medio ranking (a favor / en contra).
  *
- *  ⚠️ **Acá NO se marca la cuenta sin arrastre cargado** (2026-08-25, pedido
- *  del user: esta vista se imprime como PDF para gerencia). El aviso sigue
- *  existiendo, pero UNA sola vez y en la barra de herramientas — que es de la
- *  mesa, no del informe. Ojo con lo que significa: sin arrastre el acumulado
- *  cuenta solo desde nuestro primer día guardado, así que el orden del top
- *  puede no ser el del mail. El cartel se sacó; el problema se cierra cargando
- *  el arrastre, no escondiéndolo. El TOTAL es de TODAS las cuentas, no del
- *  top: el ranking recorta la LISTA, no la suma. Si el total saliera de las 10
- *  filas, mostrar 10 cambiaría el número y nadie lo notaría. */
+ *  Ordena por ACUMULADO — que es la Σ `daily_settlement` de la última corrida,
+ *  o sea exactamente lo que devuelve la query con que la mesa verifica.
+ *
+ *  ⚠️ **El TOTAL es de TODAS las cuentas del grupo, no del top.** El ranking
+ *  recorta la LISTA, no la suma. Si el total saliera de las 10 filas visibles,
+ *  mostrar 10 en vez de 20 cambiaría el número y nadie lo notaría. */
 function Ladrillo({ titulo, items, total, filas, onFila }: {
   titulo: string; items: RankItem[]; total: number;
   /** Alto RESERVADO, en filas. Ver el comentario de las filas vacías. */
@@ -650,13 +642,11 @@ function Sello({ a, f }: { a: Actualizado; f: Faltantes }) {
   }
   if (f.cuentas_sin_grupo) pend.push(`${f.cuentas_sin_grupo} cuenta(s) sin grupo`);
   if (f.cuentas_sin_nombre) pend.push(`${f.cuentas_sin_nombre} cuenta(s) sin nombre`);
-  if (f.cuentas_sin_cargar) pend.push(`${f.cuentas_sin_cargar} sin arrastre cargado`);
 
   const partes: [string, string | null][] = [
     ["posición", a?.posicion ?? null],
     ["márgenes", a?.margenes ?? null],
-    ["arrastre", a?.arrastre ?? null],
-  ];
+    ];
   return (
     <span
       className="text-[10px] text-[var(--t-text-muted)] tabular-nums"
@@ -704,9 +694,6 @@ function ModalCuenta({ fila, grupos, onCerrar, onGuardado }: {
   fila: RankItem; grupos: string[]; onCerrar: () => void; onGuardado: () => void;
 }) {
   const [grupo, setGrupo] = useState(fila.grupo === "(sin grupo)" ? "" : fila.grupo);
-  const [pesos, setPesos] = useState("");
-  const [mtr, setMtr] = useState("");
-  const [fecha, setFecha] = useState(fila.fecha_arrastre ?? "");
   const [guardando, setGuardando] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -714,26 +701,11 @@ function ModalCuenta({ fila, grupos, onCerrar, onGuardado }: {
     setGuardando(true);
     setErr(null);
     try {
-      // Dos recursos distintos → dos llamadas. Solo se manda lo que cambió.
-      if (grupo !== (fila.grupo === "(sin grupo)" ? "" : fila.grupo)) {
-        await fetchJson("/api/ap5/cuentas", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ account: fila.cuenta, grupo }),
-        });
-      }
-      if (fecha && (pesos !== "" || mtr !== "")) {
-        await fetchJson("/api/ap5/acumulado", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            account: fila.cuenta,
-            acumulado_pesos: Number(pesos || 0),
-            acumulado_mtr: Number(mtr || 0),
-            fecha,
-          }),
-        });
-      }
+      await fetchJson("/api/ap5/cuentas", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ account: fila.cuenta, grupo }),
+      });
       onGuardado();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -745,77 +717,67 @@ function ModalCuenta({ fila, grupos, onCerrar, onGuardado }: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onCerrar}>
       <div
-        className="w-[480px] max-w-[92vw] border border-[var(--t-border)] bg-[var(--t-panel)]"
+        className="w-[420px] max-w-[92vw] border border-[var(--t-border)] bg-[var(--t-panel)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-brand)]">
           <div className="text-[11px] font-semibold text-white">{fila.nombre}</div>
-          <div className="text-[9px] text-white/70">
-            cuenta {fila.cuenta}
-            {fila.cargado
-              ? ` · arrastre cargado hasta ${fila.fecha_arrastre ?? "—"}`
-              : " · sin arrastre cargado"}
+          <div className="text-[10px] text-white/70">
+            cuenta {fila.cuenta} · {fila.moneda}
           </div>
         </div>
 
         <div className="p-3 space-y-3 text-[11px]">
+          {/* Los números, para poder verificar la resta a ojo. NO se editan:
+              salen de lo que informa la cámara. */}
+          <div className="grid grid-cols-3 gap-px bg-[var(--t-border)] border border-[var(--t-border)]">
+            {([
+              ["Acumulado", fila.importe],
+              ["Ayer", fila.acumulado_ayer],
+              ["Diaria", fila.diaria],
+            ] as [string, number | null][]).map(([k, val]) => (
+              <div key={k} className="bg-[var(--t-bg)] px-2 py-1">
+                <div className="text-[9px] uppercase text-[var(--t-text-muted)]">{k}</div>
+                <div className={`font-mono tabular-nums ${val === null ? "" : tono(val)}`}>
+                  {val === null ? "—" : fmt0(val)}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* ⚠️ Lo ÚNICO que se carga a mano. La cámara no sabe de qué lado del
+              informe va una cuenta, y NO se deduce del nombre (REGLA #9). */}
           <label className="block">
             <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">Grupo</span>
             <input
-              list="ap5-grupos" value={grupo} onChange={(e) => setGrupo(e.target.value)}
+              list="ap5-grupos"
+              value={grupo}
+              onChange={(e) => setGrupo(e.target.value)}
               placeholder="COOPERATIVAS / MUNDO ACA"
-              className="w-full mt-0.5 bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1"
+              className="mt-0.5 w-full bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1"
             />
-            <datalist id="ap5-grupos">{grupos.map((g) => <option key={g} value={g} />)}</datalist>
-            <span className="text-[9px] text-[var(--t-text-muted)]">
-              Es lo que parte los rankings. La cámara no lo sabe. Vacío lo saca.
-            </span>
-          </label>
-
-          <div className="grid grid-cols-2 gap-2">
-            <label className="block">
-              <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">Acumulado Pesos</span>
-              <input
-                value={pesos} onChange={(e) => setPesos(e.target.value)} inputMode="decimal"
-                placeholder="0"
-                className="w-full mt-0.5 bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1 font-mono tabular-nums"
-              />
-            </label>
-            <label className="block">
-              <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">Acumulado MtR</span>
-              <input
-                value={mtr} onChange={(e) => setMtr(e.target.value)} inputMode="decimal"
-                placeholder="0"
-                className="w-full mt-0.5 bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1 font-mono tabular-nums"
-              />
-            </label>
-          </div>
-
-          <label className="block">
-            <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">Fecha</span>
-            <input
-              type="date" value={fecha} onChange={(e) => setFecha(e.target.value)}
-              className="w-full mt-0.5 bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1"
-            />
-            <span className="text-[9px] text-[var(--t-text-muted)]">
-              Los dos importes YA contienen todo hasta este día. El sistema suma
-              los días POSTERIORES — si ponés el primer día de la serie, ese día
-              deja de contar.
+            <datalist id="ap5-grupos">
+              {grupos.map((g) => <option key={g} value={g} />)}
+            </datalist>
+            <span className="text-[10px] text-[var(--t-text-muted)]">
+              Decide de qué lado del informe sale la cuenta. Vacío = sin clasificar.
             </span>
           </label>
 
           {err && <div className="text-[var(--t-neg)]">{err}</div>}
+        </div>
 
-          <div className="flex justify-end gap-2 pt-1">
-            <button onClick={onCerrar}
-              className="px-3 py-1 border border-[var(--t-border)] text-[var(--t-text-dim)] hover:text-[var(--t-text)]">
-              Cancelar
-            </button>
-            <button onClick={() => void guardar()} disabled={guardando}
-              className="px-3 py-1 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10 disabled:opacity-50">
-              {guardando ? "Guardando…" : "Guardar"}
-            </button>
-          </div>
+        <div className="flex justify-end gap-2 px-3 py-2 border-t border-[var(--t-border)]">
+          <button onClick={onCerrar} className="px-3 py-1 text-[11px] text-[var(--t-text-dim)]">
+            Cancelar
+          </button>
+          <button
+            onClick={guardar}
+            disabled={guardando}
+            className="px-3 py-1 text-[11px] bg-[var(--t-accent)] text-[var(--t-on-accent)] disabled:opacity-50"
+          >
+            {guardando ? "Guardando…" : "Guardar"}
+          </button>
         </div>
       </div>
     </div>
