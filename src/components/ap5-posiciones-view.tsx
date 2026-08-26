@@ -25,6 +25,8 @@ import { useCallback, useEffect, useState } from "react";
 import { fetchJson } from "@/lib/fetch-json";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { fmt0, fmt2, Panel } from "./ui/informe";
+import { celdas, copiarTab } from "./ap5-captura";
+import type { TablaImagen } from "@/lib/reporte-imagen";
 
 // ── Lo que devuelve el backend (espejo de api/services/ap5_posiciones.py) ────
 type Fecha = { fecha: string; filas: number; cuentas: number };
@@ -195,6 +197,11 @@ export function Ap5PosicionesView() {
   // modal. Un contador y no una función: así el efecto tiene UNA sola razón de
   // correr y no hay que acordarse de cancelar una respuesta vieja a mano.
   const [recarga, setRecarga] = useState(0);
+  // ⚠️ Los hooks van ANTES de los `return` de error/carga: React exige el
+  // MISMO orden en cada render, y declararlos después los saltea cuando la
+  // vista corta temprano.
+  const [copiando, setCopiando] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
   const recargar = useCallback(() => setRecarga((n) => n + 1), []);
   const pedido = String(recarga);
   const cargando = dibujado !== pedido;
@@ -245,6 +252,66 @@ export function Ap5PosicionesView() {
   // Los bloques de ESTA tab, ya ordenados por el backend (izq · der · el resto).
   const bloques = v.rankings.filter((r) => r.tab === tab);
 
+  // ── La tab actual como IMAGEN, para pegar en el mail ──────────────────────
+  // Se arma desde los MISMOS datos que dibuja la pantalla —no desde una segunda
+  // consulta— para que la imagen no pueda decir otra cosa que lo que se ve.
+  async function copiar() {
+    if (!v) return;
+    setCopiando(true);
+    const tablas: TablaImagen[] =
+      tab === "consolidados"
+        ? v.consolidado.map((b) => ({
+            titulo: `${b.tab === "agro" ? "FUTUROS AGRÍCOLAS" : "FUTUROS U$S"} · ${b.moneda}`,
+            filas: [
+              { cuenta: "INSTRUMENTO",
+                valor: celdas(["COMPRA", "VENTA", "NETA", "ACUM.", "DIARIA"]) },
+              ...b.filas.map((f) => ({
+                cuenta: f.etiqueta,
+                valor: celdas([
+                  f.compra === null ? "—" : fmt2(f.compra, 0),
+                  f.venta === null ? "—" : fmt2(f.venta, 0),
+                  f.neta === null ? "—" : fmt2(f.neta, 0),
+                  fmt2(f.acum_hoy, 0),
+                  fmt2(f.diaria, 0),
+                ]),
+              })),
+              { cuenta: "TOTAL", corte: true,
+                valor: celdas([
+                  fmt2(b.total.compra, 0), fmt2(b.total.venta, 0),
+                  fmt2(b.total.neta, 0), fmt2(b.total.acum_hoy, 0),
+                  fmt2(b.total.diaria, 0),
+                ]) },
+            ],
+          }))
+        : bloques.flatMap((r) => [
+            { titulo: `${r.grupo} · Top ${r.top} +`,
+              filas: r.positivos.map((i, n) => ({
+                cuenta: `${n + 1}. ${i.nombre}`,
+                valor: fmt2(i.importe, 0),
+              })) },
+            { titulo: `${r.grupo} · Top ${r.top} −`,
+              filas: r.negativos.map((i, n) => ({
+                cuenta: `${n + 1}. ${i.nombre}`,
+                valor: fmt2(i.importe, 0),
+              })) },
+          ]);
+
+    const nombre = TABS.find((x) => x.id === tab)?.label ?? "";
+    const r = await copiarTab({
+      tablas: tablas.filter((t) => t.filas.length > 1 || tab !== "consolidados"),
+      titulo: `Posiciones y diferencias · ${nombre}`,
+      fecha: fmtFecha(v.fecha),
+      archivo: `ap5-${tab}-${v.fecha ?? "hoy"}.png`,
+    });
+    setCopiando(false);
+    // El plan B NO es un error: el objetivo es que la imagen llegue al mail, y
+    // Firefox (y cualquier origen sin HTTPS) no implementan copiar imágenes.
+    setAviso(r === "copiado" ? "Copiado · pegalo en el mail"
+      : r === "descargado" ? "Tu navegador no deja copiar imágenes: se descargó"
+      : "No se pudo generar la imagen");
+    window.setTimeout(() => setAviso(null), 6000);
+  }
+
   return (
     <div className="h-full flex flex-col min-h-0">
       {/* ── Barra: día, tabs y lo que la vista no puede afirmar ─────────────
@@ -277,7 +344,16 @@ export function Ap5PosicionesView() {
           </span>
         )}
         {cargando && <span className="text-[var(--t-text-muted)]">actualizando…</span>}
-        <div className="ml-auto"><Sello a={v.actualizado} f={v.faltantes} /></div>
+        <button
+          onClick={copiar}
+          disabled={copiando}
+          title="Genera la imagen de ESTA tab y la copia al portapapeles"
+          className="ml-auto px-2 py-1 text-[10px] font-semibold tracking-wide border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] disabled:opacity-50"
+        >
+          {copiando ? "GENERANDO…" : "COPIAR IMAGEN"}
+        </button>
+        {aviso && <span className="text-[10px] text-[var(--t-accent)]">{aviso}</span>}
+        <div><Sello a={v.actualizado} f={v.faltantes} /></div>
       </div>
 
       {/* ── La cabecera del reporte ──────────────────────────────────────────
