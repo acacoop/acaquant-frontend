@@ -163,6 +163,16 @@ type CuentaAca = { cuenta: string; nombre: string; conocida: boolean };
 type FilaAca = {
   symbol: string; familia: string; unidad: string | null; moneda: string | null;
   cantidad: number;
+  /** El TAMAÑO de la posición en su unidad: toneladas en el agro, dólares
+   *  nominales en el dólar futuro. Es `cantidad × multiplicador` y lo calcula el
+   *  BACKEND con el multiplicador real de `ap5.contratos` — dentro de `Tn`
+   *  conviven 100 (`.ROS`), 10 (`.MIN`) y 5 (`.CME`), así que un 100 fijo daría
+   *  20× de más en Chicago. `null` (y no cero) cuando falta el multiplicador:
+   *  un nocional en cero es una posición que no existe, y ésta existe. */
+  nocional: number | null; multiplicador: number | null;
+  /** ⚠️ `daily_settlement`, que **YA VIENE ACUMULADO** de la cámara: es el
+   *  acumulado de esa posición al día de la corrida, NO lo que se movió hoy. */
+  diferencias: number;
   entrada: number | null; ajuste: number | null;
   dif_px: number | null; dif_pct: number | null;
   /** Cuántas filas de la base se agregaron: un precio promedio de una pata y
@@ -437,8 +447,13 @@ export function Ap5PosicionesView() {
 
       {/* ── La cabecera del reporte ──────────────────────────────────────────
           Las tres cosas que la mesa pone arriba del mail. Una sola línea, sin
-          cards: el espacio es de los rankings. Va FUERA de las tabs porque
-          habla de todo — repetirla en cada una la haría parecer dos cosas. */}
+          cards: el espacio es de los rankings.
+
+          ⚠️ **NO se dibuja en POSICIONES DE ACA.** Las tres hablan de la MESA
+          ENTERA (todas las cuentas), y esa tab habla de UNA cuenta elegida en el
+          desplegable de arriba. Dejarla puesta pone un total de la mesa arriba
+          del detalle de una cuenta, que es exactamente la lectura equivocada. */}
+      {tab !== "aca" && (
       <div className="shrink-0 flex items-stretch flex-wrap gap-px bg-[var(--t-border)] border-y border-[var(--t-border)]">
         <Cabecera titulo="Diferencias ACA hoy">
           {v.diferencias_hoy.length === 0 && <Vacio texto="sin diferencias este día" />}
@@ -478,6 +493,7 @@ export function Ap5PosicionesView() {
           <Margenes r={v.activo_integrado} />
         </Cabecera>
       </div>
+      )}
 
       {tab === "aca" ? (
         /* ── POSICIONES DE ACA: la posición abierta de UNA cuenta propia ─────
@@ -485,15 +501,17 @@ export function Ap5PosicionesView() {
            su banda de color. Es lo que permite leer las dos sin confundirlas —
            son unidades distintas (toneladas contra dólares) y a simple vista dos
            tablas iguales parecen la misma cosa. */
-        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3 p-3 overflow-auto">
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3 p-3 overflow-auto bg-white">
           {aca?.cuenta !== cuentaAca ? (
-            <div className="text-[11px] text-[var(--t-text-dim)]">Cargando…</div>
+            <div className="text-[11px] text-[#5b6472]">Cargando…</div>
           ) : (
             LADOS_ACA.map((l) => (
               <TablaAca
                 key={l.familia}
                 titulo={l.titulo}
                 color={l.color}
+                etiquetaNocional={l.etiquetaNocional}
+                conDiferencias={l.conDiferencias}
                 filas={aca.filas.filter((f) => f.familia === l.familia)}
               />
             ))
@@ -643,57 +661,94 @@ function Vacio({ texto }: { texto: string }) {
 // Los dos lados de POSICIONES DE ACA. El color de la banda es lo que separa
 // AGRO de DÓLAR de un vistazo: son unidades distintas —toneladas contra
 // dólares— y dos tablas iguales lado a lado se leen como la misma cosa.
+// ── POSICIONES DE ACA: la paleta del panel blanco ──────────────────────────
+// Los mismos verde y rojo de `reporte-imagen.ts`: la tab se captura para el
+// mail y pantalla e imagen tienen que verse como el MISMO informe.
+const VERDE_ACA = "#15803d";
+const ROJO_ACA = "#b91c1c";
+const BORDE_ACA = "#d8dde4";
+const tonoAca = (n: number | null) =>
+  n === null || n === 0 ? "#5b6472" : n > 0 ? VERDE_ACA : ROJO_ACA;
+
+// El ancho de cada columna. Dos juegos porque el agro lleva una columna más.
+const COLS_ACA = ["25%", "12%", "14%", "14%", "14%", "11%", "10%"];
+const COLS_ACA_DIF = ["21%", "11%", "13%", "12%", "12%", "10%", "9%", "12%"];
+
+// ⚠️ Lo que la columna DIFERENCIAS **no** dice, y por eso viaja en el tooltip:
+// `daily_settlement` viene ACUMULADO de la cámara. Leerlo como el movimiento
+// del día es el mismo error que ya apareció tres veces en esta vista.
+const AVISO_DIFERENCIAS =
+  "daily_settlement de la cámara: es el ACUMULADO de la posición al día de la "
+  + "corrida, no lo que se movió hoy. La diferencia del día sale de restar "
+  + "contra el día anterior.";
+
+// `etiquetaNocional`: la MISMA cuenta (contratos × multiplicador) se rotula
+// distinto de cada lado porque la unidad es distinta — toneladas en el agro,
+// dólares nominales en el dólar futuro. Un solo rótulo «NOCIONAL» para los dos
+// obliga a acordarse de cuál es cuál.
+//
+// `conDiferencias`: sólo el agro muestra `daily_settlement`. Es lo que pidió la
+// mesa, y no es una columna inocente — ver el aviso en `TablaAca`.
 const LADOS_ACA = [
-  { familia: "agro", titulo: "FUTUROS AGRO", color: "#f5cf60" },
-  { familia: "dolar", titulo: "DÓLAR FUTURO", color: "#9fcb92" },
+  { familia: "agro", titulo: "FUTUROS AGRO", color: "#f5cf60",
+    etiquetaNocional: "TONELADAS", conDiferencias: true },
+  { familia: "dolar", titulo: "DÓLAR FUTURO", color: "#9fcb92",
+    etiquetaNocional: "NOCIONAL U$S", conDiferencias: false },
 ] as const;
 
 /** La posición abierta de un lado (agro o dólar), una fila por símbolo.
+ *
+ *  ⚠️ **FONDO BLANCO Y COLORES FIJOS, a propósito.** Es la única parte de la app
+ *  que hardcodea color en vez de usar los tokens `--t-*`: esta tab se lee y se
+ *  captura para el mail, donde no hay tema oscuro. Los mismos verde y rojo que
+ *  usa `reporte-imagen.ts`, para que la pantalla y la imagen no se vean como dos
+ *  informes distintos.
  *
  *  ⚠️ **CANTIDAD es un número con signo, no dos columnas.** La base trae
  *  `long_qty` y `short_qty` con una en cero; mostrar las dos obliga a leer dos
  *  celdas para saber si está comprado o vendido.
  *
- *  ⚠️ **El color va SÓLO en las dos columnas de diferencia.** La cantidad, el
- *  precio de entrada y el de ajuste son datos de la posición, no resultado:
- *  pintarlos sugiere una ganancia donde sólo hay un precio.
+ *  ⚠️ **El color va SÓLO en las columnas de resultado** (DIF PX, DIF % y
+ *  DIFERENCIAS). Cantidad, nocional, entrada y ajuste son datos de la POSICIÓN,
+ *  no resultado: pintarlos sugiere una ganancia donde sólo hay un precio.
  */
-function TablaAca({ titulo, color, filas }: {
-  titulo: string; color: string; filas: FilaAca[];
+function TablaAca({ titulo, color, etiquetaNocional, conDiferencias, filas }: {
+  titulo: string; color: string; etiquetaNocional: string;
+  conDiferencias: boolean; filas: FilaAca[];
 }) {
+  const cols = conDiferencias ? COLS_ACA_DIF : COLS_ACA;
+  const cabeceras = [
+    "SÍMBOLO", "CANTIDAD", etiquetaNocional, "P. ENTRADA", "P. AJUSTE",
+    "DIF PX", "DIF %", ...(conDiferencias ? ["DIFERENCIAS"] : []),
+  ];
   return (
-    <div className="min-h-0 flex flex-col border border-[var(--t-border)]">
+    <div className="min-h-0 flex flex-col border" style={{ borderColor: BORDE_ACA }}>
       <div
         className="px-2 py-1 text-center text-[11px] font-bold tracking-wide text-[#1c2430]"
         style={{ background: color }}
       >
         {titulo}
       </div>
-      <div className="flex-1 min-h-0 overflow-auto">
+      <div className="flex-1 min-h-0 overflow-auto bg-white text-[#1c2430]">
         <table className="w-full table-fixed border-collapse text-[11px]">
           <colgroup>
-            <col style={{ width: "30%" }} />
-            <col style={{ width: "14%" }} />
-            <col style={{ width: "15%" }} />
-            <col style={{ width: "15%" }} />
-            <col style={{ width: "13%" }} />
-            <col style={{ width: "13%" }} />
+            {cols.map((w, i) => <col key={i} style={{ width: w }} />)}
           </colgroup>
           <thead>
-            <tr className="bg-[var(--t-panel-2)] text-[var(--t-text-muted)]">
-              {["SÍMBOLO", "CANTIDAD", "P. ENTRADA", "P. AJUSTE", "DIF PX", "DIF %"]
-                .map((h, i) => (
-                  <th key={h}
-                      className={`px-2 py-1 text-[9px] uppercase tracking-wide font-semibold ${
-                        i === 0 ? "text-left" : "text-center"}`}>
-                    {h}
-                  </th>
-                ))}
+            <tr style={{ background: "#eef1f5", color: "#5b6472" }}>
+              {cabeceras.map((h, i) => (
+                <th key={h}
+                    title={h === "DIFERENCIAS" ? AVISO_DIFERENCIAS : undefined}
+                    className={`px-2 py-1 text-[9px] uppercase tracking-wide font-semibold ${
+                      i === 0 ? "text-left" : "text-center"}`}>
+                  {h}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody className="font-mono tabular-nums">
             {filas.map((f) => (
-              <tr key={f.symbol} className="border-t border-[var(--t-border)]">
+              <tr key={f.symbol} className="border-t" style={{ borderColor: BORDE_ACA }}>
                 <td className="px-2 py-0.5 font-sans truncate" title={
                   f.patas > 1
                     ? `${f.symbol} · precio de entrada ponderado sobre ${f.patas} patas`
@@ -703,29 +758,48 @@ function TablaAca({ titulo, color, filas }: {
                   {/* Un promedio de una pata y uno de tres no son la misma
                       evidencia: si se agregó más de una fila, se dice. */}
                   {f.patas > 1 && (
-                    <span className="ml-1 text-[9px] text-[var(--t-text-muted)]">
+                    <span className="ml-1 text-[9px]" style={{ color: "#8a929e" }}>
                       ×{f.patas}
                     </span>
                   )}
                 </td>
                 <td className="px-2 py-0.5 text-center">{fmt0(f.cantidad)}</td>
+                {/* `—` y no `0` cuando el símbolo no tiene multiplicador: un
+                    nocional en cero es una posición que no existe, y ésta
+                    existe — lo que falta es con qué convertirla. */}
+                <td className="px-2 py-0.5 text-center"
+                    title={f.multiplicador === null
+                      ? "Sin multiplicador cargado para este símbolo: no se puede convertir."
+                      : `${fmt0(f.cantidad)} contratos × ${fmt0(f.multiplicador)}`}>
+                  {f.nocional === null ? "—" : fmt0(f.nocional)}
+                </td>
                 <td className="px-2 py-0.5 text-center">
                   {f.entrada === null ? "—" : fmt2(f.entrada, 2)}
                 </td>
                 <td className="px-2 py-0.5 text-center">
                   {f.ajuste === null ? "—" : fmt2(f.ajuste, 2)}
                 </td>
-                <td className={`px-2 py-0.5 text-center ${f.dif_px === null ? "" : tono(f.dif_px)}`}>
+                <td className="px-2 py-0.5 text-center"
+                    style={{ color: tonoAca(f.dif_px) }}>
                   {f.dif_px === null ? "—" : fmt2(f.dif_px, 2)}
                 </td>
-                <td className={`px-2 py-0.5 text-center ${f.dif_pct === null ? "" : tono(f.dif_pct)}`}>
+                <td className="px-2 py-0.5 text-center"
+                    style={{ color: tonoAca(f.dif_pct) }}>
                   {f.dif_pct === null ? "—" : `${fmt2(f.dif_pct, 2)}%`}
                 </td>
+                {conDiferencias && (
+                  <td className="px-2 py-0.5 text-center"
+                      title={AVISO_DIFERENCIAS}
+                      style={{ color: tonoAca(f.diferencias) }}>
+                    {fmt0(f.diferencias)}
+                  </td>
+                )}
               </tr>
             ))}
             {filas.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-2 py-3 text-center text-[var(--t-text-dim)]">
+                <td colSpan={cols.length} className="px-2 py-3 text-center"
+                    style={{ color: "#5b6472" }}>
                   Sin posición abierta en esta cuenta.
                 </td>
               </tr>
