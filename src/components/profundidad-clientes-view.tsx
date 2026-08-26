@@ -88,11 +88,15 @@ type Col = {
   tipo: "int" | "pct" | "money";
 };
 
-// El texto del encabezado cuando hay filtro NO se arma acá: viene de `columnas`.
-// Si el front lo derivara, la pantalla podría nombrar una cosa y el backend contar otra.
-function headerDe(c: Col, columnas: Columnas | undefined): string {
-  const v = columnas?.[c.k as keyof Columnas];
-  return typeof v === "string" ? v : c.label;
+// Los encabezados son FIJOS. Meter la operación adentro del título los estiraba a
+// "ARANCELES DE CAUCIÓN COLOCADORA + CAUCIÓN COLOCADORA CIERRE" y desarmaba la
+// tabla. El texto largo que manda el backend (`columnas`) pasa al TOOLTIP; que la
+// columna esté acotada se avisa con el color y con el chip de la barra, que no
+// ocupan ancho.
+function ayudaDe(c: Col, columnas: Columnas | undefined, acotada: boolean): string {
+  const largo = columnas?.[c.k as keyof Columnas];
+  if (acotada && typeof largo === "string") return `${largo}.\n${c.ayuda}`;
+  return c.ayuda;
 }
 const COLS: Col[] = [
   { k: "clientes", label: "Clientes", tipo: "int",
@@ -242,10 +246,10 @@ export function ProfundidadClientesView(
         { header: "Clientes", key: "clientes", format: "integer" },
         { header: "Con AuM", key: "con_aum", format: "integer" },
         { header: "Sin AuM", key: "sin_aum", format: "integer" },
-        { header: d?.columnas?.activos ?? "Activos", key: "activos", format: "integer", width: 16 },
-        { header: d?.columnas?.ratio_actividad ?? "Ratio activ.", key: "ratio", format: "percent", width: 16 },
-        { header: d?.columnas?.aranceles ?? "Aranceles", key: "aranceles", format: "currency", width: 20 },
-        { header: d?.columnas?.arancel_por_activo ?? "Aranc. / activo", key: "arancel_por_activo", format: "currency", width: 16 },
+        { header: "Activos", key: "activos", format: "integer" },
+        { header: "Ratio activ.", key: "ratio", format: "percent" },
+        { header: "Aranceles", key: "aranceles", format: "currency", width: 18 },
+        { header: "Aranc. / activo", key: "arancel_por_activo", format: "currency", width: 16 },
         { header: "AuM", key: "aum", format: "currency", width: 20 },
         { header: "Foto AuM", key: "aum_snapshot", format: "date", width: 12 },
       ],
@@ -321,11 +325,15 @@ export function ProfundidadClientesView(
                 const base = hayFiltro && !filtradas.has(c.k);
                 return (
                   <th key={c.k}
-                    title={c.ayuda + (base ? "\nEl filtro de operación NO toca esta columna: es la base entera." : "")}
-                    className={"px-3 py-2 text-right font-normal " +
+                    title={ayudaDe(c, d?.columnas, acota)
+                      + (base ? "\nEl filtro de operación NO toca esta columna: es la base entera." : "")}
+                    className={"px-3 py-2 text-right font-normal whitespace-nowrap " +
                       (acota ? "text-[var(--t-accent)] " : "") +
                       (base ? "opacity-50 " : "")}>
-                    {headerDe(c, d?.columnas)}
+                    {c.label}
+                    {/* Punto en la columna acotada: dice "esto está filtrado" sin
+                        agregarle un solo carácter de ancho al encabezado. */}
+                    {acota && <span className="ml-1 text-[var(--t-accent)]" aria-hidden="true">•</span>}
                   </th>
                 );
               })}
