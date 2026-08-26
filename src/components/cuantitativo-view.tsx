@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { fetchJson } from "@/lib/fetch-json";
+import { PerfilClienteModal } from "./perfil-cliente-modal";
 import { fmtMoneyFull } from "@/lib/fmt-money";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
@@ -127,6 +128,9 @@ export function CuantitativoView(
   // Filtro por celda del cuadrante: los chips de arriba ACOTAN la tabla en vez de
   // ser una ilustración. Así el cuadrado se gana su lugar ocupando una línea.
   const [tipo, setTipo] = useState<string | null>(null);
+  // Click en una fila → la ficha operativa del cliente. Vive en el shell y no en
+  // cada tabla: así una sola pieza sabe abrirlo y las tres listas pueden usarlo.
+  const [ficha, setFicha] = useState<string | null>(null);
   const [mes, setMes] = usePersistedState<string>("cuanti.mes", "");
   // Los cortes son DE CADA USUARIO: se guardan en la sesión, no en la base. Cada
   // uno explora sin moverle la lista al de al lado.
@@ -363,11 +367,16 @@ export function CuantitativoView(
 
       {/* ── Cuerpo ────────────────────────────────────────────────────────── */}
       <div className="flex-1 min-h-0 overflow-auto">
-        {solapa === "importan" && <Importan d={d} tipo={tipo} />}
-        {solapa === "apagan" && <Apagan d={d} />}
-        {solapa === "perdieron" && <Perdieron d={d} />}
+        {solapa === "importan" && <Importan d={d} tipo={tipo} abrir={setFicha} />}
+        {solapa === "apagan" && <Apagan d={d} abrir={setFicha} />}
+        {solapa === "perdieron" && <Perdieron d={d} abrir={setFicha} />}
         {!d && !err && <div className="px-4 py-6 text-[11px] text-[var(--t-text-muted)]">cargando…</div>}
       </div>
+
+      {ficha && (
+        <PerfilClienteModal key={ficha} idCuenta={ficha} moneda={moneda}
+          hasta={d?.fin} onCerrar={() => setFicha(null)} />
+      )}
 
       {/* ── Pie: lo que las listas NO pueden saber ─────────────────────────── */}
       {d && (
@@ -424,7 +433,7 @@ function Pie({ l }: { l: Lista<unknown> }) {
       {l.items.length === l.n
         ? `${l.n} cuentas`
         : `mostrando ${l.items.length} de ${l.n} (tope ${l.limite}) — el contador se cuenta sobre todas`}
-      {" · ordenado por plata en juego, no por gravedad de la señal"}
+      {" · ordenado por plata en juego, no por gravedad de la señal · click en una fila = la ficha del cliente"}
     </div>
   );
 }
@@ -434,7 +443,7 @@ function Pie({ l }: { l: Lista<unknown> }) {
 // arriba, que además ACOTA esta tabla. Un cuadrado de 200 px de alto arriba de la
 // lista empujaba la lista fuera de la pantalla — y era una ilustración, no un
 // control.
-function Importan({ d, tipo }: { d: Resp | null; tipo: string | null }) {
+function Importan({ d, tipo, abrir }: { d: Resp | null; tipo: string | null; abrir: (id: string) => void }) {
   if (!d) return null;
   const items = tipo
     ? d.quienes_importan.items.filter((i) => i.tipo === tipo)
@@ -458,7 +467,9 @@ function Importan({ d, tipo }: { d: Resp | null; tipo: string | null }) {
         </tr></thead>
         <tbody>
           {items.map((i) => (
-            <tr key={i.id_cuenta} className={"hover:bg-[var(--t-surface)] " +
+            <tr key={i.id_cuenta} onClick={() => abrir(i.id_cuenta)}
+              title="Ver la ficha operativa del cliente"
+              className={"cursor-pointer hover:bg-[var(--t-surface)] " +
               (i.tipo === "grande_irregular" ? "bg-[var(--t-tint-red)]" : "")}>
               <td className={TD + " text-left text-[var(--t-text-muted)]"}>[{i.id_cuenta}]</td>
               <td className={TDN}>{i.denominacion}<Tag tipo={i.tipo} /></td>
@@ -480,7 +491,7 @@ function Importan({ d, tipo }: { d: Resp | null; tipo: string | null }) {
 }
 
 // ── SE ESTÁN APAGANDO ───────────────────────────────────────────────────────
-function Apagan({ d }: { d: Resp | null }) {
+function Apagan({ d, abrir }: { d: Resp | null; abrir: (id: string) => void }) {
   if (!d) return null;
   if (!d.se_apagan.items.length) {
     return <Vacio que="ningún cliente con ritmo medible rompió su patrón con este corte." />;
@@ -501,7 +512,9 @@ function Apagan({ d }: { d: Resp | null }) {
         </tr></thead>
         <tbody>
           {d.se_apagan.items.map((i) => (
-            <tr key={i.id_cuenta} className={"hover:bg-[var(--t-surface)] " +
+            <tr key={i.id_cuenta} onClick={() => abrir(i.id_cuenta)}
+              title="Ver la ficha operativa del cliente"
+              className={"cursor-pointer hover:bg-[var(--t-surface)] " +
               (i.retiro ? "bg-[var(--t-tint-red)]" : "")}>
               <td className={TD + " text-left text-[var(--t-text-muted)]"}>[{i.id_cuenta}]</td>
               <td className={TDN}>{i.denominacion}</td>
@@ -525,7 +538,7 @@ function Apagan({ d }: { d: Resp | null }) {
 }
 
 // ── PERDIERON AuM ───────────────────────────────────────────────────────────
-function Perdieron({ d }: { d: Resp | null }) {
+function Perdieron({ d, abrir }: { d: Resp | null; abrir: (id: string) => void }) {
   if (!d) return null;
   const f = d.foto_aum;
   if (!d.perdieron_aum.items.length) {
@@ -546,7 +559,9 @@ function Perdieron({ d }: { d: Resp | null }) {
         </tr></thead>
         <tbody>
           {d.perdieron_aum.items.map((i) => (
-            <tr key={i.id_cuenta} className={"hover:bg-[var(--t-surface)] " +
+            <tr key={i.id_cuenta} onClick={() => abrir(i.id_cuenta)}
+              title="Ver la ficha operativa del cliente"
+              className={"cursor-pointer hover:bg-[var(--t-surface)] " +
               (i.alerta ? "bg-[var(--t-tint-red)]" : "")}>
               <td className={TD + " text-left text-[var(--t-text-muted)]"}>[{i.id_cuenta}]</td>
               <td className={TDN}>{i.denominacion}</td>
