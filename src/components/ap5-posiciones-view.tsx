@@ -73,6 +73,15 @@ type Faltantes = {
   cuentas_sin_nombre?: number; cuentas_sin_grupo?: number; cuentas?: number;
   cuentas_sin_cargar?: number;
 };
+/** CUÁNDO se tocó por última vez cada insumo. Son TRES relojes: la posición y
+ *  los márgenes los trae el job de las 10; el arrastre lo carga una persona. Un
+ *  solo "actualizado" tendría que elegir uno y taparía a los otros dos. */
+type Actualizado = {
+  posicion: string | null;
+  margenes: string | null;
+  arrastre: string | null;
+};
+
 type Vista = {
   fecha: string | null; fecha_anterior: string | null;
   fechas: Fecha[]; rankings: Ranking[]; grupos: string[];
@@ -83,6 +92,7 @@ type Vista = {
   // tipo no borraría el campo, solo lo dejaría sin documentar.
   diferencias_hoy: DifHoy[]; por_instrumento: Instr[]; acumulado: Acum[];
   faltantes: Faltantes;
+  actualizado: Actualizado;
   requerimiento_margenes: Requerimiento;
   activo_integrado: Requerimiento;
 };
@@ -269,7 +279,7 @@ export function Ap5PosicionesView() {
           ))}
         </select>
         {cargando && <span className="text-[var(--t-text-muted)]">actualizando…</span>}
-        <div className="ml-auto"><Faltantes f={v.faltantes} /></div>
+        <div className="ml-auto"><Sello a={v.actualizado} f={v.faltantes} /></div>
       </div>
 
       {/* ── La cabecera del reporte ──────────────────────────────────────────
@@ -614,29 +624,71 @@ function Ladrillo({ titulo, items, total, filas, onFila }: {
 
 /** Lo que la vista NO puede afirmar. Se declara, no se esconde: omitirlo daría
  *  un total plausible al que le falta algo. */
-function Faltantes({ f }: { f: Faltantes }) {
-  const sinMult = f.simbolos_sin_multiplicador ?? [];
-  const fuera = f.fuera_de_tabs ?? [];
-  const avisos: string[] = [];
-  // Lo primero: una posición que no se dibuja en ninguna tab. Es lo que más
-  // fácil pasa desapercibido, justamente porque no está en pantalla.
-  for (const x of fuera) {
-    avisos.push(`${FAMILIA[x.familia] ?? x.familia}: ${x.cuentas} cuenta(s) fuera de las tabs`);
+/** ÚLTIMA ACTUALIZACIÓN. Tres sellos, uno por insumo.
+ *
+ *  ⚠️ **Es el único dato de esta pantalla que no se puede derivar mirando los
+ *  números.** Un job que no corrió deja los datos de ayer, y eso se ve idéntico
+ *  a un día sin movimiento: las mismas filas, los mismos totales, cero señales.
+ *  Sin el sello, «miré y estaba todo igual» y «el job murió el jueves» son
+ *  indistinguibles.
+ *
+ *  ⚠️ **Los faltantes viajan en el `title`, no en un cartel.** Antes eran una
+ *  banda roja en la barra; se sacó porque esta vista se IMPRIME para gerencia
+ *  (pedido del user, 2026-08-26). Un tooltip no sale en el papel y la
+ *  información no se pierde: una posición que no se dibuja en ninguna tab
+ *  seguiría siendo invisible si además la borráramos de acá.
+ */
+function Sello({ a, f }: { a: Actualizado; f: Faltantes }) {
+  const pend: string[] = [];
+  for (const x of f.fuera_de_tabs ?? []) {
+    pend.push(`${FAMILIA[x.familia] ?? x.familia}: ${x.cuentas} cuenta(s) fuera de las tabs`);
   }
-  if (sinMult.length) avisos.push(`${sinMult.length} símbolo(s) sin multiplicador`);
-  if (f.cuentas_sin_grupo) avisos.push(`${f.cuentas_sin_grupo} sin grupo`);
-  if (f.cuentas_sin_nombre) avisos.push(`${f.cuentas_sin_nombre} sin nombre`);
-  if (f.cuentas_sin_cargar) avisos.push(`${f.cuentas_sin_cargar} sin arrastre cargado`);
-  if (!avisos.length) return <span className="text-[10px] text-[var(--t-text-muted)]">sin faltantes</span>;
+  const sinMult = f.simbolos_sin_multiplicador ?? [];
+  if (sinMult.length) {
+    pend.push(`${sinMult.length} símbolo(s) sin multiplicador: ` +
+      sinMult.map((s) => `${s.symbol} (${s.filas})`).join(", "));
+  }
+  if (f.cuentas_sin_grupo) pend.push(`${f.cuentas_sin_grupo} cuenta(s) sin grupo`);
+  if (f.cuentas_sin_nombre) pend.push(`${f.cuentas_sin_nombre} cuenta(s) sin nombre`);
+  if (f.cuentas_sin_cargar) pend.push(`${f.cuentas_sin_cargar} sin arrastre cargado`);
+
+  const partes: [string, string | null][] = [
+    ["posición", a?.posicion ?? null],
+    ["márgenes", a?.margenes ?? null],
+    ["arrastre", a?.arrastre ?? null],
+  ];
   return (
     <span
-      className="text-[10px] text-[var(--t-neg)] border border-[var(--t-neg)]/40 px-2 py-0.5"
-      title={sinMult.map((s) => `${s.symbol} (${s.filas} filas)`).join("\n") || undefined}
+      className="text-[10px] text-[var(--t-text-muted)] tabular-nums"
+      title={[
+        "Última actualización de cada insumo:",
+        ...partes.map(([k, t]) => `  ${k}: ${t ? fmtSello(t, true) : "nunca"}`),
+        ...(pend.length ? ["", "Pendientes (no se imprimen):", ...pend.map((x) => `  · ${x}`)] : []),
+      ].join("\n")}
     >
-      ⚠ {avisos.join(" · ")}
+      {partes.map(([k, t], i) => (
+        <span key={k}>
+          {i > 0 && <span className="mx-1 opacity-40">·</span>}
+          {k} <span className={t ? "" : "text-[var(--t-neg)]"}>{t ? fmtSello(t) : "—"}</span>
+        </span>
+      ))}
     </span>
   );
 }
+
+/** ISO → "26/08 13:05". Con `largo`, agrega los segundos y el año.
+ *
+ *  Acá SÍ se usa `new Date(iso)`: el sello viene con hora y zona (`...+00:00`),
+ *  así que no es el caso de `YYYY-MM-DD` suelto que se leía como medianoche UTC
+ *  y en ART mostraba el día anterior. */
+function fmtSello(iso: string, largo = false): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const p = (n: number) => String(n).padStart(2, "0");
+  const base = `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return largo ? `${base}:${p(d.getSeconds())} (${d.getFullYear()})` : base;
+}
+
 
 /** Las DOS cosas que ninguna fuente sabe y carga una persona: el GRUPO (parte
  *  los rankings; la cámara no lo sabe y NO se deduce del nombre — REGLA #9) y el
