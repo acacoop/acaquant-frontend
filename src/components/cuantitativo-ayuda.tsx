@@ -43,27 +43,28 @@ export function ayudaDe(clave: string, c: Record<string, number>): Ayuda | null 
       "la lista como si estuvieran desaprovechados.",
     columnas: [
       { c: "Arancel 12m", v: "Lo que la cuenta dejó de arancel en los últimos 12 meses." },
-      { c: "Tiene", v: "El AuM PROMEDIO de las fotos de tenencia de la ventana, no la " +
-          "foto de hoy. Un mes en el que la cuenta no aparece cuenta como cero." },
-      { c: "ROA", v: `Arancel 12m dividido Tiene, en bps (100 bps = 1%). Las dos ` +
-          `columnas están en pantalla: el número se verifica con una calculadora. ` +
-          `Debajo del piso de ${pisoRoa} de AuM promedio no se calcula y dice "—".` },
+      { c: "Tiene (prom. 12m)", v: "El promedio de lo que la cuenta tuvo en los últimos " +
+          "12 meses: se toma una foto de la tenencia a fin de cada mes y se promedian " +
+          "las 12. NO es la foto de hoy. Un mes en el que la cuenta no aparece cuenta " +
+          "como cero." },
+      { c: "ROA", v: "El arancel de los últimos 12 meses dividido el promedio de lo que " +
+          "la cuenta tuvo en esos mismos 12 meses, en bps (100 bps = 1%). Los dos " +
+          "números están en las columnas de al lado, así que se verifica con una " +
+          `calculadora. Debajo de ${pisoRoa} de promedio no se calcula y dice "—".` },
       { c: "Cupo", v: "El cupo transaccional que el custodio le reconoce a la cuenta. " +
           "Se carga a mano por Excel y no queda registrada la fecha de carga." },
-      { c: "SOW", v: "Tiene dividido Cupo. Qué parte de la plata que el custodio le " +
-          "reconoce está acá. También se verifica con las dos columnas de al lado." },
+      { c: "SOW", v: "El promedio de lo que la cuenta tuvo en 12 meses dividido su cupo " +
+          "transaccional. Qué parte de la plata que el custodio le reconoce está acá. " +
+          "También se verifica con las dos columnas de al lado." },
       { c: "Operación favorita", v: "El tipo de operación en el que la cuenta dejó MÁS " +
-          "ARANCEL en la ventana (no el de más volumen). En el tooltip, cuánto dejó " +
+          "ARANCEL en los 12 meses (no el de más volumen). En el tooltip, cuánto dejó " +
           "y cuántos tipos distintos usa." },
-      { c: "⚠ al lado del nombre", v: "La cuenta lleva más de tres veces su propio " +
-          "ritmo sin operar. Es la misma señal y la misma cuenta que la lista de " +
-          "clientes que se apagan." },
     ],
     notas: [
-      "La línea de arriba de la tabla es el segmento entero: cuántos clientes tiene, " +
-        "cuánto rinde el del medio y cuánto tiene el del medio. Un ROA suelto no se " +
-        "puede juzgar sin eso.",
-      "El ROA en rojo está por debajo de la mediana del segmento.",
+      `ROA promedio, arriba de la tabla, es el promedio del segmento elegido. Se mueve ` +
+        `cuando movés el piso: subirlo saca cuentas del cálculo.`,
+      "El ROA en rojo está por debajo del ROA del cliente que queda justo en el medio " +
+        "del segmento.",
       "Las filas pintadas son cuentas que TIENEN plata y no dejaron un solo peso de " +
         "arancel en 12 meses.",
       "Se puede ordenar por cualquier columna con números: click en el título. Por " +

@@ -46,8 +46,6 @@ export type ItemConoce = {
   cupo: number | null; sow_pct: number | null;
   operacion_fav: string | null; operacion_fav_arancel: number | null;
   n_tipos: number;
-  ritmo_dias: number | null; dias_sin_operar: number | null;
-  apagandose: boolean; ultima_op: string | null;
 };
 export type RespConoce = {
   segmento: string | null;
@@ -57,9 +55,9 @@ export type RespConoce = {
   n: number; limite?: number; items: ItemConoce[];
   aviso?: string;
   contexto?: {
-    n_clientes: number; roa_mediana: number | null; n_con_roa: number;
-    sow_mediana: number | null; n_con_cupo: number; aum_mediana: number | null;
-    arancel_total: number; n_sin_arancel: number; n_apagandose: number;
+    n_clientes: number; roa_promedio: number | null; roa_mediana: number | null;
+    n_con_roa: number; sow_mediana: number | null; n_con_cupo: number;
+    aum_mediana: number | null; arancel_total: number; n_sin_arancel: number;
   };
   foto_aum?: { ultima: string | null; n_fotos: number };
   fuentes?: Record<string, string>;
@@ -99,8 +97,6 @@ const DEF: Record<string, number> = {
   piso_roa: 1_000_000,
 };
 
-const fmtInt = (n: number | null | undefined) =>
-  n == null ? "—" : n.toLocaleString("es-AR");
 const fmtFecha = (iso: string | null | undefined) =>
   !iso ? "—" : `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 const arrQS = (k: string, vs: string[]) =>
@@ -228,7 +224,6 @@ export function CuantitativoView(
             { header: "Cupo", key: "cupo", format: "currency" as const, width: 20 },
             { header: "SOW %", key: "sow_pct", format: "percent" as const },
             { header: "Operación favorita", key: "operacion_fav", format: "text" as const, width: 22 },
-            { header: "Última op", key: "ultima_op", format: "date" as const, width: 12 },
           ],
         }],
       });
@@ -314,7 +309,7 @@ export function CuantitativoView(
             <span className="opacity-30">·</span>
           </>
         )}
-        {CORTES_DE[solapa].map((k) => (
+        {(solapa === "conoce" && !segmento ? [] : CORTES_DE[solapa]).map((k) => (
           <span key={k} className="inline-flex items-center gap-1.5 shrink-0"
             title={d?.cortes_def?.[k]?.que}>
             <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
@@ -331,6 +326,23 @@ export function CuantitativoView(
             <span className="text-[10px] text-[var(--t-text-muted)]">{UNIDAD[k]}</span>
           </span>
         ))}
+        {/* Pegado al corte que lo cambia: subir el piso saca cuentas del cálculo
+            y el número se mueve en el acto. Separados, nadie ata una cosa con la otra. */}
+        {solapa === "conoce" && segmento && dc?.contexto && (
+          <span className="inline-flex items-baseline gap-1.5 shrink-0"
+            title={`Promedio simple de los ${dc.contexto.n_con_roa} clientes con ROA medible.`
+              + (dc.contexto.roa_mediana != null
+                 ? ` El del medio rinde ${dc.contexto.roa_mediana} bps — si están lejos uno del otro, hay pocas cuentas tirando del promedio.`
+                 : "")}>
+            <span className="opacity-30">·</span>
+            <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
+              ROA promedio
+            </span>
+            <span className="text-[13px] font-semibold tabular-nums text-[var(--t-accent)]">
+              {dc.contexto.roa_promedio != null ? `${dc.contexto.roa_promedio} bps` : "—"}
+            </span>
+          </span>
+        )}
         <span className="ml-auto flex items-center gap-2 shrink-0">
           <button onClick={() => setAyuda(true)} aria-haspopup="dialog"
             className="text-[10px] px-2 py-0.5 border border-[var(--t-border-2)]
@@ -350,38 +362,6 @@ export function CuantitativoView(
           )}
         </span>
       </div>
-
-      {/* ── El contexto DEL SEGMENTO ────────────────────────────────────────
-          Un ROA suelto no se puede juzgar: 18 bps puede ser malísimo o normal
-          según con quién se compare. Acá está el con-quién, y sale del backend
-          —de la misma consulta que dibuja la tabla—, no de sumar filas acá. */}
-      {solapa === "conoce" && segmento && dc?.contexto && (
-        <div className="flex items-baseline gap-2 px-4 py-1.5 border-b border-[var(--t-border)]
-                        bg-[var(--t-surface)] shrink-0 overflow-x-auto whitespace-nowrap
-                        text-[11px] text-[var(--t-text-muted)]">
-          <span className="uppercase tracking-widest text-[var(--t-text-dim)] font-semibold">
-            {segmento}
-          </span>
-          <Sep />
-          <span><N>{fmtInt(dc.contexto.n_clientes)}</N> clientes</span>
-          <Sep />
-          <span>el del medio rinde <N>{dc.contexto.roa_mediana ?? "—"} bps</N>
-            {" "}<span className="opacity-70">({dc.contexto.n_con_roa} medibles)</span></span>
-          <Sep />
-          <span>tiene <N>{dc.contexto.aum_mediana != null ? fmtMoneyFull(dc.contexto.aum_mediana) : "—"}</N></span>
-          <Sep />
-          <span>SOW del medio <N>{dc.contexto.sow_mediana ?? "—"}%</N>
-            {" "}<span className="opacity-70">({dc.contexto.n_con_cupo} con cupo)</span></span>
-          {dc.contexto.n_sin_arancel > 0 && (
-            <><Sep /><span className="text-[var(--t-neg)]">
-              <N>{dc.contexto.n_sin_arancel}</N> con plata y CERO arancel
-            </span></>
-          )}
-          {dc.contexto.n_apagandose > 0 && (
-            <><Sep /><span><N>{dc.contexto.n_apagandose}</N> apagándose</span></>
-          )}
-        </div>
-      )}
 
       {/* ── Cuerpo ────────────────────────────────────────────────────────── */}
       <div className="flex-1 min-h-0 overflow-auto">
@@ -429,10 +409,6 @@ const UNIDAD: Record<string, string> = {
 const fmtCorte = (k: string, v: number) =>
   k.startsWith("piso") ? Math.round(v).toLocaleString("es-AR") : String(v);
 
-function N({ children }: { children: React.ReactNode }) {
-  return <span className="text-[var(--t-accent)] font-semibold tabular-nums">{children}</span>;
-}
-function Sep() { return <span className="opacity-40">·</span>; }
 const TH = "px-3 py-2 text-[9px] uppercase tracking-wide font-normal text-[var(--t-text-muted)] whitespace-nowrap border-b border-[var(--t-border-2)] bg-[var(--t-panel)] sticky top-0";
 const TD = "px-3 py-1.5 text-[12.5px] tabular-nums whitespace-nowrap border-b border-[var(--t-border)]";
 const TDN = "px-3 py-1.5 text-[13px] border-b border-[var(--t-border)]";
@@ -498,8 +474,10 @@ function Conoce(
             Cliente{orden === "denominacion" && <span className="text-[var(--t-accent)] ml-0.5">▾</span>}
           </th>
           <th className={TH + " text-left"}>Operador</th>
-          {col("arancel", "Arancel 12m", "Lo que dejó de arancel en los últimos 12 meses.")}
-          {col("aum", "Tiene", "El AuM PROMEDIO de las fotos de la ventana, no la de hoy: es el divisor del ROA, y así el ROA se puede verificar dividiendo estas dos columnas.")}
+          {col("arancel", `Arancel ${d.meses ?? 12}m`,
+            `Lo que la cuenta dejó de arancel en los últimos ${d.meses ?? 12} meses.`)}
+          {col("aum", `Tiene (prom. ${d.meses ?? 12}m)`,
+            `El AuM PROMEDIO de los últimos ${d.meses ?? 12} meses (una foto de tenencia por fin de mes), NO la foto de hoy. Es el divisor del ROA, así que el ROA se verifica dividiendo estas dos columnas.`)}
           {col("roa", "ROA", "Arancel 12m ÷ Tiene, en bps (100 bps = 1%). Debajo del piso no se calcula: dividir por casi nada da un número que no significa nada.")}
           {col("cupo", "Cupo", "Cupo transaccional del custodio. Carga manual por Excel, sin fecha de carga registrada.")}
           {col("sow", "SOW", "Tiene ÷ Cupo. Qué parte de la plata que el custodio le reconoce está acá.")}
@@ -515,13 +493,7 @@ function Conoce(
                 // en ninguna lista porque justamente no operan.
                 (i.arancel <= 0 && (i.aum ?? 0) > 0 ? "bg-[var(--t-tint-red)]" : "")}>
               <td className={TD + " text-left text-[var(--t-text-muted)]"}>[{i.id_cuenta}]</td>
-              <td className={TDN}>
-                {i.denominacion}
-                {i.apagandose && (
-                  <span className="ml-1.5 text-[var(--t-neg)]"
-                    title={`Rompió su propio ritmo: suele operar cada ${i.ritmo_dias} días y lleva ${i.dias_sin_operar}`}>⚠</span>
-                )}
-              </td>
+              <td className={TDN}>{i.denominacion}</td>
               <td className={TDN + " text-[var(--t-text-dim)] text-[12px]"}>{i.operador_nombre || "—"}</td>
               <td className={TD + " text-right"}>{fmtMoneyFull(i.arancel)}</td>
               <td className={TD + " text-right"}
