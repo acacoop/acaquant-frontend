@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { MultiSelect } from "@/components/ui/multi-select";
+import { CuantitativoView } from "./cuantitativo-view";
 import { fetchJson } from "@/lib/fetch-json";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
@@ -180,8 +181,49 @@ function filtrosQS(f: Filtros): string {
     + arrQS("referido", f.referido) + arrQS("division", f.division);
 }
 
+// PROFUNDIDAD DE CLIENTES tiene DOS solapas adentro:
+//
+//   POR MES               la tabla mensual de siempre (default)
+//   ANÁLISIS CUANTITATIVO las tres listas de llamadas por cliente
+//
+// El conmutador es un segmentado FINO —no la sub-nav grande del agente— porque la
+// tabla mensual es la vista principal y no puede pagar dos bandas de navegación.
+// La sub-nav grande vive UNA sola vez, adentro de Análisis Cuantitativo, donde sus
+// tres solapas sí necesitan contador y bajada.
 export function ProfundidadClientesView(
   { moneda = "ARS", ...filtros }: { moneda?: "ARS" | "USD" } & Filtros,
+) {
+  const [vista, setVista] = usePersistedState<"mes" | "cuantitativo">(
+    "profundidad.vista", "mes");
+  const conmutador = (
+    <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)] shrink-0">
+      {([["mes", "Por mes"], ["cuantitativo", "Análisis Cuantitativo"]] as const).map(([v, t]) => (
+        <button key={v} onClick={() => setVista(v)}
+          className={"px-3 py-1 text-[11px] font-semibold tracking-wide " +
+            (vista === v
+              ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
+              : "bg-transparent text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>
+          {t}
+        </button>
+      ))}
+    </div>
+  );
+  if (vista === "cuantitativo") {
+    return (
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
+          {conmutador}
+        </div>
+        <CuantitativoView moneda={moneda} {...filtros} />
+      </div>
+    );
+  }
+  return <PorMes moneda={moneda} conmutador={conmutador} {...filtros} />;
+}
+
+function PorMes(
+  { moneda = "ARS", conmutador, ...filtros }:
+  { moneda?: "ARS" | "USD"; conmutador: React.ReactNode } & Filtros,
 ) {
   const f: Filtros = filtros;
   // El filtro de OPERACIÓN vive en ESTA vista, no en la barra madre: solo acota
@@ -261,9 +303,7 @@ export function ProfundidadClientesView(
 
       {/* ── Cabecera: qué se está mirando y contra qué scope ───────────────── */}
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0 flex-wrap">
-        <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">
-          Profundidad de clientes
-        </span>
+        {conmutador}
         <span className="text-[9px] text-[var(--t-text-muted)]">
           {d ? `${d.desde} → ${d.hasta}` : "…"} · todo medido al ÚLTIMO día de cada mes · {d?.moneda ?? moneda}
         </span>

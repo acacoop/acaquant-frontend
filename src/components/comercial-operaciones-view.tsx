@@ -22,7 +22,6 @@ import { ComercialInforme } from "./comercial-informe-view";
 import { CobrosFuturosView } from "./cobros-futuros-view";
 import { ComercialControlView } from "./comercial-control-view";
 import { ProfundidadClientesView } from "./profundidad-clientes-view";
-import { CuantitativoView } from "./cuantitativo-view";
 import { fetchJson as getJson } from "@/lib/fetch-json";
 import { fmtFechaCorta, MESES_CORTOS as MESES } from "@/lib/fmt";
 
@@ -199,7 +198,7 @@ const FICHA_DATOS: [keyof Ficha, string][] = [
 ];
 
 // Sub-vistas de COMERCIAL (sub-nav arriba-izquierda).
-type SubView = "portfolio" | "analisis" | "profundidad" | "cuantitativo" | "informe" | "cobros_futuros" | "control_comercial";
+type SubView = "portfolio" | "analisis" | "profundidad" | "informe" | "cobros_futuros" | "control_comercial";
 
 // Estado comercial: color + label para las badges de la vista Análisis.
 const ESTADO_COLOR: Record<string, string> = {
@@ -510,7 +509,7 @@ export function ComercialOperacionesView(
       {/* ── HEADER: sub-nav (izq) + KPIs generales (der) ─────────────────── */}
       <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0 flex-wrap">
         <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-          {([["portfolio", "Portfolio & Operaciones"], ["analisis", "Análisis Comercial"], ["profundidad", "Profundidad de Clientes"], ["cuantitativo", "Análisis Cuantitativo"], ["cobros_futuros", "Cobros Futuros"], ["informe", "Informe"], ...(controlComercial ? [["control_comercial", "Control Comercial"] as [SubView, string]] : [])] as [SubView, string][]).map(
+          {([["portfolio", "Portfolio & Operaciones"], ["analisis", "Análisis Comercial"], ["profundidad", "Profundidad de Clientes"], ["cobros_futuros", "Cobros Futuros"], ["informe", "Informe"], ...(controlComercial ? [["control_comercial", "Control Comercial"] as [SubView, string]] : [])] as [SubView, string][]).map(
             ([v, label]) => (
               <button
                 key={v}
@@ -530,7 +529,7 @@ export function ComercialOperacionesView(
             Profundidad de Clientes también: su eje ES el tiempo (una fila por mes), así que
             un corte por fecha no significa nada ahí. Dejarla a la vista sin efecto haría
             parecer que la tab está rota. */}
-        {subview !== "cobros_futuros" && subview !== "profundidad" && subview !== "cuantitativo" && (
+        {subview !== "cobros_futuros" && subview !== "profundidad" && (
         <label className={"inline-flex items-center gap-1.5 border px-2 py-1 text-[11px] " + ((fechaCorte || desdeCorte) ? "border-[var(--t-accent)] bg-[var(--t-accent)]/10" : "border-[var(--t-border-2)] bg-[var(--t-panel)]")} title="Período Desde/Hasta: las columnas TOTAL (volumen/arancel) = el período elegido [Desde, Hasta]; las columnas MES + CTAS OPS = el mes calendario del HASTA (hasta=30/06 → junio; hasta=31/05 → mayo). AuM = foto a HASTA. Vacío = histórico hasta hoy / mes actual.">
           <span className="text-[10px] uppercase tracking-widest text-[var(--t-text-muted)]">Desde</span>
           {/* Sin min/max en el DOM: las restricciones cruzadas (Desde≤Hasta) + max=hoy hacían
@@ -549,7 +548,7 @@ export function ComercialOperacionesView(
         {/* Los KPIs se calculan al corte de la barra; en Profundidad ese corte está
             oculto, así que mostrarlos sería un número gobernado por un control que
             no se ve. */}
-        {subview !== "informe" && subview !== "profundidad" && subview !== "cuantitativo" && (
+        {subview !== "informe" && subview !== "profundidad" && (
           <div className="ml-auto flex items-center gap-3">
             <KpiChip label="AUM" value={resumen ? fmtAum(resumen.aum_gestionado) : "—"} />
             <KpiChip label="CLIENTES" value={resumen ? fmtN(resumen.n_clientes) : "—"} />
@@ -564,10 +563,6 @@ export function ComercialOperacionesView(
       {subview === "control_comercial" && controlComercial && <ComercialControlView moneda={moneda} operador={operador} nivel1={nivel1} nivel2={nivel2} nivel3={nivel3} nivel4={nivel4} nivel5={nivel5} referido={referido} division={division} />}
       {/* CobrosFuturos (acreencias, Mongo) sigue siendo single → toma el 1er valor de cada filtro. */}
       {subview === "cobros_futuros" && <CobrosFuturosView operador={operador[0] ?? "__todos__"} moneda={moneda} nivel1={nivel1[0] ?? ""} nivel2={nivel2[0] ?? ""} nivel3={nivel3[0] ?? ""} referido={referido[0] ?? ""} />}
-      {subview === "cuantitativo" && (
-        <CuantitativoView moneda={moneda} operador={operador} nivel1={nivel1} nivel2={nivel2}
-          nivel3={nivel3} nivel4={nivel4} nivel5={nivel5} referido={referido} division={division} />
-      )}
       {subview === "profundidad" && (
         <ProfundidadClientesView moneda={moneda} operador={operador} nivel1={nivel1} nivel2={nivel2}
           nivel3={nivel3} nivel4={nivel4} nivel5={nivel5} referido={referido} division={division} />
