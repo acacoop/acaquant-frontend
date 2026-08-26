@@ -456,9 +456,11 @@ export function Ap5PosicionesView() {
     const cuentaNombre = cuentasAca.find((c) => c.cuenta === cuentaAca)?.nombre ?? cuentaAca;
     const r = await copiarTab({
       tablas: tablas.filter((t) => t.filas.length > 1 || tab !== "consolidados"),
-      titulo: tab === "aca"
-        ? `Posiciones de ACA · ${cuentaNombre}`
-        : `Posiciones y diferencias · ${nombre}`,
+      // En POSICIONES DE ACA el título es SÓLO la cuenta: el nombre de la tab
+      // no le dice nada al que abre el mail, y la cuenta sí — es lo único que
+      // distingue una captura de otra. En las demás tabs el título sigue
+      // nombrando el reporte, que ahí es lo que identifica la imagen.
+      titulo: tab === "aca" ? cuentaNombre : `Posiciones y diferencias · ${nombre}`,
       fecha: fmtFecha(v.fecha),
       // Siete columnas numéricas por tabla: apiladas entran en el ancho de un
       // mail, al lado se van al doble.
