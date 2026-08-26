@@ -210,6 +210,10 @@ const FMT_ACA = (n: number, i: number) =>
 // Verde/rojo sólo de DIF PX en adelante: cantidad, nocional y los precios son
 // datos de la POSICIÓN, no resultado.
 const TONO_DESDE_ACA = 4;
+// ⚠️ El MISMO texto en la pantalla y en la imagen. Sin esta fila, un lado sin
+// posición sale como una cabecera de columnas y nada abajo — que se lee como
+// una captura CORTADA, no como una cuenta que no tiene nada de ese lado.
+const VACIO_ACA = "Sin posición abierta en esta cuenta.";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "agro", label: "FUTUROS AGRO" },
@@ -386,13 +390,15 @@ export function Ap5PosicionesView() {
                   valor: celdas(["CANTIDAD", l.etiquetaNocional, "P. ENTRADA",
                                  "P. AJUSTE", "DIF PX", "DIF %", "DIFERENCIAS"],
                                 plata) },
-                ...filas.map((f) => ({
-                  cuenta: f.symbol,
-                  valor: celdas(
-                    [f.cantidad, f.nocional, f.entrada, f.ajuste,
-                     f.dif_px, f.dif_pct, f.diferencias],
-                    FMT_ACA, TONO_DESDE_ACA),
-                })),
+                ...(filas.length === 0
+                  ? [{ cuenta: VACIO_ACA, valor: "" }]
+                  : filas.map((f) => ({
+                      cuenta: f.symbol,
+                      valor: celdas(
+                        [f.cantidad, f.nocional, f.entrada, f.ajuste,
+                         f.dif_px, f.dif_pct, f.diferencias],
+                        FMT_ACA, TONO_DESDE_ACA),
+                    }))),
                 // Un total por MONEDA, igual que en pantalla: dos monedas
                 // sumadas juntas dan un número que no existe.
                 // En el mail no hay tooltip que explique un hueco: si algún
@@ -879,7 +885,7 @@ function TablaAca({ titulo, color, etiquetaNocional, filas, totales }: {
               <tr>
                 <td colSpan={cols.length} className="px-2 py-3 text-center"
                     style={{ color: "#5b6472" }}>
-                  Sin posición abierta en esta cuenta.
+                  {VACIO_ACA}
                 </td>
               </tr>
             )}
