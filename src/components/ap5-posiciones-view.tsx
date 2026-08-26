@@ -145,6 +145,11 @@ const FAMILIA: Record<string, string> = { agro: "AGRO", dolar: "DÓLAR FUTURO", 
 // conserva su etiqueta, para que se vea que no son toneladas.
 type TabFam = "agro" | "dolar";
 type Tab = TabFam | "consolidados";
+// Del consolidado sólo ACUM. y DIARIA llevan verde/rojo: COMPRA, VENTA y NETA
+// son cantidades de la POSICIÓN —toneladas, contratos— y pintarlas sugiere una
+// ganancia o una pérdida donde no hay ninguna.
+const TONO_DESDE = 3;
+
 const TABS: { id: Tab; label: string }[] = [
   { id: "agro", label: "FUTUROS AGRO" },
   { id: "dolar", label: "FUTUROS DÓLAR" },
@@ -270,11 +275,13 @@ export function Ap5PosicionesView() {
                 valor: celdas(["COMPRA", "VENTA", "NETA", "ACUM.", "DIARIA"], plata) },
               ...b.filas.map((f) => ({
                 cuenta: f.etiqueta,
-                valor: celdas([f.compra, f.venta, f.neta, f.acum_hoy, f.diaria], plata),
+                valor: celdas([f.compra, f.venta, f.neta, f.acum_hoy, f.diaria], plata,
+                              TONO_DESDE),
               })),
               { cuenta: "TOTAL", destacada: true,
                 valor: celdas([b.total.compra, b.total.venta, b.total.neta,
-                               b.total.acum_hoy, b.total.diaria], plata) },
+                               b.total.acum_hoy, b.total.diaria], plata,
+                              TONO_DESDE) },
             ],
           }))
         : bloques.flatMap((r) => [

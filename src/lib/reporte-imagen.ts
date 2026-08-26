@@ -95,6 +95,11 @@ const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 const F_CUENTA = `13px ${MONO}`;
 const F_SUB = `10px ${MONO}`;
 const F_TITULO_TABLA = `bold 12px ${MONO}`;
+// ⚠️ La fila de TOTAL va en NEGRITA pero del MISMO CUERPO que las demás. Con el
+// cuerpo del título (12px) cada carácter mide distinto, y como las columnas se
+// alinean rellenando con espacios en monoespaciada, el total quedaba corrido
+// respecto de los números que suma.
+const F_TOTAL = `bold 13px ${MONO}`;
 const F_BARRA = `bold 14px ${MONO}`;
 const F_FIRMA = `11px ${MONO}`;
 
@@ -146,11 +151,11 @@ export async function reporteComoImagen(o: Opciones): Promise<Blob | null> {
       medidor.font = F_TITULO_TABLA;
       ancho = Math.max(ancho, medidor.measureText(t.titulo).width + CELDA_X * 2);
       for (const f of t.filas) {
-        medidor.font = F_CUENTA;
+        medidor.font = f.destacada ? F_TOTAL : F_CUENTA;
         const izq = medidor.measureText(f.cuenta).width;
         medidor.font = F_SUB;
         const sub = f.sub ? medidor.measureText(f.sub).width : 0;
-        medidor.font = F_CUENTA;
+        medidor.font = f.destacada ? F_TOTAL : F_CUENTA;
         const der = medidor.measureText(textoValor(f)).width;
         ancho = Math.max(ancho, Math.max(izq, sub) + SEP_COL + der + CELDA_X * 2);
       }
@@ -244,7 +249,7 @@ export async function reporteComoImagen(o: Opciones): Promise<Blob | null> {
         ctx.strokeRect(colX + 0.5, y + 0.5, w - 1, h - 1);
 
         const medio = f.sub ? y + 12 : y + h / 2;
-        ctx.font = f.destacada ? F_TITULO_TABLA : F_CUENTA;
+        ctx.font = f.destacada ? F_TOTAL : F_CUENTA;
         ctx.fillStyle = TINTA;
         ctx.textAlign = "left";
         ctx.fillText(f.cuenta, colX + CELDA_X, medio);
