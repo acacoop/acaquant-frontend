@@ -28,7 +28,10 @@ import { fmt0, fmt2, Panel } from "./ui/informe";
 
 // ── Lo que devuelve el backend (espejo de api/services/ap5_posiciones.py) ────
 type Fecha = { fecha: string; filas: number; cuentas: number };
-type DifHoy = { moneda: string; familia: string; importe: number; cuentas: number };
+// `importe` es lo que se MOVIÓ hoy (acumulado hoy − acumulado ayer), NO la Σ
+// de `daily_settlement` —ese campo ya viene acumulado y sumarlo daba el total
+// de la mesa con el rótulo «hoy». `null` = no hay día anterior con qué comparar.
+type DifHoy = { moneda: string; importe: number | null; acumulado: number; cuentas: number };
 // `importe` ES el acumulado (no la diferencia del día): es lo que el reporte
 // de la mesa rankea. Se llama así porque el nombre del campo lo fija su rol.
 type RankItem = {
@@ -285,10 +288,22 @@ export function Ap5PosicionesView() {
         <Cabecera titulo="Diferencias ACA hoy">
           {v.diferencias_hoy.length === 0 && <Vacio texto="sin diferencias este día" />}
           {v.diferencias_hoy.map((d) => (
-            <span key={`${d.familia}-${d.moneda}`} className="flex items-baseline gap-1.5">
+            <span
+              key={d.moneda}
+              className="flex items-baseline gap-1.5"
+              title={`Acumulado de la mesa en ${d.moneda}: ${fmt0(d.acumulado)}\n`
+                + `${d.cuentas} cuentas\n`
+                + (d.importe === null
+                    ? "Sin día anterior: no se puede calcular la diferencia."
+                    : `Diferencia = acumulado de hoy − el de ${fmtFecha(v.fecha_anterior)}`)}
+            >
               <span className="text-[9px] text-[var(--t-text-muted)]">En {d.moneda}</span>
-              <span className={`font-mono tabular-nums font-semibold ${tono(d.importe)}`}>
-                {fmt0(d.importe)}
+              <span
+                className={`font-mono tabular-nums font-semibold ${
+                  d.importe === null ? "" : tono(d.importe)
+                }`}
+              >
+                {d.importe === null ? "—" : fmt0(d.importe)}
               </span>
             </span>
           ))}
