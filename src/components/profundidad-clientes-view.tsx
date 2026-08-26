@@ -208,15 +208,10 @@ export function ProfundidadClientesView(
       ))}
     </div>
   );
+  // En Cuantitativo el conmutador viaja ADENTRO de la fila de la sub-nav: una
+  // barra propia sería una banda entera de alto para dos botones.
   if (vista === "cuantitativo") {
-    return (
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
-          {conmutador}
-        </div>
-        <CuantitativoView moneda={moneda} {...filtros} />
-      </div>
-    );
+    return <CuantitativoView moneda={moneda} conmutador={conmutador} {...filtros} />;
   }
   return <PorMes moneda={moneda} conmutador={conmutador} {...filtros} />;
 }

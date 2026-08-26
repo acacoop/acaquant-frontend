@@ -89,6 +89,20 @@ const DEF: Record<string, number> = {
   caida_pct: 75, meses_atras: 3, piso_aum: 10_000_000,
 };
 
+// Las cuatro celdas del cuadrante. `eje` es lo que se perdió al aplanarlo a una
+// línea y por eso viaja en el tooltip de cada chip.
+const CUADRANTE = [
+  { k: "nucleo" as const, t: "Núcleo", color: "var(--t-pos)",
+    eje: "Deja mucho y viene seguido", dice: "El negocio. No los podés perder." },
+  { k: "grande_irregular" as const, t: "Grande irregular", color: "var(--t-neg)",
+    eje: "Deja mucho pero viene salteado",
+    dice: "Mucha plata, cero previsibilidad. Cuando se van, su silencio parece normal." },
+  { k: "habitual" as const, t: "Habitual", color: "var(--t-accent)",
+    eje: "Deja poco pero viene seguido", dice: "Fieles y chicos. ¿Se pueden hacer crecer?" },
+  { k: "ocasional" as const, t: "Ocasional", color: "var(--t-text-muted)",
+    eje: "Deja poco y viene salteado", dice: "La cola." },
+];
+
 const TIPO_LABEL: Record<string, string> = {
   nucleo: "Núcleo", grande_irregular: "Grande irregular",
   habitual: "Habitual", ocasional: "Ocasional",
@@ -106,9 +120,13 @@ export type FiltrosMadre = {
 };
 
 export function CuantitativoView(
-  { moneda = "ARS", ...f }: { moneda?: "ARS" | "USD" } & FiltrosMadre,
+  { moneda = "ARS", conmutador, ...f }:
+  { moneda?: "ARS" | "USD"; conmutador?: React.ReactNode } & FiltrosMadre,
 ) {
   const [solapa, setSolapa] = usePersistedState<Solapa>("cuanti.solapa", "importan");
+  // Filtro por celda del cuadrante: los chips de arriba ACOTAN la tabla en vez de
+  // ser una ilustración. Así el cuadrado se gana su lugar ocupando una línea.
+  const [tipo, setTipo] = useState<string | null>(null);
   const [mes, setMes] = usePersistedState<string>("cuanti.mes", "");
   // Los cortes son DE CADA USUARIO: se guardan en la sesión, no en la base. Cada
   // uno explora sin moverle la lista al de al lado.
@@ -221,6 +239,7 @@ export function CuantitativoView(
 
       {/* ── Sub-nav estilo AV AGENT: nombre, contador y bajada ────────────── */}
       <div className="flex items-stretch gap-0 border-b border-[var(--t-border-2)] px-1 shrink-0 overflow-x-auto">
+        {conmutador && <div className="flex items-center pr-3 pl-1">{conmutador}</div>}
         {MAINS.map((m) => (
           <button key={m.k} onClick={() => setSolapa(m.k)}
             className={"px-5 pt-3 pb-2 text-left whitespace-nowrap border-b-[3px] " +
@@ -285,6 +304,44 @@ export function CuantitativoView(
         </span>
       </div>
 
+      {/* ── El cuadrante, en UNA línea y como FILTRO ──────────────────────── */}
+      {/* Los dos ejes (deja mucho/poco × viene seguido/salteado) siguen ahí: cada
+          chip los lleva en su tooltip. Lo que se fue es el bloque de 200 px que
+          empujaba la tabla fuera de la pantalla siendo sólo una ilustración. */}
+      {solapa === "importan" && d && (
+        <div className="flex items-center gap-1.5 px-4 py-1.5 border-b border-[var(--t-border)]
+                        shrink-0 overflow-x-auto whitespace-nowrap">
+          <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)] mr-1">
+            Qué tan cliente es
+          </span>
+          {CUADRANTE.map((c) => {
+            const on = tipo === c.k;
+            return (
+              <button key={c.k} onClick={() => setTipo(on ? null : c.k)}
+                title={`${c.eje}. ${c.dice}`}
+                className={"inline-flex items-center gap-1.5 px-2 py-0.5 border text-[11px] " +
+                  (on ? "border-[var(--t-accent)] bg-[var(--t-accent)]/10 text-[var(--t-text)]"
+                      : "border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:border-[var(--t-accent)]")}>
+                <span className="inline-block w-2 h-2 shrink-0" style={{ background: c.color }} />
+                <span className="uppercase tracking-wider text-[9.5px]">{c.t}</span>
+                <span className="tabular-nums font-semibold text-[12px]">
+                  {d.cuadrante[c.k]}
+                </span>
+              </button>
+            );
+          })}
+          {tipo && (
+            <button onClick={() => setTipo(null)}
+              className="ml-1 text-[10px] text-[var(--t-accent)] hover:underline">
+              ver todos
+            </button>
+          )}
+          <span className="ml-auto text-[9px] text-[var(--t-text-muted)] pl-3">
+            deja mucho = entra en el {d.cortes.pct_arancel}% · viene seguido = {d.cortes.meses_seguido} de 12 meses
+          </span>
+        </div>
+      )}
+
       {/* ── Contexto: en las TRES solapas, nunca escondido en una ─────────── */}
       <div className="flex items-baseline gap-2 px-4 py-1.5 border-b border-[var(--t-border)]
                       bg-[var(--t-surface)] shrink-0 overflow-x-auto whitespace-nowrap
@@ -306,7 +363,7 @@ export function CuantitativoView(
 
       {/* ── Cuerpo ────────────────────────────────────────────────────────── */}
       <div className="flex-1 min-h-0 overflow-auto">
-        {solapa === "importan" && <Importan d={d} />}
+        {solapa === "importan" && <Importan d={d} tipo={tipo} />}
         {solapa === "apagan" && <Apagan d={d} />}
         {solapa === "perdieron" && <Perdieron d={d} />}
         {!d && !err && <div className="px-4 py-6 text-[11px] text-[var(--t-text-muted)]">cargando…</div>}
@@ -373,82 +430,51 @@ function Pie({ l }: { l: Lista<unknown> }) {
 }
 
 // ── QUIÉNES IMPORTAN ────────────────────────────────────────────────────────
-function Importan({ d }: { d: Resp | null }) {
+// La tabla de QUIÉNES IMPORTAN. El cuadrante NO vive acá: es la fila de chips de
+// arriba, que además ACOTA esta tabla. Un cuadrado de 200 px de alto arriba de la
+// lista empujaba la lista fuera de la pantalla — y era una ilustración, no un
+// control.
+function Importan({ d, tipo }: { d: Resp | null; tipo: string | null }) {
   if (!d) return null;
-  const q = d.cuadrante;
-  const celda = (k: keyof typeof q, nombre: string, dice: string, color: string, riesgo = false) => (
-    // UN solo `bg-`: dos clases de fondo en el mismo elemento se pisan por el
-    // orden del CSS generado, no por el orden del string.
-    <div className={"p-3 " + (riesgo ? "bg-[var(--t-tint-red)]" : "bg-[var(--t-panel)]")}>
-      <div className="flex items-center gap-1.5 text-[10.5px] uppercase tracking-wider font-semibold">
-        <span className="inline-block w-2 h-2" style={{ background: color }} />{nombre}
-      </div>
-      <div className="text-[24px] font-semibold tabular-nums leading-tight">{q[k]}</div>
-      <div className="text-[12px] text-[var(--t-text-dim)] leading-snug">{dice}</div>
-    </div>
-  );
+  const items = tipo
+    ? d.quienes_importan.items.filter((i) => i.tipo === tipo)
+    : d.quienes_importan.items;
+  if (!items.length) {
+    return <Vacio que={tipo
+      ? "ninguna cuenta de este tipo llega al corte de arancel."
+      : "nadie llega al corte de arancel en este mes."} />;
+  }
   return (
     <>
-      <div className="p-3 border-b border-[var(--t-border)]">
-        <div className="grid gap-px bg-[var(--t-border)] border border-[var(--t-border-2)] max-w-[700px]"
-          style={{ gridTemplateColumns: "126px 1fr 1fr" }}>
-          <div className="bg-[var(--t-panel)] p-2" />
-          <div className="bg-[var(--t-panel)] p-2 text-[9.5px] uppercase tracking-wider text-[var(--t-text-muted)] self-end">
-            Viene seguido<span className="block normal-case tracking-normal opacity-75">
-              {d.cortes.meses_seguido} o más de los últimos 12 meses</span>
-          </div>
-          <div className="bg-[var(--t-panel)] p-2 text-[9.5px] uppercase tracking-wider text-[var(--t-text-muted)] self-end">
-            Viene salteado
-          </div>
-          <div className="bg-[var(--t-panel)] p-2 text-[9.5px] uppercase tracking-wider text-[var(--t-text-muted)] flex items-center">
-            Deja mucho<span className="block normal-case tracking-normal opacity-75">
-              &nbsp;— entra en el {d.cortes.pct_arancel}%</span>
-          </div>
-          {celda("nucleo", "Núcleo", "El negocio. No los podés perder.", "var(--t-pos)")}
-          {celda("grande_irregular", "Grande irregular",
-            "Mucha plata, cero previsibilidad. Cuando se van, su silencio parece normal.",
-            "var(--t-neg)", true)}
-          <div className="bg-[var(--t-panel)] p-2 text-[9.5px] uppercase tracking-wider text-[var(--t-text-muted)] flex items-center">
-            Deja poco
-          </div>
-          {celda("habitual", "Habitual", "Fieles y chicos. ¿Se pueden hacer crecer?", "var(--t-accent)")}
-          {celda("ocasional", "Ocasional", "La cola.", "var(--t-text-muted)")}
-        </div>
-      </div>
-
-      {d.quienes_importan.items.length === 0
-        ? <Vacio que="nadie llega al corte de arancel en este mes." />
-        : (
-        <table className="w-full">
-          <thead><tr>
-            <th className={TH + " text-left"}>Cuenta</th>
-            <th className={TH + " text-left"}>Cliente</th>
-            <th className={TH + " text-left"}>Operador</th>
-            <th className={TH + " text-left"}>Nivel 3</th>
-            <th className={TH + " text-right"}>Apareció</th>
-            <th className={TH + " text-right"}>Deja por mes</th>
-            <th className={TH + " text-right"}>% del arancel</th>
-          </tr></thead>
-          <tbody>
-            {d.quienes_importan.items.map((i) => (
-              <tr key={i.id_cuenta} className={"hover:bg-[var(--t-surface)] " +
-                (i.tipo === "grande_irregular" ? "bg-[var(--t-tint-red)]" : "")}>
-                <td className={TD + " text-left text-[var(--t-text-muted)]"}>[{i.id_cuenta}]</td>
-                <td className={TDN}>{i.denominacion}<Tag tipo={i.tipo} /></td>
-                <td className={TDN + " text-[var(--t-text-dim)] text-[12px]"}>{i.operador_nombre || "—"}</td>
-                <td className={TDN + " text-[var(--t-text-dim)] text-[12px]"}>{i.nivel_3 || "—"}</td>
-                <td className={TD + " text-right " +
-                  (i.tipo === "grande_irregular" ? "text-[var(--t-neg)]" : "")}>
-                  {i.meses_operados} de {i.meses_ventana}
-                </td>
-                <td className={TD + " text-right"}>{fmtMoneyFull(i.arancel_mes)}</td>
-                <td className={TD + " text-right"}>{i.pct_arancel}%</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-      <Pie l={d.quienes_importan} />
+      <table className="w-full">
+        <thead><tr>
+          <th className={TH + " text-left"}>Cuenta</th>
+          <th className={TH + " text-left"}>Cliente</th>
+          <th className={TH + " text-left"}>Operador</th>
+          <th className={TH + " text-left"}>Nivel 3</th>
+          <th className={TH + " text-right"}>Apareció</th>
+          <th className={TH + " text-right"}>Deja por mes</th>
+          <th className={TH + " text-right"}>% del arancel</th>
+        </tr></thead>
+        <tbody>
+          {items.map((i) => (
+            <tr key={i.id_cuenta} className={"hover:bg-[var(--t-surface)] " +
+              (i.tipo === "grande_irregular" ? "bg-[var(--t-tint-red)]" : "")}>
+              <td className={TD + " text-left text-[var(--t-text-muted)]"}>[{i.id_cuenta}]</td>
+              <td className={TDN}>{i.denominacion}<Tag tipo={i.tipo} /></td>
+              <td className={TDN + " text-[var(--t-text-dim)] text-[12px]"}>{i.operador_nombre || "—"}</td>
+              <td className={TDN + " text-[var(--t-text-dim)] text-[12px]"}>{i.nivel_3 || "—"}</td>
+              <td className={TD + " text-right " +
+                (i.tipo === "grande_irregular" ? "text-[var(--t-neg)]" : "")}>
+                {i.meses_operados} de {i.meses_ventana}
+              </td>
+              <td className={TD + " text-right"}>{fmtMoneyFull(i.arancel_mes)}</td>
+              <td className={TD + " text-right"}>{i.pct_arancel}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <Pie l={{ ...d.quienes_importan, items }} />
     </>
   );
 }
