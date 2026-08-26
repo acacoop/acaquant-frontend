@@ -27,65 +27,52 @@ type Ayuda = { titulo: string; entra: string; columnas: Def[]; etiquetas?: Def[]
 const n0 = (x: number) => x.toLocaleString("es-AR", { maximumFractionDigits: 0 });
 
 export function ayudaDe(clave: string, c: Record<string, number>): Ayuda | null {
-  const pct = n0(c.pct_arancel ?? 80);
-  const seg = n0(c.meses_seguido ?? 8);
-  const mult = n0(c.multiplo ?? 3);
-  const minD = n0(c.min_dias_op ?? 6);
   const caida = n0(c.caida_pct ?? 75);
   const atras = n0(c.meses_atras ?? 3);
+  // DOS pisos distintos: el de PERDIERON decide quién entra a la lista; el de
+  // CONOCÉ decide desde cuándo el ROA significa algo. Un solo `piso` acá hacía
+  // que la ayuda dijera $10.000.000 donde el corte real es $1.000.000.
   const piso = `$${n0(c.piso_aum ?? 10_000_000)}`;
+  const pisoRoa = `$${n0(c.piso_roa ?? 1_000_000)}`;
 
-  if (clave === "importan") return {
-    titulo: "Quiénes importan",
-    entra: `Las cuentas que, ordenadas de mayor a menor arancel, juntan entre todas el ${pct}% ` +
-      `del arancel del mes elegido. Las demás no salen en la tabla, pero sí se cuentan en los ` +
-      `cuatro grupos de arriba.`,
+  if (clave === "conoce") return {
+    titulo: "Conocé a tu cliente",
+    entra: "Todos los clientes del segmento elegido. Sin segmento la tabla no se " +
+      "dibuja: el ROA de un institucional y el de un cliente de retail no son " +
+      "comparables, y mezclados los institucionales caen todos juntos al fondo de " +
+      "la lista como si estuvieran desaprovechados.",
     columnas: [
-      { c: "Cuenta · Cliente", v: "Número de comitente y denominación." },
-      { c: "Operador · Nivel 3", v: "Quién la atiende y la clasificación, tal como están en la ficha del comitente." },
-      { c: "Apareció", v: "En cuántos de los últimos 12 meses —contando el elegido— la cuenta tuvo al menos una operación." },
-      { c: "Deja por mes", v: "El arancel que dejó la cuenta en el mes elegido. Es ese mes, no un promedio." },
-      { c: "% del arancel", v: "Qué parte del arancel total del mes es esa cuenta." },
-    ],
-    etiquetas: [
-      { c: "Núcleo", v: `entra en el ${pct}% del arancel y operó en ${seg} meses o más de los últimos 12.` },
-      { c: "Grande irregular", v: `entra en el ${pct}% del arancel y operó en menos de ${seg} meses.` },
-      { c: "Habitual", v: `no entra en el ${pct}% y operó en ${seg} meses o más.` },
-      { c: "Ocasional", v: `no entra en el ${pct}% y operó en menos de ${seg} meses.` },
+      { c: "Arancel 12m", v: "Lo que la cuenta dejó de arancel en los últimos 12 meses." },
+      { c: "Tiene", v: "El AuM PROMEDIO de las fotos de tenencia de la ventana, no la " +
+          "foto de hoy. Un mes en el que la cuenta no aparece cuenta como cero." },
+      { c: "ROA", v: `Arancel 12m dividido Tiene, en bps (100 bps = 1%). Las dos ` +
+          `columnas están en pantalla: el número se verifica con una calculadora. ` +
+          `Debajo del piso de ${pisoRoa} de AuM promedio no se calcula y dice "—".` },
+      { c: "Cupo", v: "El cupo transaccional que el custodio le reconoce a la cuenta. " +
+          "Se carga a mano por Excel y no queda registrada la fecha de carga." },
+      { c: "SOW", v: "Tiene dividido Cupo. Qué parte de la plata que el custodio le " +
+          "reconoce está acá. También se verifica con las dos columnas de al lado." },
+      { c: "Operación favorita", v: "El tipo de operación en el que la cuenta dejó MÁS " +
+          "ARANCEL en la ventana (no el de más volumen). En el tooltip, cuánto dejó " +
+          "y cuántos tipos distintos usa." },
+      { c: "⚠ al lado del nombre", v: "La cuenta lleva más de tres veces su propio " +
+          "ritmo sin operar. Es la misma señal y la misma cuenta que la lista de " +
+          "clientes que se apagan." },
     ],
     notas: [
-      `En la tabla solo pueden aparecer NÚCLEO y GRANDE IRREGULAR: son los dos grupos que entran ` +
-        `en el ${pct}%. Los cuatro números de arriba cuentan a todas las cuentas que dejaron ` +
-        `arancel en el mes.`,
-      "Una cuenta que no dejó arancel en el mes elegido no está en ningún grupo ni en ningún contador.",
-      "Los cuatro grupos son un filtro: al clickearlos, la tabla se acota a ese grupo.",
-    ],
-  };
-
-  if (clave === "apagan") return {
-    titulo: "Se están apagando",
-    entra: `Cuentas que llevan más de ${mult} veces su propio ritmo sin operar. Para que haya ritmo ` +
-      `que medir, la cuenta necesita al menos ${minD} días distintos con operaciones en los ` +
-      `últimos 12 meses; con menos, no entra en la lista.`,
-    columnas: [
-      { c: "Suele operar cada", v: "Los días que pasan habitualmente entre una aparición y la " +
-          "siguiente, en los últimos 12 meses. Es el valor del medio, no el promedio. Se cuentan " +
-          "DÍAS, no boletos: cinco boletos el mismo día son una sola aparición." },
-      { c: "Lleva sin operar", v: "Días desde la última operación. Si el mes elegido ya terminó se " +
-          "cuentan hasta el último día de ese mes; si es el mes en curso, hasta hoy." },
-      { c: "Veces su ritmo", v: "«Lleva sin operar» dividido «suele operar cada». 5× significa que " +
-          "lleva cinco veces lo que esa cuenta suele tardar." },
-      { c: "Retiró", v: `Plata que salió de la cuenta, neta, en los últimos ${atras} meses. «—» es ` +
-          `que no salió plata (o entró más de lo que salió).` },
-      { c: "Deja por mes", v: "El arancel de los últimos 12 meses dividido 12." },
-      { c: "Última op", v: "Fecha del último boleto no anulado de la cuenta." },
-    ],
-    notas: [
-      "La lista está ordenada por «deja por mes», de mayor a menor. NO está ordenada por cuánto se " +
-        "apartó cada uno de su ritmo.",
-      "El ritmo es propio de cada cuenta: no hay un plazo igual para todas. Veinte días sin operar " +
-        "pueden ser muchos para una cuenta y normales para otra.",
-      "Las filas pintadas son las que además retiraron plata.",
+      "La línea de arriba de la tabla es el segmento entero: cuántos clientes tiene, " +
+        "cuánto rinde el del medio y cuánto tiene el del medio. Un ROA suelto no se " +
+        "puede juzgar sin eso.",
+      "El ROA en rojo está por debajo de la mediana del segmento.",
+      "Las filas pintadas son cuentas que TIENEN plata y no dejaron un solo peso de " +
+        "arancel en 12 meses.",
+      "Se puede ordenar por cualquier columna con números: click en el título. Por " +
+        "defecto ordena por lo que tiene.",
+      "El «—» del ROA no es cero: o no hay foto de tenencia, o la cuenta no tiene " +
+        "nada, o tiene tan poco que el cociente no significaría nada. El motivo " +
+        "exacto está en el tooltip de la celda.",
+      "Los montos siguen la moneda de la barra y los filtros de arriba. El segmento " +
+        "NO es uno de esos filtros: es el eje de la vista.",
     ],
   };
 
