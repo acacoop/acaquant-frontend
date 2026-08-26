@@ -40,6 +40,9 @@ export async function GET(req: Request) {
     // que es lo que `scope_aum` parsea como lista. Un `set` los aplastaría a uno solo
     // y el filtro achicaría de menos sin que nada falle.
     for (const n of NIVELES) for (const v of url.searchParams.getAll(n)) q.append(n, v);
+    // CARTERA: también multi. Filtra POSICIONES (no cuentas como los niveles),
+    // así que va como param propio del endpoint, no por `scope_aum`.
+    for (const v of url.searchParams.getAll("cartera")) q.append("cartera", v);
     const suffix = q.toString() ? `?${q}` : "";
 
     const data = await apiFetch<BackendResp>(

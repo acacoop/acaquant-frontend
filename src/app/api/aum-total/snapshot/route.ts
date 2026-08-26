@@ -44,6 +44,9 @@ export async function GET(req: Request) {
     // Los niveles son MULTI: params repetidos (`&nivel_1=A&nivel_1=B`), que es lo que
     // `scope_aum` parsea como lista. Con `set` se perdería todo menos el último valor.
     for (const n of NIVELES) for (const v of url.searchParams.getAll(n)) q.append(n, v);
+    // CARTERA: también multi. Filtra POSICIONES (no cuentas como los niveles),
+    // así que va como param propio del endpoint, no por `scope_aum`.
+    for (const v of url.searchParams.getAll("cartera")) q.append("cartera", v);
 
     const data = await apiFetch<BackendResp>(
       `/api/portfolio/total-snapshot?${q}`,
