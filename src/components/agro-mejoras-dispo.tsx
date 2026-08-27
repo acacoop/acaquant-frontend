@@ -11,7 +11,9 @@ interface MejorasRow {
   ticker_largo: string | null;
   vencimiento: string;
   dias: number;
+  tea: number | null;
   tna: number | null;
+  rendimiento_efectivo: number | null;
   tasa_diaria: number | null;
   tasa_directa: number | null;
   interes_ganado: number | null;
@@ -103,6 +105,17 @@ function fmtPct(n: number | null | undefined, dec = 2): string {
 function fmtPctMini(n: number | null | undefined): string {
   if (n === null || n === undefined || !isFinite(n)) return "—";
   return `${(n * 100).toFixed(3)}%`;
+}
+// Las tres tasas de la fila, en el tooltip de la celda TNA. La TNA es la
+// convención comercial (nominal, se prorratea lineal por días); la TEA es la
+// TIR que publica el motor; el rendimiento efectivo es la plata real al
+// vencimiento. Verlas juntas evita la pregunta "¿esto es TNA o TEA?".
+function tasasTip(r: MejorasRow): string {
+  return [
+    `TNA ${fmtPct(r.tna)} (nominal anual, capitalización mensual)`,
+    `TEA ${fmtPct(r.tea)} (efectiva anual — la que publica el motor de curvas)`,
+    `Rendimiento real a ${r.dias} días: ${fmtPct(r.rendimiento_efectivo)}`,
+  ].join("\n");
 }
 
 
@@ -223,7 +236,16 @@ function CommodityTable({
               <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">
                 {r.dias}
               </td>
-              <td className="px-2 py-1 text-right font-black text-[var(--t-text)]">
+              {/* TNA de verdad: la deriva el BACKEND desde la TEA (TEM×12, la
+                  misma convención que RENTA FIJA). Acá no se calcula nada — si
+                  el front la derivara, sería una tercera fórmula suelta. El
+                  tooltip muestra las tres tasas juntas porque la confusión
+                  TNA/TEA es exactamente la que hizo que esta columna publicara
+                  la TEA durante meses. */}
+              <td
+                className="px-2 py-1 text-right font-black text-[var(--t-text)]"
+                title={tasasTip(r)}
+              >
                 {fmtPct(r.tna)}
               </td>
               <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">
