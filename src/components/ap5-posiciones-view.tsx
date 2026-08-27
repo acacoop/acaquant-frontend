@@ -281,7 +281,8 @@ export function Ap5PosicionesView() {
   // efecto — un `setState` síncrono ahí dispara un render de más y lo prohíbe
   // `react-hooks/set-state-in-effect`.
   const [aca, setAca] = useState<
-    { cuenta: string; filas: FilaAca[]; totales: TotalAca[] } | null>(null);
+    { cuenta: string; filas: FilaAca[]; totales: TotalAca[]; excluida?: boolean }
+    | null>(null);
   const [copiando, setCopiando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const recargar = useCallback(() => setRecarga((n) => n + 1), []);
@@ -323,10 +324,11 @@ export function Ap5PosicionesView() {
     const pedida = cuentaAca;
     // `fetchJson` TIRA con el detalle: un 403 y "no hay posición" NO se pueden
     // dibujar igual.
-    fetchJson<{ filas: FilaAca[]; totales: TotalAca[] }>(
+    fetchJson<{ filas: FilaAca[]; totales: TotalAca[]; excluida?: boolean }>(
       `/api/ap5/aca?cuenta=${encodeURIComponent(pedida)}`)
       .then((d) => { if (!cancelado) setAca(
-        { cuenta: pedida, filas: d.filas ?? [], totales: d.totales ?? [] }); })
+        { cuenta: pedida, filas: d.filas ?? [], totales: d.totales ?? [],
+          excluida: d.excluida }); })
       .catch(() => { if (!cancelado) setAca(
         { cuenta: pedida, filas: [], totales: [] }); });
     return () => { cancelado = true; };
@@ -600,6 +602,15 @@ export function Ap5PosicionesView() {
         <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3 p-3 overflow-auto bg-white">
           {aca?.cuenta !== cuentaAca ? (
             <div className="text-[11px] text-[#5b6472]">Cargando…</div>
+          ) : aca.excluida ? (
+            /* ⚠️ «No tiene posición» y «está marcada para no contarse» NO se
+               pueden dibujar igual: las dos tablas vacías se verían idénticas y
+               una es un dato y la otra una decisión. */
+            <div className="text-[11px] text-[#5b6472] lg:col-span-2">
+              Esta cuenta está en el grupo <b>OTROS</b>: queda fuera de todos los
+              números del reporte, así que acá tampoco se calcula. Para incluirla,
+              cambiale el grupo desde el ranking.
+            </div>
           ) : (
             LADOS_ACA.map((l) => (
               <TablaAca
