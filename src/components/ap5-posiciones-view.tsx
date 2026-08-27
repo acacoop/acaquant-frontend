@@ -22,21 +22,26 @@
 // ranking en otro **sin que nada falle**.
 
 import { useCallback, useEffect, useState } from "react";
-import { fetchJson } from "@/lib/fetch-json";
+import { fetchJson, getJSON } from "@/lib/fetch-json";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { fmt0, fmt2, Panel } from "./ui/informe";
+import { celdas, copiarTab } from "./ap5-captura";
+import type { TablaImagen } from "@/lib/reporte-imagen";
 
 // ── Lo que devuelve el backend (espejo de api/services/ap5_posiciones.py) ────
 type Fecha = { fecha: string; filas: number; cuentas: number };
-type DifHoy = { moneda: string; familia: string; importe: number; cuentas: number };
+// `importe` es lo que se MOVIÓ hoy (acumulado hoy − acumulado ayer), NO la Σ
+// de `daily_settlement` —ese campo ya viene acumulado y sumarlo daba el total
+// de la mesa con el rótulo «hoy». `null` = no hay día anterior con qué comparar.
+type DifHoy = { moneda: string; importe: number | null; acumulado: number; cuentas: number };
 // `importe` ES el acumulado (no la diferencia del día): es lo que el reporte
 // de la mesa rankea. Se llama así porque el nombre del campo lo fija su rol.
 type RankItem = {
   cuenta: string; nombre: string; moneda: string; familia: string; grupo: string;
   importe: number; diaria: number;
-  // El ARRASTRE de esta moneda y si lo cargó una persona. `cargado = false` con
-  // arrastre 0 NO es lo mismo que un cero verificado — y esta vista se imprime.
-  arrastre: number; cargado: boolean; fecha_arrastre: string | null;
+  // ⚠️ `null` = NO hay día anterior con el que comparar. Distinto de 0: una
+  // cuenta nueva y una que no se movió dan el mismo cero, y esto se imprime.
+  acumulado_ayer: number | null;
 };
 // `tab` y `lado` los decide el BACKEND. La vista no compara strings de grupo —
 // que es exactamente donde se rompió el 2026-08-25: la base decía COOPERATIVAS,
@@ -46,7 +51,7 @@ type Ranking = {
   tab: TabFam; grupo: string; lado: "izq" | "der" | "otro";
   positivos: RankItem[]; negativos: RankItem[];
   total_positivo: number; total_negativo: number;
-  cuentas: number; sin_cargar: number;
+  cuentas: number;
   // Cuántas filas tiene el ranking COMO MÁXIMO (lo manda el backend). La lista
   // reserva ESE alto aunque haya menos: si cada panel se encogiera a su
   // cantidad de filas, Cooperativas y MUNDO ACA quedarían de altos distintos.
@@ -62,8 +67,7 @@ type Instr = {
 };
 type Acum = {
   cuenta: string; nombre: string; grupo: string; moneda: string; familia: string;
-  arrastre: number; cargado: boolean;
-  fecha_arrastre: string | null; actualizado: string | null;
+  actualizado: string | null;
   movimiento: number; acumulado: number; diaria: number;
 };
 type Faltantes = {
@@ -71,8 +75,15 @@ type Faltantes = {
   fuera_de_tabs?: { familia: string; cuentas: number; simbolos: number }[];
   simbolos_sin_multiplicador?: { symbol: string; unidad: string | null; filas: number }[];
   cuentas_sin_nombre?: number; cuentas_sin_grupo?: number; cuentas?: number;
-  cuentas_sin_cargar?: number;
 };
+/** CUÁNDO se tocó por última vez cada insumo. Son DOS relojes: los trae el mismo
+ *  job, pero uno puede fallar y el otro no. Un solo "actualizado" taparía al
+ *  que falló. */
+type Actualizado = {
+  posicion: string | null;
+  margenes: string | null;
+};
+
 type Vista = {
   fecha: string | null; fecha_anterior: string | null;
   fechas: Fecha[]; rankings: Ranking[]; grupos: string[];
@@ -83,6 +94,58 @@ type Vista = {
   // tipo no borraría el campo, solo lo dejaría sin documentar.
   diferencias_hoy: DifHoy[]; por_instrumento: Instr[]; acumulado: Acum[];
   faltantes: Faltantes;
+  actualizado: Actualizado;
+  requerimiento_margenes: Requerimiento;
+  activo_integrado: Requerimiento;
+  /** Si ESTE usuario puede cargar el activo integrado a mano (escritura de Mesa
+   *  de Dinero). ⚠️ Es sólo para no ofrecer un lápiz que va a dar 403: **el
+   *  permiso real lo aplica el backend en el POST**. Esconder un botón no es un
+   *  permiso. */
+  puede_editar_activo_integrado?: boolean;
+};
+
+/** El requerimiento de márgenes de las cuentas elegidas.
+ *
+ *  `cuentas_pedidas` / `cuentas_encontradas` los cuenta el BACKEND, no esta
+ *  pantalla: una cuenta que dejó de venir se ve exactamente igual que una
+ *  cuenta en cero, y este cuadro se imprime para gerencia. */
+type Requerimiento = {
+  fecha: string | null;
+  /** ⚠️ `origen` sólo lo trae ACTIVO INTEGRADO, que por ahora se carga a mano:
+   *  `manual` = lo escribió la mesa y `calculado` guarda lo que decía la
+   *  cámara, con quién y cuándo. El manual NO borra al calculado — los dos se
+   *  muestran, porque un número tipeado que tapa al automático sin dejar rastro
+   *  es cómo un error de carga sobrevive semanas. */
+  por_moneda: {
+    moneda: string; importe: number; filas: number;
+    origen?: "manual" | "calculado"; calculado?: number | null;
+    nota?: string | null; por?: string | null; actualizado_at?: string | null;
+  }[];
+  // Una fila por CONCEPTO (`Márgenes`, `Inicial A3`, …). `importe` es `margen`
+  // con el signo ya dado vuelta — `primas` e `inter_temporal` viajan porque la
+  // cámara los manda, pero NO son parte del número: `Márgenes` trae un
+  // `inter_temporal` no nulo que no cuenta.
+  detalle: {
+    cuenta: string; cuenta_compensacion: string; concepto: string;
+    moneda: string; importe: number; margen: number; primas: number;
+    inter_temporal: number; referencias: number; titular: string | null;
+  }[];
+  // Qué conceptos suma esta card, y cuáles de ellos NO vinieron. Si la cámara
+  // renombra `Inicial A3`, la card seguiría dibujando el número de los que sí
+  // quedaron: el aviso es lo único que lo delata.
+  // Cuánto aportó CADA concepto. Sin esto, «`Inicial A3` sumó 0» y «`Inicial
+  // A3` no entró en la query» dan el mismo total y se ven idénticos.
+  por_concepto: { concepto: string; moneda: string; importe: number; filas: number }[];
+  conceptos: string[];
+  conceptos_faltantes: string[];
+  // Si esta card mira SÓLO las cuentas de `AP5_CUENTAS_REQUERIMIENTO` o TODAS.
+  // El requerimiento filtra (es lo exigido a nuestras dos cuentas); el activo
+  // integrado no (es lo depositado por el ALyC entero). Cuando no filtra,
+  // `cuentas_pedidas` viene en 0 y no hay faltantes que avisar.
+  filtra_cuentas: boolean;
+  cuentas_pedidas: number;
+  cuentas_encontradas: number;
+  cuentas_faltantes: string[];
 };
 
 // El nombre de la familia, para los avisos. AGRO son trigo/soja/maíz (toneladas)
@@ -95,11 +158,82 @@ const FAMILIA: Record<string, string> = { agro: "AGRO", dolar: "DÓLAR FUTURO", 
 // (`TAB_DE_FAMILIA`): `otros` —hoy el WTI, unidad `Bl`— va con AGRO pero
 // conserva su etiqueta, para que se vea que no son toneladas.
 type TabFam = "agro" | "dolar";
-type Tab = TabFam | "consolidados";
+type Tab = TabFam | "consolidados" | "aca";
+
+/** Una cuenta propia del desplegable de POSICIONES DE ACA. Se MUESTRA el nombre
+ *  y se MANDA el número: la identidad es el número (REGLA #9). `conocida = false`
+ *  = todavía no está en `ap5.cuentas`, así que sale con su número en vez de
+ *  desaparecer del desplegable sin explicación. */
+type CuentaAca = { cuenta: string; nombre: string; conocida: boolean };
+
+/** Una fila de POSICIONES DE ACA: un símbolo de la cuenta elegida.
+ *
+ *  `cantidad` es UN número con signo —positivo comprado, negativo vendido— y no
+ *  las dos columnas de la base con una en cero.
+ *
+ *  ⚠️ `dif_px` y `dif_pct` son del PRECIO, no del resultado: en una posición
+ *  vendida un precio que sube es una pérdida, y acá igual sale positivo. El
+ *  signo de la posición está en `cantidad`. */
+type FilaAca = {
+  symbol: string; familia: string; unidad: string | null; moneda: string | null;
+  cantidad: number;
+  /** El TAMAÑO de la posición en su unidad: toneladas en el agro, dólares
+   *  nominales en el dólar futuro. Es `cantidad × multiplicador` y lo calcula el
+   *  BACKEND con el multiplicador real de `ap5.contratos` — dentro de `Tn`
+   *  conviven 100 (`.ROS`), 10 (`.MIN`) y 5 (`.CME`), así que un 100 fijo daría
+   *  20× de más en Chicago. `null` (y no cero) cuando falta el multiplicador:
+   *  un nocional en cero es una posición que no existe, y ésta existe. */
+  nocional: number | null; multiplicador: number | null;
+  /** ⚠️ `daily_settlement`, que **YA VIENE ACUMULADO** de la cámara: es el
+   *  acumulado de esa posición al día de la corrida, NO lo que se movió hoy. */
+  diferencias: number;
+  entrada: number | null; ajuste: number | null;
+  dif_px: number | null; dif_pct: number | null;
+  /** Cuántas filas de la base se agregaron: un precio promedio de una pata y
+   *  uno de tres no son la misma evidencia. */
+  patas: number;
+};
+
+/** El TOTAL de una tabla, **sumado por el backend** sobre las mismas filas.
+ *
+ *  ⚠️ **Va por MONEDA, no por tabla.** Adentro de una misma tabla pueden
+ *  convivir símbolos que liquidan en monedas distintas, y un total que las
+ *  mezcla es un número que no existe. Si hay una sola moneda sale un TOTAL; si
+ *  hay dos, salen dos. Es la misma regla del CONSOLIDADO. */
+type TotalAca = {
+  familia: string; moneda: string | null;
+  diferencias: number; filas: number;
+  /** Cuántos símbolos de ese total no tienen multiplicador cargado. */
+  sin_multiplicador: number;
+};
+// Del consolidado sólo ACUM. y DIARIA llevan verde/rojo: COMPRA, VENTA y NETA
+// son cantidades de la POSICIÓN —toneladas, contratos— y pintarlas sugiere una
+// ganancia o una pérdida donde no hay ninguna.
+const TONO_DESDE = 3;
+
+// ── POSICIONES DE ACA en la imagen ─────────────────────────────────────────
+// El formateador va POR COLUMNA porque las siete no son lo mismo: cantidad y
+// nocional son enteros, los precios llevan dos decimales y el porcentaje lleva
+// su signo `%`. Con un solo formateador, los precios salían redondeados a
+// entero en el mail y enteros en pantalla no — la imagen y la vista diciendo
+// cosas distintas es exactamente lo que este módulo trata de evitar.
+//   0 CANTIDAD · 1 NOCIONAL · 2 P.ENTRADA · 3 P.AJUSTE · 4 DIF PX · 5 DIF % ·
+//   6 DIFERENCIAS
+const FMT_ACA = (n: number, i: number) =>
+  i === 5 ? `${fmt2(n, 2)}%` : i === 2 || i === 3 || i === 4 ? fmt2(n, 2) : fmt2(n, 0);
+// Verde/rojo sólo de DIF PX en adelante: cantidad, nocional y los precios son
+// datos de la POSICIÓN, no resultado.
+const TONO_DESDE_ACA = 4;
+// ⚠️ El MISMO texto en la pantalla y en la imagen. Sin esta fila, un lado sin
+// posición sale como una cabecera de columnas y nada abajo — que se lee como
+// una captura CORTADA, no como una cuenta que no tiene nada de ese lado.
+const VACIO_ACA = "Sin posición abierta en esta cuenta.";
+
 const TABS: { id: Tab; label: string }[] = [
   { id: "agro", label: "FUTUROS AGRO" },
   { id: "dolar", label: "FUTUROS DÓLAR" },
   { id: "consolidados", label: "CONSOLIDADOS" },
+  { id: "aca", label: "POSICIONES DE ACA" },
 ];
 
 // El cuadro POR INSTRUMENTO del mail: un bloque por (tab, moneda), con su TOTAL
@@ -114,6 +248,31 @@ type ConsTotal = {
   compra: number; venta: number; neta: number;
   acum_hoy: number; acum_ayer: number; diaria: number; sin_multiplicador: number;
 };
+/** El detalle de UNA fila del consolidado: cuenta por cuenta, símbolo por
+ *  símbolo. Es AUDITORÍA — contesta «¿de dónde sale este número?».
+ *
+ *  ⚠️ **`total` viene del backend y tiene que dar igual que la fila que
+ *  explica.** Viaja aparte para poder mostrarlo AL LADO del número del cuadro:
+ *  un detalle que dice explicar una cifra y no cierra con ella deja al que
+ *  audita con dos números y ninguna forma de saber cuál vale. */
+type DetalleFila = {
+  cuenta: string; nombre: string; grupo: string; symbol: string;
+  unidad: string | null; multiplicador: number | null;
+  compra_contratos: number; venta_contratos: number;
+  compra: number | null; venta: number | null; neta: number | null;
+  patas: number; acum_hoy: number; acum_ayer: number; diaria: number;
+};
+type DetalleTotal = {
+  compra: number | null; venta: number | null; neta: number | null;
+  acum_hoy: number; acum_ayer: number; diaria: number;
+  cuentas: number; simbolos: number; sin_multiplicador: number;
+};
+type Detalle = {
+  tab: string; moneda: string; producto: string; etiqueta: string;
+  fecha: string | null; fecha_anterior: string | null;
+  filas: DetalleFila[]; total: DetalleTotal;
+};
+
 type Consolidado = {
   tab: TabFam; moneda: string; unidad: string | null; unidades: string[];
   filas: ConsFila[]; total: ConsTotal;
@@ -134,7 +293,6 @@ function fmtFecha(iso: string | null): string {
 export function Ap5PosicionesView() {
   // La fecha y la tab persisten entre navegaciones: son ELECCIONES del usuario,
   // no data fetcheada (que es lo que usePersistedState no debe guardar).
-  const [fecha, setFecha] = usePersistedState<string>("ap5.fecha", "");
   const [tab, setTab] = usePersistedState<Tab>("ap5.tab", "agro");
   const [v, setV] = useState<Vista | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -147,29 +305,80 @@ export function Ap5PosicionesView() {
 
   // `recarga` es el disparador explícito del botón Reintentar y del guardado del
   // modal. Un contador y no una función: así el efecto tiene UNA sola razón de
-  // correr (cambió la fecha, o alguien pidió recargar) y no hay que acordarse de
-  // cancelar una respuesta vieja a mano en dos lugares distintos.
+  // correr y no hay que acordarse de cancelar una respuesta vieja a mano.
   const [recarga, setRecarga] = useState(0);
+  // ⚠️ Los hooks van ANTES de los `return` de error/carga: React exige el
+  // MISMO orden en cada render, y declararlos después los saltea cuando la
+  // vista corta temprano.
+  // POSICIONES DE ACA: su propio filtro y su propio request. No entra en
+  // `/vista` porque depende de una elección del usuario — meterlo ahí obligaría
+  // a recargar TODA la pantalla cada vez que se cambia de cuenta.
+  const [cuentasAca, setCuentasAca] = useState<CuentaAca[]>([]);
+  const [cuentaAca, setCuentaAca] = usePersistedState<string>("ap5.aca.cuenta", "");
+  // ⚠️ El estado guarda QUÉ CUENTA trajo, no sólo las filas. Así «cargando» se
+  // DERIVA (`aca?.cuenta !== cuentaAca`) en vez de setearse al principio del
+  // efecto — un `setState` síncrono ahí dispara un render de más y lo prohíbe
+  // `react-hooks/set-state-in-effect`.
+  const [aca, setAca] = useState<
+    { cuenta: string; filas: FilaAca[]; totales: TotalAca[]; excluida?: boolean }
+    | null>(null);
+  // La fila del consolidado que se está auditando. `null` = modal cerrado.
+  // ⚠️ Guarda la FILA entera, no sólo el producto: el modal muestra el número
+  // del cuadro AL LADO del suyo, y para eso necesita el original.
+  const [auditar, setAuditar] = useState<{ b: Consolidado; r: ConsFila } | null>(null);
+  // La moneda del ACTIVO INTEGRADO que se está cargando a mano. Es temporal:
+  // el número de la cámara trae errores y por un tiempo lo escribe la mesa.
+  const [editarAI, setEditarAI] = useState<{ moneda: string; r: Requerimiento } | null>(null);
+  const [copiando, setCopiando] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
   const recargar = useCallback(() => setRecarga((n) => n + 1), []);
-  const pedido = `${fecha}|${recarga}`;
+  const pedido = String(recarga);
   const cargando = dibujado !== pedido;
 
   useEffect(() => {
-    // La guarda de carrera: si cambia la fecha mientras vuela un request, la
-    // respuesta vieja NO puede pisar a la nueva. Sin esto, tocar dos veces el
-    // selector deja en pantalla el día equivocado y nada falla.
+    // La guarda de carrera se queda aunque ya no haya selector: dos recargas
+    // seguidas siguen pudiendo volver desordenadas, y la vieja no puede pisar
+    // a la nueva.
     let cancelado = false;
-    const qs = fecha ? `?fecha=${encodeURIComponent(fecha)}` : "";
+    // Sin `?fecha`: el backend sirve SIEMPRE la última corrida. `ap5.portfolio`
+    // guarda dos días y no hay nada que elegir.
     // fetchJson TIRA con el detalle del backend: un 403 y "no hay datos" NO se
     // pueden dibujar igual (así se perdió una semana la tab ESTRATEGIA).
-    fetchJson<Vista>(`/api/ap5/vista${qs}`)
+    fetchJson<Vista>("/api/ap5/vista")
       .then((d) => { if (!cancelado) { setV(d); setError(null); } })
       .catch((e: unknown) => {
         if (!cancelado) setError(e instanceof Error ? e.message : String(e));
       })
       .finally(() => { if (!cancelado) setDibujado(pedido); });
     return () => { cancelado = true; };
-  }, [fecha, recarga, pedido]);
+  }, [recarga, pedido]);
+
+  // El desplegable se pide UNA vez: la allowlist no cambia entre renders.
+  useEffect(() => {
+    let cancelado = false;
+    getJSON<CuentaAca[]>("/api/ap5/aca/cuentas").then((d) => {
+      if (cancelado || !d?.length) return;
+      setCuentasAca(d);
+      setCuentaAca((c) => (c && d.some((x) => x.cuenta === c) ? c : d[0].cuenta));
+    });
+    return () => { cancelado = true; };
+  }, [setCuentaAca]);
+
+  useEffect(() => {
+    if (tab !== "aca" || !cuentaAca) return;
+    let cancelado = false;
+    const pedida = cuentaAca;
+    // `fetchJson` TIRA con el detalle: un 403 y "no hay posición" NO se pueden
+    // dibujar igual.
+    fetchJson<{ filas: FilaAca[]; totales: TotalAca[]; excluida?: boolean }>(
+      `/api/ap5/aca?cuenta=${encodeURIComponent(pedida)}`)
+      .then((d) => { if (!cancelado) setAca(
+        { cuenta: pedida, filas: d.filas ?? [], totales: d.totales ?? [],
+          excluida: d.excluida }); })
+      .catch(() => { if (!cancelado) setAca(
+        { cuenta: pedida, filas: [], totales: [] }); });
+    return () => { cancelado = true; };
+  }, [tab, cuentaAca, recarga]);
 
   if (error) {
     return (
@@ -199,6 +408,130 @@ export function Ap5PosicionesView() {
   // Los bloques de ESTA tab, ya ordenados por el backend (izq · der · el resto).
   const bloques = v.rankings.filter((r) => r.tab === tab);
 
+  // ── La tab actual como IMAGEN, para pegar en el mail ──────────────────────
+  // Se arma desde los MISMOS datos que dibuja la pantalla —no desde una segunda
+  // consulta— para que la imagen no pueda decir otra cosa que lo que se ve.
+  async function copiar() {
+    if (!v) return;
+    // El MISMO formateador que la pantalla: formatear dos veces es como la
+    // imagen y la vista terminan diciendo cosas distintas.
+    const plata = (n: number) => fmt2(n, 0);
+    // POSICIONES DE ACA habla de UNA cuenta, así que la imagen no se puede
+    // generar hasta que estén las filas de la cuenta ELEGIDA: con las de la
+    // anterior saldría un cuadro creíble y de otra cuenta.
+    if (tab === "aca" && aca?.cuenta !== cuentaAca) {
+      setAviso("Todavía cargando la cuenta");
+      window.setTimeout(() => setAviso(null), 6000);
+      return;
+    }
+    setCopiando(true);
+    const tablas: TablaImagen[] =
+      tab === "aca"
+        ? LADOS_ACA.map((l) => {
+            const filas = (aca?.filas ?? []).filter((f) => f.familia === l.familia);
+            const totales = (aca?.totales ?? []).filter((t) => t.familia === l.familia);
+            const unaMoneda = totales.length <= 1;
+            return {
+              titulo: l.titulo,
+              // La MISMA banda de color que en pantalla, y centrada igual: es
+              // lo que separa agro de dólar de un vistazo —mismas columnas,
+              // unidades distintas— y si la imagen la dibujara gris, la captura
+              // y la vista se verían como dos informes distintos.
+              color: l.color,
+              centrado: true,
+              filas: [
+                { cuenta: "SÍMBOLO",
+                  valor: celdas(["CANTIDAD", l.etiquetaNocional, "P. ENTRADA",
+                                 "P. AJUSTE", "DIF PX", "DIF %", "DIFERENCIAS"],
+                                plata) },
+                ...(filas.length === 0
+                  ? [{ cuenta: VACIO_ACA, valor: "" }]
+                  : filas.map((f) => ({
+                      cuenta: f.symbol,
+                      valor: celdas(
+                        [f.cantidad, f.nocional, f.entrada, f.ajuste,
+                         f.dif_px, f.dif_pct, f.diferencias],
+                        FMT_ACA, TONO_DESDE_ACA),
+                    }))),
+                // Un total por MONEDA, igual que en pantalla: dos monedas
+                // sumadas juntas dan un número que no existe.
+                // En el mail no hay tooltip que explique un hueco: si algún
+                // símbolo quedó sin nocional, el total lo dice en el rótulo.
+                ...totales.map((t) => ({
+                  cuenta: `TOTAL${unaMoneda ? "" : ` ${t.moneda ?? "sin moneda"}`}`
+                    + (t.sin_multiplicador > 0 ? ` · ${t.sin_multiplicador} sin nocional` : ""),
+                  destacada: true,
+                  valor: celdas(["", "", "", "", "", "", t.diferencias],
+                                FMT_ACA, TONO_DESDE_ACA),
+                })),
+              ],
+            };
+          })
+      : tab === "consolidados"
+        ? v.consolidado.map((b) => ({
+            titulo: `${b.tab === "agro" ? "FUTUROS AGRÍCOLAS" : "FUTUROS U$S"} · ${b.moneda}`,
+            filas: [
+              { cuenta: "INSTRUMENTO",
+                valor: celdas(["COMPRA", "VENTA", "NETA", "ACUM.", "DIARIA"], plata) },
+              ...b.filas.map((f) => ({
+                cuenta: f.etiqueta,
+                valor: celdas([f.compra, f.venta, f.neta, f.acum_hoy, f.diaria], plata,
+                              TONO_DESDE),
+              })),
+              { cuenta: "TOTAL", destacada: true,
+                valor: celdas([b.total.compra, b.total.venta, b.total.neta,
+                               b.total.acum_hoy, b.total.diaria], plata,
+                              TONO_DESDE) },
+            ],
+          }))
+        : bloques.flatMap((r) => [
+            // `filasMinimas` = el MISMO tope para todas: un Top 10 con 8
+            // cuentas reserva las 10 igual, así las cuatro tablas quedan
+            // alineadas en vez de cortarse a distinta altura.
+            { titulo: `${r.grupo} · Top ${r.top} +`,
+              filasMinimas: r.top,
+              filas: r.positivos.map((i, n) => ({
+                cuenta: `${n + 1}. ${i.nombre}`,
+                valor: fmt2(i.importe, 0),
+                tono: "pos" as const,
+              })) },
+            { titulo: `${r.grupo} · Top ${r.top} −`,
+              filasMinimas: r.top,
+              filas: r.negativos.map((i, n) => ({
+                cuenta: `${n + 1}. ${i.nombre}`,
+                valor: fmt2(i.importe, 0),
+                tono: "neg" as const,
+              })) },
+          ]);
+
+    const nombre = TABS.find((x) => x.id === tab)?.label ?? "";
+    // En POSICIONES DE ACA el título lleva la CUENTA: la imagen se va a un mail
+    // y ahí ya no está el desplegable que dice de cuál es.
+    const cuentaNombre = cuentasAca.find((c) => c.cuenta === cuentaAca)?.nombre ?? cuentaAca;
+    const r = await copiarTab({
+      tablas: tablas.filter((t) => t.filas.length > 1 || tab !== "consolidados"),
+      // En POSICIONES DE ACA el título es SÓLO la cuenta: el nombre de la tab
+      // no le dice nada al que abre el mail, y la cuenta sí — es lo único que
+      // distingue una captura de otra. En las demás tabs el título sigue
+      // nombrando el reporte, que ahí es lo que identifica la imagen.
+      titulo: tab === "aca" ? cuentaNombre : `Posiciones y diferencias · ${nombre}`,
+      fecha: fmtFecha(v.fecha),
+      // Siete columnas numéricas por tabla: apiladas entran en el ancho de un
+      // mail, al lado se van al doble.
+      unaColumna: tab === "aca",
+      archivo: tab === "aca"
+        ? `ap5-aca-${cuentaAca}-${v.fecha ?? "hoy"}.png`
+        : `ap5-${tab}-${v.fecha ?? "hoy"}.png`,
+    });
+    setCopiando(false);
+    // El plan B NO es un error: el objetivo es que la imagen llegue al mail, y
+    // Firefox (y cualquier origen sin HTTPS) no implementan copiar imágenes.
+    setAviso(r === "copiado" ? "Copiado · pegalo en el mail"
+      : r === "descargado" ? "Tu navegador no deja copiar imágenes: se descargó"
+      : "No se pudo generar la imagen");
+    window.setTimeout(() => setAviso(null), 6000);
+  }
+
   return (
     <div className="h-full flex flex-col min-h-0">
       {/* ── Barra: día, tabs y lo que la vista no puede afirmar ─────────────
@@ -219,57 +552,138 @@ export function Ap5PosicionesView() {
           </button>
         ))}
 
+        {tab === "aca" && cuentasAca.length > 0 && (
+          <select
+            value={cuentaAca}
+            onChange={(e) => setCuentaAca(e.target.value)}
+            title="Sólo las cuentas propias de ACA"
+            className="bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1 text-[11px]"
+          >
+            {cuentasAca.map((c) => (
+              <option key={c.cuenta} value={c.cuenta}>{c.nombre}</option>
+            ))}
+          </select>
+        )}
+
+        {/* ⚠️ **NO hay selector de día** (2026-08-26). `ap5.portfolio` guarda
+            DOS días —uno para el acumulado y el anterior para poder restar la
+            diaria— así que no hay nada que elegir. Un desplegable con una sola
+            opción real invita a buscar días que ya no están. */}
         <span className="ml-2 text-[var(--t-text-muted)] uppercase tracking-wide text-[9px]">Día</span>
-        <select
-          value={v.fecha}
-          onChange={(e) => setFecha(e.target.value)}
-          className="bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1 text-[11px]"
-        >
-          {v.fechas.map((f) => (
-            <option key={f.fecha} value={f.fecha}>
-              {fmtFecha(f.fecha)} · {f.cuentas} cuentas
-            </option>
-          ))}
-        </select>
+        <span className="tabular-nums">{fmtFecha(v.fecha)}</span>
+        {v.fecha_anterior && (
+          <span className="text-[10px] text-[var(--t-text-muted)]">
+            (diaria contra {fmtFecha(v.fecha_anterior)})
+          </span>
+        )}
         {cargando && <span className="text-[var(--t-text-muted)]">actualizando…</span>}
-        <div className="ml-auto"><Faltantes f={v.faltantes} /></div>
+        <button
+          onClick={copiar}
+          disabled={copiando}
+          title="Genera la imagen de ESTA tab y la copia al portapapeles"
+          className="ml-auto px-2 py-1 text-[10px] font-semibold tracking-wide border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] disabled:opacity-50"
+        >
+          {copiando ? "GENERANDO…" : "COPIAR IMAGEN"}
+        </button>
+        {aviso && <span className="text-[10px] text-[var(--t-accent)]">{aviso}</span>}
+        <div><Sello a={v.actualizado} f={v.faltantes} /></div>
       </div>
 
       {/* ── La cabecera del reporte ──────────────────────────────────────────
           Las tres cosas que la mesa pone arriba del mail. Una sola línea, sin
-          cards: el espacio es de los rankings. Va FUERA de las tabs porque
-          habla de todo — repetirla en cada una la haría parecer dos cosas. */}
+          cards: el espacio es de los rankings.
+
+          ⚠️ **NO se dibuja en POSICIONES DE ACA.** Las tres hablan de la MESA
+          ENTERA (todas las cuentas), y esa tab habla de UNA cuenta elegida en el
+          desplegable de arriba. Dejarla puesta pone un total de la mesa arriba
+          del detalle de una cuenta, que es exactamente la lectura equivocada. */}
+      {tab !== "aca" && (
       <div className="shrink-0 flex items-stretch flex-wrap gap-px bg-[var(--t-border)] border-y border-[var(--t-border)]">
         <Cabecera titulo="Diferencias ACA hoy">
           {v.diferencias_hoy.length === 0 && <Vacio texto="sin diferencias este día" />}
           {v.diferencias_hoy.map((d) => (
-            <span key={`${d.familia}-${d.moneda}`} className="flex items-baseline gap-1.5">
+            <span
+              key={d.moneda}
+              className="flex items-baseline gap-1.5"
+              title={`Acumulado de la mesa en ${d.moneda}: ${fmt0(d.acumulado)}\n`
+                + `${d.cuentas} cuentas\n`
+                + (d.importe === null
+                    ? "Sin día anterior: no se puede calcular la diferencia."
+                    : `Diferencia = acumulado de hoy − el de ${fmtFecha(v.fecha_anterior)}`)}
+            >
               <span className="text-[9px] text-[var(--t-text-muted)]">En {d.moneda}</span>
-              <span className={`font-mono tabular-nums font-semibold ${tono(d.importe)}`}>
-                {fmt0(d.importe)}
+              <span
+                className={`font-mono tabular-nums font-semibold ${
+                  d.importe === null ? "" : tono(d.importe)
+                }`}
+              >
+                {d.importe === null ? "—" : fmt0(d.importe)}
               </span>
             </span>
           ))}
         </Cabecera>
 
-        {/* Los dos que la API publica y todavía NO pedimos. Se declaran como
-            PENDIENTES en vez de dibujarse vacíos: un espacio en blanco se lee
-            como "hoy no hay", que es otra cosa que "no lo estamos midiendo" —
-            y este cuadro se imprime para gerencia. */}
+        {/* Las dos salen de la MISMA respuesta (`MarginRequirementReport`),
+            sumando CONCEPTOS distintos: el requerimiento suma `Márgenes` y el
+            activo integrado `Márgenes + Inicial A3` — esto último verificado
+            contra el número real de la mesa el 2026-08-25. `AccountBalance`,
+            que parecía el método natural para el integrado, da un agregado por
+            cuenta de compensación que no se puede abrir por comitente. Qué
+            conceptos suma cada una vive en `config.py` del backend. */}
         <Cabecera titulo="Requerimiento de márgenes">
-          <Pendiente donde="Garantías → MarginRequirementReport" />
+          <Margenes r={v.requerimiento_margenes} />
         </Cabecera>
         <Cabecera titulo="Activo integrado">
-          <Pendiente donde="Balance de saldos → AccountBalance" />
+          <Margenes
+            r={v.activo_integrado}
+            onEditar={v.puede_editar_activo_integrado
+              ? (moneda) => setEditarAI({ moneda, r: v.activo_integrado })
+              : undefined}
+          />
         </Cabecera>
       </div>
+      )}
 
-      {tab === "consolidados" ? (
+      {tab === "aca" ? (
+        /* ── POSICIONES DE ACA: la posición abierta de UNA cuenta propia ─────
+           MITAD y MITAD: agro a la izquierda, dólar a la derecha, cada lado con
+           su banda de color. Es lo que permite leer las dos sin confundirlas —
+           son unidades distintas (toneladas contra dólares) y a simple vista dos
+           tablas iguales parecen la misma cosa. */
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3 p-3 overflow-auto bg-white">
+          {aca?.cuenta !== cuentaAca ? (
+            <div className="text-[11px] text-[#5b6472]">Cargando…</div>
+          ) : aca.excluida ? (
+            /* ⚠️ «No tiene posición» y «está marcada para no contarse» NO se
+               pueden dibujar igual: las dos tablas vacías se verían idénticas y
+               una es un dato y la otra una decisión. */
+            <div className="text-[11px] text-[#5b6472] lg:col-span-2">
+              Esta cuenta está en el grupo <b>OTROS</b>: queda fuera de todos los
+              números del reporte, así que acá tampoco se calcula. Para incluirla,
+              cambiale el grupo desde el ranking.
+            </div>
+          ) : (
+            LADOS_ACA.map((l) => (
+              <TablaAca
+                key={l.familia}
+                titulo={l.titulo}
+                color={l.color}
+                etiquetaNocional={l.etiquetaNocional}
+                filas={aca.filas.filter((f) => f.familia === l.familia)}
+                totales={aca.totales.filter((t) => t.familia === l.familia)}
+              />
+            ))
+          )}
+        </div>
+      ) : tab === "consolidados" ? (
         /* ── CONSOLIDADOS: el cuadro POR INSTRUMENTO del mail ───────────────
            Un bloque por (tab, moneda) — agrícolas arriba, U$S abajo — con su
            TOTAL ya sumado por el backend. */
         <div className="flex-1 min-h-0 overflow-auto p-3 space-y-3">
-          {v.consolidado.map((b) => <CuadroConsolidado key={`${b.tab}-${b.moneda}`} b={b} />)}
+          {v.consolidado.map((b) => (
+            <CuadroConsolidado key={`${b.tab}-${b.moneda}`} b={b}
+                               onAuditar={(r) => setAuditar({ b, r })} />
+          ))}
           {v.consolidado.length === 0 && (
             <div className="text-[11px] text-[var(--t-text-dim)]">Sin posición este día.</div>
           )}
@@ -314,6 +728,26 @@ export function Ap5PosicionesView() {
           onGuardado={() => { setEditar(null); recargar(); }}
         />
       )}
+
+      {/* ⚠️ El modal de auditoría vive FUERA de la captura: `copiar()` arma la
+          imagen desde los DATOS (`v.consolidado`), no desde el DOM, así que
+          nada de lo que se abra acá puede colarse en el mail. */}
+      {auditar && (
+        <ModalAuditoria
+          b={auditar.b}
+          r={auditar.r}
+          onCerrar={() => setAuditar(null)}
+        />
+      )}
+
+      {editarAI && (
+        <ModalActivoIntegrado
+          moneda={editarAI.moneda}
+          fila={editarAI.r.por_moneda.find((m) => m.moneda === editarAI.moneda)}
+          onCerrar={() => setEditarAI(null)}
+          onGuardado={() => { setEditarAI(null); recargar(); }}
+        />
+      )}
     </div>
   );
 }
@@ -328,18 +762,602 @@ function Cabecera({ titulo, children }: { titulo: string; children: React.ReactN
   );
 }
 
-/** Un dato que la API publica y que todavía no traemos. Dice DÓNDE está, para
- *  que el pendiente sea accionable y no un cartel. */
-function Pendiente({ donde }: { donde: string }) {
+/** REQUERIMIENTO DE MÁRGENES: la Σ de las cuentas elegidas, POR MONEDA.
+ *
+ *  Tres reglas, y las tres vienen de cómo está armada la vista:
+ *
+ *  1. **Un número por moneda, nunca uno solo.** Sumar Pesos con Dólar da un
+ *     número que no significa nada. Es la misma regla del resto de AP5.
+ *  2. **Acá no se suma nada.** Los totales los calcula el backend, en la misma
+ *     query que trae el detalle — así la card no puede contradecir a la tabla.
+ *  3. **Si falta una cuenta, se dice.** Con dos cuentas y una sola presente el
+ *     número igual sale y se ve creíble; el aviso es lo único que lo delata.
+ */
+function Margenes({ r, onEditar }: {
+  r: Requerimiento;
+  /** Si viene, cada moneda es clickeable para cargarla a mano. Sólo lo pasa
+   *  ACTIVO INTEGRADO, y sólo a quien tiene escritura en Mesa de Dinero. */
+  onEditar?: (moneda: string) => void;
+}) {
+  if (!r || (r.por_moneda.length === 0 && r.cuentas_encontradas === 0)) {
+    return <Vacio texto="sin datos este día" />;
+  }
+  // Las DOS formas de que el número salga incompleto y creíble: que falte una
+  // cuenta, o que falte un concepto. Los dos conteos los hace el backend contra
+  // la base — acá sólo se dibujan.
+  const avisos = [
+    r.cuentas_faltantes.length
+      ? `faltan ${r.cuentas_faltantes.length} de ${r.cuentas_pedidas} cuentas`
+      : "",
+    r.conceptos_faltantes.length ? `sin ${r.conceptos_faltantes.join(", ")}` : "",
+  ].filter(Boolean);
   return (
-    <span className="text-[11px] text-[var(--t-text-muted)]" title={`Falta el job que lo traiga · ${donde}`}>
-      sin traer <span className="text-[9px]">· falta el job</span>
-    </span>
+    <>
+      {r.por_moneda.map((m) => (
+        <span key={m.moneda} className="flex items-baseline gap-1.5">
+          <span className="text-[9px] text-[var(--t-text-muted)]">En {m.moneda}</span>
+          <span
+            onClick={onEditar ? () => onEditar(m.moneda) : undefined}
+            className={`font-mono tabular-nums font-semibold ${
+              onEditar ? "cursor-pointer hover:underline decoration-dotted" : ""
+            } ${m.origen === "manual" ? "text-[var(--t-accent)]" : ""}`}
+            title={[
+              // ⚠️ Lo PRIMERO que dice el tooltip es de dónde salió el número.
+              // Un valor tipeado que se ve idéntico al calculado es cómo un
+              // error de carga sobrevive semanas.
+              ...(m.origen === "manual"
+                ? [`⚠ CARGADO A MANO por ${m.por ?? "—"}`,
+                   `La cámara calculaba: ${m.calculado === null || m.calculado === undefined
+                     ? "nada para esta moneda" : fmt0(m.calculado)}`,
+                   ...(m.nota ? [`Nota: ${m.nota}`] : []),
+                   ...(m.actualizado_at ? [`Cargado: ${m.actualizado_at}`] : []),
+                   ""]
+                : []),
+              `Conceptos: ${r.conceptos.join(" + ")}`,
+              "",
+              // El desglose por concepto va PRIMERO: es lo que contesta «¿por
+              // qué este número?». El detalle por cuenta viene después.
+              ...r.por_concepto
+                .filter((c) => c.moneda === m.moneda)
+                .map((c) => `${c.concepto}: ${fmt0(c.importe)}  (${c.filas} filas)`),
+              "",
+              ...r.detalle
+                .filter((d) => d.moneda === m.moneda)
+                .map(
+                  (d) =>
+                    `${d.titular || d.cuenta} (${d.cuenta}/${d.cuenta_compensacion}) · ${d.concepto}: ${fmt0(d.importe)}`,
+                ),
+            ].join("\n")}
+          >
+            {fmt0(m.importe)}
+            {/* La marca de que el número NO es el de la cámara. Va en la card,
+                no escondida en un tooltip: el que la mira de reojo tiene que
+                ver que ese valor lo escribió una persona. */}
+            {m.origen === "manual" && (
+              <span className="ml-1 text-[9px] font-sans font-normal">✎ manual</span>
+            )}
+          </span>
+        </span>
+      ))}
+      {avisos.length > 0 && (
+        <span
+          className="text-[10px] text-[var(--t-neg)]"
+          title={[
+            r.cuentas_faltantes.length
+              ? `Cuentas que no vinieron: ${r.cuentas_faltantes.join(", ")}`
+              : "",
+            r.conceptos_faltantes.length
+              ? `Conceptos declarados que no vinieron: ${r.conceptos_faltantes.join(", ")}`
+              : "",
+          ]
+            .filter(Boolean)
+            .join("\n")}
+        >
+          {avisos.join(" · ")}
+        </span>
+      )}
+    </>
   );
 }
 
 function Vacio({ texto }: { texto: string }) {
   return <span className="text-[11px] text-[var(--t-text-muted)]">{texto}</span>;
+}
+
+// Los dos lados de POSICIONES DE ACA. El color de la banda es lo que separa
+// AGRO de DÓLAR de un vistazo: son unidades distintas —toneladas contra
+// dólares— y dos tablas iguales lado a lado se leen como la misma cosa.
+// ── POSICIONES DE ACA: la paleta del panel blanco ──────────────────────────
+// Los mismos verde y rojo de `reporte-imagen.ts`: la tab se captura para el
+// mail y pantalla e imagen tienen que verse como el MISMO informe.
+const VERDE_ACA = "#15803d";
+const ROJO_ACA = "#b91c1c";
+const BORDE_ACA = "#d8dde4";
+const tonoAca = (n: number | null) =>
+  n === null || n === 0 ? "#5b6472" : n > 0 ? VERDE_ACA : ROJO_ACA;
+
+// El ancho de cada columna. Las dos tablas llevan las MISMAS ocho.
+const COLS_ACA = ["21%", "11%", "13%", "12%", "12%", "10%", "9%", "12%"];
+
+// ⚠️ Lo que la columna DIFERENCIAS **no** dice, y por eso viaja en el tooltip:
+// `daily_settlement` viene ACUMULADO de la cámara. Leerlo como el movimiento
+// del día es el mismo error que ya apareció tres veces en esta vista.
+const AVISO_DIFERENCIAS =
+  "daily_settlement de la cámara: es el ACUMULADO de la posición al día de la "
+  + "corrida, no lo que se movió hoy. La diferencia del día sale de restar "
+  + "contra el día anterior.";
+
+// `etiquetaNocional`: la MISMA cuenta (contratos × multiplicador) se rotula
+// distinto de cada lado porque la unidad es distinta — toneladas en el agro,
+// dólares nominales en el dólar futuro. Un solo rótulo «NOCIONAL» para los dos
+// obliga a acordarse de cuál es cuál.
+//
+const LADOS_ACA = [
+  { familia: "agro", titulo: "FUTUROS AGRO", color: "#f5cf60",
+    etiquetaNocional: "TONELADAS" },
+  { familia: "dolar", titulo: "DÓLAR FUTURO", color: "#9fcb92",
+    etiquetaNocional: "NOCIONAL U$S" },
+] as const;
+
+/** La posición abierta de un lado (agro o dólar), una fila por símbolo.
+ *
+ *  ⚠️ **FONDO BLANCO Y COLORES FIJOS, a propósito.** Es la única parte de la app
+ *  que hardcodea color en vez de usar los tokens `--t-*`: esta tab se lee y se
+ *  captura para el mail, donde no hay tema oscuro. Los mismos verde y rojo que
+ *  usa `reporte-imagen.ts`, para que la pantalla y la imagen no se vean como dos
+ *  informes distintos.
+ *
+ *  ⚠️ **CANTIDAD es un número con signo, no dos columnas.** La base trae
+ *  `long_qty` y `short_qty` con una en cero; mostrar las dos obliga a leer dos
+ *  celdas para saber si está comprado o vendido.
+ *
+ *  ⚠️ **El color va SÓLO en las columnas de resultado** (DIF PX, DIF % y
+ *  DIFERENCIAS). Cantidad, nocional, entrada y ajuste son datos de la POSICIÓN,
+ *  no resultado: pintarlos sugiere una ganancia donde sólo hay un precio.
+ */
+function TablaAca({ titulo, color, etiquetaNocional, filas, totales }: {
+  titulo: string; color: string; etiquetaNocional: string;
+  filas: FilaAca[]; totales: TotalAca[];
+}) {
+  const cols = COLS_ACA;
+  const cabeceras = [
+    "SÍMBOLO", "CANTIDAD", etiquetaNocional, "P. ENTRADA", "P. AJUSTE",
+    "DIF PX", "DIF %", "DIFERENCIAS",
+  ];
+  // Con UNA moneda alcanza «TOTAL»; con dos hay que decir cuál es cada uno.
+  const unaMoneda = totales.length <= 1;
+  return (
+    <div className="min-h-0 flex flex-col border" style={{ borderColor: BORDE_ACA }}>
+      <div
+        className="px-2 py-1 text-center text-[11px] font-bold tracking-wide text-[#1c2430]"
+        style={{ background: color }}
+      >
+        {titulo}
+      </div>
+      <div className="flex-1 min-h-0 overflow-auto bg-white text-[#1c2430]">
+        <table className="w-full table-fixed border-collapse text-[11px]">
+          <colgroup>
+            {cols.map((w, i) => <col key={i} style={{ width: w }} />)}
+          </colgroup>
+          <thead>
+            <tr style={{ background: "#eef1f5", color: "#5b6472" }}>
+              {cabeceras.map((h, i) => (
+                <th key={h}
+                    title={h === "DIFERENCIAS" ? AVISO_DIFERENCIAS : undefined}
+                    className={`px-2 py-1 text-[9px] uppercase tracking-wide font-semibold ${
+                      i === 0 ? "text-left" : "text-center"}`}>
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="font-mono tabular-nums">
+            {filas.map((f) => (
+              <tr key={f.symbol} className="border-t" style={{ borderColor: BORDE_ACA }}>
+                <td className="px-2 py-0.5 font-sans truncate" title={
+                  f.patas > 1
+                    ? `${f.symbol} · precio de entrada ponderado sobre ${f.patas} patas`
+                    : f.symbol
+                }>
+                  {f.symbol}
+                  {/* Un promedio de una pata y uno de tres no son la misma
+                      evidencia: si se agregó más de una fila, se dice. */}
+                  {f.patas > 1 && (
+                    <span className="ml-1 text-[9px]" style={{ color: "#8a929e" }}>
+                      ×{f.patas}
+                    </span>
+                  )}
+                </td>
+                <td className="px-2 py-0.5 text-center">{fmt0(f.cantidad)}</td>
+                {/* `—` y no `0` cuando el símbolo no tiene multiplicador: un
+                    nocional en cero es una posición que no existe, y ésta
+                    existe — lo que falta es con qué convertirla. */}
+                <td className="px-2 py-0.5 text-center"
+                    title={f.multiplicador === null
+                      ? "Sin multiplicador cargado para este símbolo: no se puede convertir."
+                      : `${fmt0(f.cantidad)} contratos × ${fmt0(f.multiplicador)}`}>
+                  {f.nocional === null ? "—" : fmt0(f.nocional)}
+                </td>
+                <td className="px-2 py-0.5 text-center">
+                  {f.entrada === null ? "—" : fmt2(f.entrada, 2)}
+                </td>
+                <td className="px-2 py-0.5 text-center">
+                  {f.ajuste === null ? "—" : fmt2(f.ajuste, 2)}
+                </td>
+                <td className="px-2 py-0.5 text-center"
+                    style={{ color: tonoAca(f.dif_px) }}>
+                  {f.dif_px === null ? "—" : fmt2(f.dif_px, 2)}
+                </td>
+                <td className="px-2 py-0.5 text-center"
+                    style={{ color: tonoAca(f.dif_pct) }}>
+                  {f.dif_pct === null ? "—" : `${fmt2(f.dif_pct, 2)}%`}
+                </td>
+                <td className="px-2 py-0.5 text-center"
+                    title={AVISO_DIFERENCIAS}
+                    style={{ color: tonoAca(f.diferencias) }}>
+                  {fmt0(f.diferencias)}
+                </td>
+              </tr>
+            ))}
+            {filas.length === 0 && (
+              <tr>
+                <td colSpan={cols.length} className="px-2 py-3 text-center"
+                    style={{ color: "#5b6472" }}>
+                  {VACIO_ACA}
+                </td>
+              </tr>
+            )}
+          </tbody>
+          {/* ── El TOTAL de DIFERENCIAS ──────────────────────────────────
+              UNA fila POR MONEDA: adentro de una misma tabla pueden convivir
+              símbolos que liquidan en monedas distintas, y un total que las
+              suma juntas es un número que no existe.
+
+              ⚠️ **El número lo suma el BACKEND**, de las mismas filas que se
+              dibujan arriba. Acá no se suma nada: un total calculado en el
+              navegador no se puede verificar del lado del servidor, y este
+              cuadro se captura para el mail.
+
+              Sólo se totaliza DIFERENCIAS. Cantidad, nocional y los precios
+              no se suman: un precio promedio de promedios no significa nada,
+              y sumar toneladas de soja con las de trigo tampoco. */}
+          {totales.length > 0 && (
+            <tfoot className="font-mono tabular-nums">
+              {totales.map((t) => (
+                <tr key={t.moneda ?? "-"} className="border-t-2"
+                    style={{ borderColor: "#98a1ad", background: "#eef1f5" }}>
+                  <td colSpan={cols.length - 1}
+                      className="px-2 py-1 font-sans font-semibold text-[10px] tracking-wide">
+                    TOTAL{unaMoneda ? "" : ` ${t.moneda ?? "sin moneda"}`}
+                    {/* Un total al que le faltan símbolos, callado, se lee
+                        como el total completo. */}
+                    {t.sin_multiplicador > 0 && (
+                      <span className="ml-2 font-normal" style={{ color: "#8a929e" }}>
+                        ({t.sin_multiplicador} sin multiplicador: sin nocional)
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-2 py-1 text-center font-semibold"
+                      title={AVISO_DIFERENCIAS}
+                      style={{ color: tonoAca(t.diferencias) }}>
+                    {fmt0(t.diferencias)}
+                  </td>
+                </tr>
+              ))}
+            </tfoot>
+          )}
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/** Carga a mano el ACTIVO INTEGRADO de una moneda.
+ *
+ *  Es TEMPORAL: el número que sale de la cámara trae errores y por un tiempo lo
+ *  escribe la mesa (pedido del user, 2026-08-27).
+ *
+ *  ⚠️ **Muestra SIEMPRE lo que calculó la cámara**, aunque se esté escribiendo
+ *  otro valor. Sin eso, corregir un número es taparlo: nadie puede después
+ *  decir cuánto daba el automático ni cuánto se apartó la carga.
+ *
+ *  ⚠️ **Se puede BORRAR y volver al calculado.** Tiene que haber forma de
+ *  deshacer que no sea escribir un cero: un cero cargado a mano y «no hay dato»
+ *  se ven idénticos, y éste es un número que va al reporte de la mesa.
+ *
+ *  ⚠️ **Quien no tiene permiso ni ve el lápiz, pero el permiso NO es eso**: el
+ *  backend aplica `require_escritura_mesa` en el POST. Esconder un botón es UX.
+ */
+function ModalActivoIntegrado({ moneda, fila, onCerrar, onGuardado }: {
+  moneda: string;
+  fila: Requerimiento["por_moneda"][number] | undefined;
+  onCerrar: () => void;
+  onGuardado: () => void;
+}) {
+  const calculado = fila?.origen === "manual" ? fila?.calculado : fila?.importe;
+  const [valor, setValor] = useState(
+    fila?.origen === "manual" && fila?.importe !== undefined ? String(fila.importe) : "");
+  const [nota, setNota] = useState(fila?.nota ?? "");
+  const [err, setErr] = useState<string | null>(null);
+  const [guardando, setGuardando] = useState(false);
+
+  async function enviar(borrar: boolean) {
+    setErr(null);
+    // Coma decimal y separadores de miles: se tipea como se lee en la pantalla.
+    const n = Number(valor.replace(/\./g, "").replace(",", "."));
+    if (!borrar && (valor.trim() === "" || !Number.isFinite(n))) {
+      setErr("Escribí un número, o usá «volver al calculado».");
+      return;
+    }
+    setGuardando(true);
+    try {
+      await fetchJson("/api/ap5/activo-integrado", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ moneda, importe: borrar ? null : n, nota: nota || null }),
+      });
+      onGuardado();
+    } catch (e) {
+      // El 403 del backend llega con su mensaje: es el permiso REAL, y tiene
+      // que verse tal cual en vez de un «no se pudo guardar».
+      setErr(String((e as Error)?.message ?? e));
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onCerrar}>
+      <div className="w-[440px] max-w-[92vw] border border-[var(--t-border)] bg-[var(--t-panel)]"
+           onClick={(e) => e.stopPropagation()}>
+        <div className="px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-brand)]">
+          <div className="text-[11px] font-semibold text-white">Activo integrado · {moneda}</div>
+          <div className="text-[10px] text-white/70">Carga manual, mientras el dato de la cámara falle</div>
+        </div>
+
+        <div className="p-3 space-y-3 text-[11px]">
+          {/* Lo que dice la cámara, siempre a la vista. */}
+          <div className="flex items-baseline justify-between border border-[var(--t-border)] bg-[var(--t-bg)] px-2 py-1.5">
+            <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">
+              Lo que calcula la cámara
+            </span>
+            <span className="font-mono tabular-nums">
+              {calculado === null || calculado === undefined ? "sin dato" : fmt0(calculado)}
+            </span>
+          </div>
+
+          <label className="block">
+            <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">
+              Importe de la mesa
+            </span>
+            <input
+              value={valor}
+              onChange={(e) => setValor(e.target.value)}
+              inputMode="decimal"
+              placeholder="ej. -1.234.567,89"
+              autoFocus
+              className="mt-0.5 w-full bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1 font-mono tabular-nums"
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">
+              Nota (por qué se corrige)
+            </span>
+            <input
+              value={nota}
+              onChange={(e) => setNota(e.target.value)}
+              maxLength={500}
+              placeholder="opcional, pero es lo único que lo explica en un mes"
+              className="mt-0.5 w-full bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1"
+            />
+          </label>
+
+          {/* No se arrastra: hay que decirlo, porque lo contrario es lo que se
+              espera de un valor cargado a mano. */}
+          <div className="text-[10px] text-[var(--t-text-muted)]">
+            Vale sólo para ESTE día. Mañana la card vuelve al calculado hasta que
+            se cargue de nuevo — un importe heredado se leería como el dato de hoy
+            sin que nadie lo haya revisado.
+          </div>
+
+          {err && <div className="text-[var(--t-neg)]">{err}</div>}
+        </div>
+
+        <div className="flex items-center gap-2 px-3 py-2 border-t border-[var(--t-border)]">
+          {fila?.origen === "manual" && (
+            <button
+              onClick={() => enviar(true)}
+              disabled={guardando}
+              title="Borra la carga manual y vuelve a mostrar el número de la cámara"
+              className="px-2 py-1 text-[10px] text-[var(--t-neg)] border border-[var(--t-border-2)] disabled:opacity-50"
+            >
+              VOLVER AL CALCULADO
+            </button>
+          )}
+          <button onClick={onCerrar} className="ml-auto px-3 py-1 text-[11px] text-[var(--t-text-dim)]">
+            Cancelar
+          </button>
+          <button
+            onClick={() => enviar(false)}
+            disabled={guardando}
+            className="px-3 py-1 text-[11px] font-semibold bg-[var(--t-accent)] text-[var(--t-on-accent)] disabled:opacity-50"
+          >
+            {guardando ? "GUARDANDO…" : "GUARDAR"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** AUDITORÍA de una fila del consolidado: de qué cuentas y símbolos sale.
+ *
+ *  Contesta UNA pregunta —«¿de dónde sale este número?»— y por eso no tiene
+ *  botones ni filtros: no es una vista, es la trazabilidad de una celda.
+ *
+ *  ⚠️ **Muestra el número del CUADRO y el del DETALLE, uno al lado del otro.**
+ *  Un detalle que dice explicar una cifra y no cierra con ella deja al que
+ *  audita con dos números y ninguna forma de saber cuál vale; mostrando los dos,
+ *  si alguna vez se separan **se ve en la pantalla** en vez de descubrirse
+ *  comparando contra una planilla. Los dos salen del backend, de los mismos
+ *  predicados — acá no se suma nada.
+ *
+ *  ⚠️ **Sólo lo que ENTRA.** Lo que el cuadro excluye (las cuentas del grupo
+ *  OTROS) no se lista: esto explica una fila, y meter renglones que no la
+ *  componen invita a sumarlos.
+ */
+function ModalAuditoria({ b, r, onCerrar }: {
+  b: Consolidado; r: ConsFila; onCerrar: () => void;
+}) {
+  const [d, setD] = useState<Detalle | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelado = false;
+    const q = new URLSearchParams({ tab: b.tab, moneda: b.moneda, producto: r.producto });
+    fetchJson<Detalle>(`/api/ap5/consolidado/detalle?${q}`)
+      .then((x) => { if (!cancelado) setD(x); })
+      .catch((e) => { if (!cancelado) setErr(String(e?.message ?? e)); });
+    return () => { cancelado = true; };
+  }, [b.tab, b.moneda, r.producto]);
+
+  // Compara el número del cuadro con el del detalle. `null` de los dos lados es
+  // igual: «no se pudo convertir» no es una discrepancia.
+  const cierra = (a: number | null, c: number | null | undefined) =>
+    (a ?? null) === (c ?? null);
+
+  const CAMPOS: { k: keyof ConsFila & keyof DetalleTotal; label: string }[] = [
+    { k: "compra", label: "Compra" },
+    { k: "venta", label: "Venta" },
+    { k: "neta", label: b.unidad ? `Posición ${b.unidad} Neta` : "Posición Neta" },
+    { k: "acum_hoy", label: "Acum. al día" },
+    { k: "acum_ayer", label: "Acum. al día ant." },
+    { k: "diaria", label: "Diferencia diaria" },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onCerrar}>
+      <div
+        className="w-[1080px] max-w-[96vw] max-h-[88vh] flex flex-col border border-[var(--t-border)] bg-[var(--t-panel)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-brand)] flex items-baseline gap-2">
+          <div className="text-[11px] font-semibold text-white">
+            {r.etiqueta} · {b.tab === "agro" ? "FUTUROS AGRÍCOLAS" : "FUTUROS U$S"}
+          </div>
+          <div className="text-[10px] text-white/70">
+            {b.moneda} · de qué cuentas y símbolos sale
+          </div>
+          <button onClick={onCerrar}
+                  className="ml-auto text-[11px] text-white/70 hover:text-white">✕</button>
+        </div>
+
+        {/* La comprobación: el número del cuadro contra la Σ del detalle. */}
+        <div className="shrink-0 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px bg-[var(--t-border)] border-b border-[var(--t-border)]">
+          {CAMPOS.map(({ k, label }) => {
+            const arriba = r[k] as number | null;
+            const abajo = d?.total?.[k] as number | null | undefined;
+            const ok = d ? cierra(arriba, abajo) : true;
+            return (
+              <div key={k} className="bg-[var(--t-panel)] px-2 py-1.5">
+                <div className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] truncate"
+                     title={label}>{label}</div>
+                <div className="font-mono tabular-nums text-[11px] font-semibold">
+                  {arriba === null ? "—" : fmt0(arriba)}
+                </div>
+                <div className={`text-[9px] ${ok ? "text-[var(--t-text-muted)]" : "text-[var(--t-neg)]"}`}>
+                  {!d ? "verificando…"
+                    : ok ? "✓ el detalle suma lo mismo"
+                    : `✗ el detalle da ${abajo === null || abajo === undefined ? "—" : fmt0(abajo)}`}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-auto">
+          {err && <div className="p-3 text-[11px] text-[var(--t-neg)]">{err}</div>}
+          {!d && !err && <div className="p-3 text-[11px] text-[var(--t-text-dim)]">Cargando…</div>}
+          {d && (
+            <table className="w-full text-[11px] font-mono tabular-nums whitespace-nowrap">
+              <thead className="sticky top-0 bg-[var(--t-panel-2)]">
+                <tr className="text-[9px] uppercase text-[var(--t-text-muted)]">
+                  {["Cuenta", "Nombre", "Grupo", "Símbolo", "Mult.", "Compra", "Venta",
+                    "Neta", "Acum. día", "Acum. día ant.", "Diaria"].map((h, i) => (
+                    <th key={h} className={`px-2 py-1 font-normal ${i <= 3 ? "text-left" : "text-right"}`}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {d.filas.map((f) => (
+                  <tr key={`${f.cuenta}-${f.symbol}`} className="border-t border-[var(--t-border-2)]">
+                    <td className="px-2 py-0.5">{f.cuenta}</td>
+                    <td className="px-2 py-0.5 font-sans max-w-[240px] truncate" title={f.nombre}>
+                      {f.nombre}
+                    </td>
+                    <td className="px-2 py-0.5 font-sans text-[var(--t-text-dim)]">{f.grupo}</td>
+                    <td className="px-2 py-0.5">
+                      {f.symbol}
+                      {/* La PK incluye `position_type` y `side`: si se agregó
+                          más de una fila, se dice — un renglón que es una suma
+                          y uno que es un dato no se pueden ver igual. */}
+                      {f.patas > 1 && (
+                        <span className="ml-1 text-[9px] text-[var(--t-text-muted)]">×{f.patas}</span>
+                      )}
+                    </td>
+                    {/* Vacío y NO cero cuando falta el multiplicador: los
+                        contratos están, lo que falta es con qué convertirlos. */}
+                    <td className="px-2 py-0.5 text-right"
+                        title={f.multiplicador === null
+                          ? "Sin multiplicador cargado: la cantidad no se puede expresar en su unidad"
+                          : `${fmt0(f.compra_contratos)} / ${fmt0(f.venta_contratos)} contratos × ${fmt0(f.multiplicador)}`}>
+                      {f.multiplicador === null
+                        ? <span className="text-[var(--t-neg)]">sin mult.</span>
+                        : fmt0(f.multiplicador)}
+                    </td>
+                    <td className="px-2 py-0.5 text-right">
+                      {f.compra === null ? "—" : fmt0(f.compra)}
+                    </td>
+                    <td className="px-2 py-0.5 text-right">
+                      {f.venta === null ? "—" : fmt0(f.venta)}
+                    </td>
+                    <td className="px-2 py-0.5 text-right font-semibold">
+                      {f.neta === null ? "—" : fmt0(f.neta)}
+                    </td>
+                    <td className={`px-2 py-0.5 text-right ${tono(f.acum_hoy)}`}>{fmt0(f.acum_hoy)}</td>
+                    <td className={`px-2 py-0.5 text-right ${tono(f.acum_ayer)}`}>{fmt0(f.acum_ayer)}</td>
+                    <td className={`px-2 py-0.5 text-right font-semibold ${tono(f.diaria)}`}>
+                      {fmt0(f.diaria)}
+                    </td>
+                  </tr>
+                ))}
+                {d.filas.length === 0 && (
+                  <tr><td colSpan={11} className="px-2 py-3 text-center text-[var(--t-text-dim)]">
+                    Sin filas para este instrumento.
+                  </td></tr>
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {d && (
+          <div className="shrink-0 px-3 py-1.5 border-t border-[var(--t-border)] text-[10px] text-[var(--t-text-muted)] flex flex-wrap gap-x-4">
+            <span>{d.total.cuentas} cuenta(s) · {d.total.simbolos} símbolo(s)</span>
+            {d.total.sin_multiplicador > 0 && (
+              <span className="text-[var(--t-neg)]">
+                {d.total.sin_multiplicador} símbolo(s) sin multiplicador: su cantidad no entra en la posición
+              </span>
+            )}
+            <span>Día {fmtFecha(d.fecha)}{d.fecha_anterior ? ` · anterior ${fmtFecha(d.fecha_anterior)}` : ""}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 /** Un cuadro del CONSOLIDADO: FUTUROS AGRÍCOLAS o FUTUROS U$S.
@@ -350,7 +1368,9 @@ function Vacio({ texto }: { texto: string }) {
  *  misma query que las filas. Un total sumado en el navegador no se puede
  *  verificar del lado del servidor — y este cuadro se imprime para gerencia.
  */
-function CuadroConsolidado({ b }: { b: Consolidado }) {
+function CuadroConsolidado({ b, onAuditar }: {
+  b: Consolidado; onAuditar: (r: ConsFila) => void;
+}) {
   const agro = b.tab === "agro";
   const titulo = agro ? "FUTUROS AGRÍCOLAS" : "FUTUROS U$S";
   // El rótulo de la posición sale de la UNIDAD real, no de un supuesto: si en
@@ -394,7 +1414,14 @@ function CuadroConsolidado({ b }: { b: Consolidado }) {
         </thead>
         <tbody>
           {b.filas.map((r) => (
-            <tr key={r.producto} className="border-b border-[var(--t-border-2)]">
+            /* Click = AUDITAR esta fila: de qué cuentas y símbolos sale.
+               El cursor y el hover son la única señal de que se puede: no hay
+               botón, porque una columna de botones en un cuadro que se imprime
+               ensucia el reporte. */
+            <tr key={r.producto}
+                onClick={() => onAuditar(r)}
+                title={`Ver de qué cuentas y símbolos sale ${r.etiqueta}`}
+                className="border-b border-[var(--t-border-2)] cursor-pointer hover:bg-[var(--t-bg)]">
               <td className="px-2 py-1 font-semibold">{r.etiqueta}</td>
               {/* Sin multiplicador la cantidad en unidad NO se puede afirmar:
                   se muestran los CONTRATOS crudos, en vez de un número 100
@@ -439,15 +1466,12 @@ function CuadroConsolidado({ b }: { b: Consolidado }) {
 
 /** Medio ranking (a favor / en contra).
  *
- *  ⚠️ **Acá NO se marca la cuenta sin arrastre cargado** (2026-08-25, pedido
- *  del user: esta vista se imprime como PDF para gerencia). El aviso sigue
- *  existiendo, pero UNA sola vez y en la barra de herramientas — que es de la
- *  mesa, no del informe. Ojo con lo que significa: sin arrastre el acumulado
- *  cuenta solo desde nuestro primer día guardado, así que el orden del top
- *  puede no ser el del mail. El cartel se sacó; el problema se cierra cargando
- *  el arrastre, no escondiéndolo. El TOTAL es de TODAS las cuentas, no del
- *  top: el ranking recorta la LISTA, no la suma. Si el total saliera de las 10
- *  filas, mostrar 10 cambiaría el número y nadie lo notaría. */
+ *  Ordena por ACUMULADO — que es la Σ `daily_settlement` de la última corrida,
+ *  o sea exactamente lo que devuelve la query con que la mesa verifica.
+ *
+ *  ⚠️ **El TOTAL es de TODAS las cuentas del grupo, no del top.** El ranking
+ *  recorta la LISTA, no la suma. Si el total saliera de las 10 filas visibles,
+ *  mostrar 10 en vez de 20 cambiaría el número y nadie lo notaría. */
 function Ladrillo({ titulo, items, total, filas, onFila }: {
   titulo: string; items: RankItem[]; total: number;
   /** Alto RESERVADO, en filas. Ver el comentario de las filas vacías. */
@@ -511,29 +1535,69 @@ function Ladrillo({ titulo, items, total, filas, onFila }: {
 
 /** Lo que la vista NO puede afirmar. Se declara, no se esconde: omitirlo daría
  *  un total plausible al que le falta algo. */
-function Faltantes({ f }: { f: Faltantes }) {
-  const sinMult = f.simbolos_sin_multiplicador ?? [];
-  const fuera = f.fuera_de_tabs ?? [];
-  const avisos: string[] = [];
-  // Lo primero: una posición que no se dibuja en ninguna tab. Es lo que más
-  // fácil pasa desapercibido, justamente porque no está en pantalla.
-  for (const x of fuera) {
-    avisos.push(`${FAMILIA[x.familia] ?? x.familia}: ${x.cuentas} cuenta(s) fuera de las tabs`);
+/** ÚLTIMA ACTUALIZACIÓN. Tres sellos, uno por insumo.
+ *
+ *  ⚠️ **Es el único dato de esta pantalla que no se puede derivar mirando los
+ *  números.** Un job que no corrió deja los datos de ayer, y eso se ve idéntico
+ *  a un día sin movimiento: las mismas filas, los mismos totales, cero señales.
+ *  Sin el sello, «miré y estaba todo igual» y «el job murió el jueves» son
+ *  indistinguibles.
+ *
+ *  ⚠️ **Los faltantes viajan en el `title`, no en un cartel.** Antes eran una
+ *  banda roja en la barra; se sacó porque esta vista se IMPRIME para gerencia
+ *  (pedido del user, 2026-08-26). Un tooltip no sale en el papel y la
+ *  información no se pierde: una posición que no se dibuja en ninguna tab
+ *  seguiría siendo invisible si además la borráramos de acá.
+ */
+function Sello({ a, f }: { a: Actualizado; f: Faltantes }) {
+  const pend: string[] = [];
+  for (const x of f.fuera_de_tabs ?? []) {
+    pend.push(`${FAMILIA[x.familia] ?? x.familia}: ${x.cuentas} cuenta(s) fuera de las tabs`);
   }
-  if (sinMult.length) avisos.push(`${sinMult.length} símbolo(s) sin multiplicador`);
-  if (f.cuentas_sin_grupo) avisos.push(`${f.cuentas_sin_grupo} sin grupo`);
-  if (f.cuentas_sin_nombre) avisos.push(`${f.cuentas_sin_nombre} sin nombre`);
-  if (f.cuentas_sin_cargar) avisos.push(`${f.cuentas_sin_cargar} sin arrastre cargado`);
-  if (!avisos.length) return <span className="text-[10px] text-[var(--t-text-muted)]">sin faltantes</span>;
+  const sinMult = f.simbolos_sin_multiplicador ?? [];
+  if (sinMult.length) {
+    pend.push(`${sinMult.length} símbolo(s) sin multiplicador: ` +
+      sinMult.map((s) => `${s.symbol} (${s.filas})`).join(", "));
+  }
+  if (f.cuentas_sin_grupo) pend.push(`${f.cuentas_sin_grupo} cuenta(s) sin grupo`);
+  if (f.cuentas_sin_nombre) pend.push(`${f.cuentas_sin_nombre} cuenta(s) sin nombre`);
+
+  const partes: [string, string | null][] = [
+    ["posición", a?.posicion ?? null],
+    ["márgenes", a?.margenes ?? null],
+    ];
   return (
     <span
-      className="text-[10px] text-[var(--t-neg)] border border-[var(--t-neg)]/40 px-2 py-0.5"
-      title={sinMult.map((s) => `${s.symbol} (${s.filas} filas)`).join("\n") || undefined}
+      className="text-[10px] text-[var(--t-text-muted)] tabular-nums"
+      title={[
+        "Última actualización de cada insumo:",
+        ...partes.map(([k, t]) => `  ${k}: ${t ? fmtSello(t, true) : "nunca"}`),
+        ...(pend.length ? ["", "Pendientes (no se imprimen):", ...pend.map((x) => `  · ${x}`)] : []),
+      ].join("\n")}
     >
-      ⚠ {avisos.join(" · ")}
+      {partes.map(([k, t], i) => (
+        <span key={k}>
+          {i > 0 && <span className="mx-1 opacity-40">·</span>}
+          {k} <span className={t ? "" : "text-[var(--t-neg)]"}>{t ? fmtSello(t) : "—"}</span>
+        </span>
+      ))}
     </span>
   );
 }
+
+/** ISO → "26/08 13:05". Con `largo`, agrega los segundos y el año.
+ *
+ *  Acá SÍ se usa `new Date(iso)`: el sello viene con hora y zona (`...+00:00`),
+ *  así que no es el caso de `YYYY-MM-DD` suelto que se leía como medianoche UTC
+ *  y en ART mostraba el día anterior. */
+function fmtSello(iso: string, largo = false): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const p = (n: number) => String(n).padStart(2, "0");
+  const base = `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return largo ? `${base}:${p(d.getSeconds())} (${d.getFullYear()})` : base;
+}
+
 
 /** Las DOS cosas que ninguna fuente sabe y carga una persona: el GRUPO (parte
  *  los rankings; la cámara no lo sabe y NO se deduce del nombre — REGLA #9) y el
@@ -549,9 +1613,6 @@ function ModalCuenta({ fila, grupos, onCerrar, onGuardado }: {
   fila: RankItem; grupos: string[]; onCerrar: () => void; onGuardado: () => void;
 }) {
   const [grupo, setGrupo] = useState(fila.grupo === "(sin grupo)" ? "" : fila.grupo);
-  const [pesos, setPesos] = useState("");
-  const [mtr, setMtr] = useState("");
-  const [fecha, setFecha] = useState(fila.fecha_arrastre ?? "");
   const [guardando, setGuardando] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -559,26 +1620,11 @@ function ModalCuenta({ fila, grupos, onCerrar, onGuardado }: {
     setGuardando(true);
     setErr(null);
     try {
-      // Dos recursos distintos → dos llamadas. Solo se manda lo que cambió.
-      if (grupo !== (fila.grupo === "(sin grupo)" ? "" : fila.grupo)) {
-        await fetchJson("/api/ap5/cuentas", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ account: fila.cuenta, grupo }),
-        });
-      }
-      if (fecha && (pesos !== "" || mtr !== "")) {
-        await fetchJson("/api/ap5/acumulado", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            account: fila.cuenta,
-            acumulado_pesos: Number(pesos || 0),
-            acumulado_mtr: Number(mtr || 0),
-            fecha,
-          }),
-        });
-      }
+      await fetchJson("/api/ap5/cuentas", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ account: fila.cuenta, grupo }),
+      });
       onGuardado();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -590,77 +1636,67 @@ function ModalCuenta({ fila, grupos, onCerrar, onGuardado }: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onCerrar}>
       <div
-        className="w-[480px] max-w-[92vw] border border-[var(--t-border)] bg-[var(--t-panel)]"
+        className="w-[420px] max-w-[92vw] border border-[var(--t-border)] bg-[var(--t-panel)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-brand)]">
           <div className="text-[11px] font-semibold text-white">{fila.nombre}</div>
-          <div className="text-[9px] text-white/70">
-            cuenta {fila.cuenta}
-            {fila.cargado
-              ? ` · arrastre cargado hasta ${fila.fecha_arrastre ?? "—"}`
-              : " · sin arrastre cargado"}
+          <div className="text-[10px] text-white/70">
+            cuenta {fila.cuenta} · {fila.moneda}
           </div>
         </div>
 
         <div className="p-3 space-y-3 text-[11px]">
+          {/* Los números, para poder verificar la resta a ojo. NO se editan:
+              salen de lo que informa la cámara. */}
+          <div className="grid grid-cols-3 gap-px bg-[var(--t-border)] border border-[var(--t-border)]">
+            {([
+              ["Acumulado", fila.importe],
+              ["Ayer", fila.acumulado_ayer],
+              ["Diaria", fila.diaria],
+            ] as [string, number | null][]).map(([k, val]) => (
+              <div key={k} className="bg-[var(--t-bg)] px-2 py-1">
+                <div className="text-[9px] uppercase text-[var(--t-text-muted)]">{k}</div>
+                <div className={`font-mono tabular-nums ${val === null ? "" : tono(val)}`}>
+                  {val === null ? "—" : fmt0(val)}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* ⚠️ Lo ÚNICO que se carga a mano. La cámara no sabe de qué lado del
+              informe va una cuenta, y NO se deduce del nombre (REGLA #9). */}
           <label className="block">
             <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">Grupo</span>
             <input
-              list="ap5-grupos" value={grupo} onChange={(e) => setGrupo(e.target.value)}
+              list="ap5-grupos"
+              value={grupo}
+              onChange={(e) => setGrupo(e.target.value)}
               placeholder="COOPERATIVAS / MUNDO ACA"
-              className="w-full mt-0.5 bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1"
+              className="mt-0.5 w-full bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1"
             />
-            <datalist id="ap5-grupos">{grupos.map((g) => <option key={g} value={g} />)}</datalist>
-            <span className="text-[9px] text-[var(--t-text-muted)]">
-              Es lo que parte los rankings. La cámara no lo sabe. Vacío lo saca.
-            </span>
-          </label>
-
-          <div className="grid grid-cols-2 gap-2">
-            <label className="block">
-              <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">Acumulado Pesos</span>
-              <input
-                value={pesos} onChange={(e) => setPesos(e.target.value)} inputMode="decimal"
-                placeholder="0"
-                className="w-full mt-0.5 bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1 font-mono tabular-nums"
-              />
-            </label>
-            <label className="block">
-              <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">Acumulado MtR</span>
-              <input
-                value={mtr} onChange={(e) => setMtr(e.target.value)} inputMode="decimal"
-                placeholder="0"
-                className="w-full mt-0.5 bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1 font-mono tabular-nums"
-              />
-            </label>
-          </div>
-
-          <label className="block">
-            <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">Fecha</span>
-            <input
-              type="date" value={fecha} onChange={(e) => setFecha(e.target.value)}
-              className="w-full mt-0.5 bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1"
-            />
-            <span className="text-[9px] text-[var(--t-text-muted)]">
-              Los dos importes YA contienen todo hasta este día. El sistema suma
-              los días POSTERIORES — si ponés el primer día de la serie, ese día
-              deja de contar.
+            <datalist id="ap5-grupos">
+              {grupos.map((g) => <option key={g} value={g} />)}
+            </datalist>
+            <span className="text-[10px] text-[var(--t-text-muted)]">
+              Decide de qué lado del informe sale la cuenta. Vacío = sin clasificar.
             </span>
           </label>
 
           {err && <div className="text-[var(--t-neg)]">{err}</div>}
+        </div>
 
-          <div className="flex justify-end gap-2 pt-1">
-            <button onClick={onCerrar}
-              className="px-3 py-1 border border-[var(--t-border)] text-[var(--t-text-dim)] hover:text-[var(--t-text)]">
-              Cancelar
-            </button>
-            <button onClick={() => void guardar()} disabled={guardando}
-              className="px-3 py-1 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10 disabled:opacity-50">
-              {guardando ? "Guardando…" : "Guardar"}
-            </button>
-          </div>
+        <div className="flex justify-end gap-2 px-3 py-2 border-t border-[var(--t-border)]">
+          <button onClick={onCerrar} className="px-3 py-1 text-[11px] text-[var(--t-text-dim)]">
+            Cancelar
+          </button>
+          <button
+            onClick={guardar}
+            disabled={guardando}
+            className="px-3 py-1 text-[11px] bg-[var(--t-accent)] text-[var(--t-on-accent)] disabled:opacity-50"
+          >
+            {guardando ? "Guardando…" : "Guardar"}
+          </button>
         </div>
       </div>
     </div>

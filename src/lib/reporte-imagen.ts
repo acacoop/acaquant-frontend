@@ -21,6 +21,10 @@
  * el cliente de mail lo agranda.
  */
 
+/** Una celda numérica con su propio color. En monoespaciada, `texto` viene ya
+ *  rellenado con `padStart` a un ancho fijo, así las columnas alinean solas. */
+export type Celda = { texto: string; tono?: "pos" | "neg" };
+
 /** Una fila de la tabla de un banco. */
 export type FilaImagen = {
   /** `CC ARS · 000100010488` — lo mismo que dice la columna CUENTA. */
@@ -28,15 +32,47 @@ export type FilaImagen = {
   /** La etiqueta, que va debajo y más chica. */
   sub?: string;
   /** El saldo ya formateado. Se dibuja tal cual: formatear dos veces es la forma
-   *  de que la imagen y la pantalla terminen diciendo cosas distintas. */
-  valor: string;
+   *  de que la imagen y la pantalla terminen diciendo cosas distintas.
+   *
+   *  Puede ser UNA celda o VARIAS. Con varias, cada una lleva su propio tono:
+   *  pintar toda la fila del color de una columna deja números positivos en
+   *  rojo, y un positivo en rojo se lee como negativo. */
+  valor: string | Celda[];
   /** Si arriba de esta fila cambia la moneda, lleva una línea más marcada. */
   corte?: boolean;
+  /** Verde a favor, rojo en contra, para el caso de UNA sola celda. Lo decide
+   *  QUIEN TIENE EL NÚMERO, no la imagen: `valor` llega ya formateado y adivinar
+   *  el signo de un string es frágil (el `−` de un locale no es el `-` ASCII). */
+  tono?: "pos" | "neg";
+  /** Fila de TOTAL: fondo gris. Sin esto, el total se lee como una fila más y
+   *  el ojo no encuentra dónde termina la tabla. */
+  destacada?: boolean;
 };
 
-export type TablaImagen = { titulo: string; filas: FilaImagen[] };
+export type TablaImagen = {
+  titulo: string;
+  filas: FilaImagen[];
+  /** Color de la banda del título. Sin esto, la banda gris de siempre.
+   *
+   *  Es para los cuadros donde el color **separa cosas que se leen distinto**:
+   *  en POSICIONES DE ACA, agro y dólar tienen las mismas columnas pero unidades
+   *  distintas (toneladas contra dólares), y dos tablas iguales una debajo de la
+   *  otra se leen como la misma. El color tiene que ser el MISMO que el de la
+   *  pantalla: si difieren, la captura y la vista se ven como dos informes. */
+  color?: string;
+  /** Título centrado en la banda en vez de pegado a la izquierda. */
+  centrado?: boolean;
+  /** Alto RESERVADO en filas. Si la tabla trae menos, se dibujan filas vacías
+   *  hasta llegar. Es lo que mantiene alineadas dos tablas que están una al
+   *  lado de la otra: sin esto, un Top 10 con 8 cuentas queda más corto y la
+   *  siguiente arranca a otra altura. */
+  filasMinimas?: number;
+};
 
 type Opciones = {
+  /** Todas las columnas del MISMO ancho (el del más ancho). Sin esto, una
+   *  columna con contenido corto sale angosta y el reporte se ve desparejo. */
+  mismoAncho?: boolean;
   /** Ya empaquetado en columnas: la imagen respeta el mismo acomodado que la
    *  pantalla, así el que la manda ve lo mismo que le llega al que la abre. */
   columnas: TablaImagen[][];
@@ -59,11 +95,21 @@ const TENUE = "#6b7684";
 const LINEA = "#c9d2df";
 const BANDA = "#e4e9f1";
 const FONDO = "#ffffff";
+// Verde/rojo de PAPEL: más oscuros que los de pantalla, porque un mail se
+// imprime y un verde claro sobre blanco desaparece.
+const VERDE = "#15803d";
+
+const ROJO = "#b91c1c";
 
 const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 const F_CUENTA = `13px ${MONO}`;
 const F_SUB = `10px ${MONO}`;
 const F_TITULO_TABLA = `bold 12px ${MONO}`;
+// ⚠️ La fila de TOTAL va en NEGRITA pero del MISMO CUERPO que las demás. Con el
+// cuerpo del título (12px) cada carácter mide distinto, y como las columnas se
+// alinean rellenando con espacios en monoespaciada, el total quedaba corrido
+// respecto de los números que suma.
+const F_TOTAL = `bold 13px ${MONO}`;
 const F_BARRA = `bold 14px ${MONO}`;
 const F_FIRMA = `11px ${MONO}`;
 
@@ -77,9 +123,19 @@ const H_FILA = 22;       // alto de una fila sin etiqueta
 const H_FILA_SUB = 32;   // alto de una fila con etiqueta debajo
 const SEP_COL = 22;      // separación entre la cuenta y el saldo
 
+const color = (t?: "pos" | "neg") => (t === "pos" ? VERDE : t === "neg" ? ROJO : TINTA);
+
 const alto = (f: FilaImagen) => (f.sub ? H_FILA_SUB : H_FILA);
+
+/** El texto completo de la parte derecha, para medir el ancho de la tabla. */
+const textoValor = (f: FilaImagen) =>
+  typeof f.valor === "string" ? f.valor : f.valor.map((c) => c.texto).join("");
+/** Cuántas filas vacías hay que agregar para llegar al alto reservado. */
+const relleno = (t: TablaImagen) =>
+  Math.max(0, (t.filasMinimas ?? 0) - t.filas.length);
+
 const altoTabla = (t: TablaImagen) =>
-  H_TITULO + t.filas.reduce((a, f) => a + alto(f), 0);
+  H_TITULO + t.filas.reduce((a, f) => a + alto(f), 0) + relleno(t) * H_FILA;
 
 /** Carga el logo. Si falla, el reporte sale igual: un mail sin logo es mejor que
  *  un botón que no hace nada. */
@@ -105,17 +161,22 @@ export async function reporteComoImagen(o: Opciones): Promise<Blob | null> {
       medidor.font = F_TITULO_TABLA;
       ancho = Math.max(ancho, medidor.measureText(t.titulo).width + CELDA_X * 2);
       for (const f of t.filas) {
-        medidor.font = F_CUENTA;
+        medidor.font = f.destacada ? F_TOTAL : F_CUENTA;
         const izq = medidor.measureText(f.cuenta).width;
         medidor.font = F_SUB;
         const sub = f.sub ? medidor.measureText(f.sub).width : 0;
-        medidor.font = F_CUENTA;
-        const der = medidor.measureText(f.valor).width;
+        medidor.font = f.destacada ? F_TOTAL : F_CUENTA;
+        const der = medidor.measureText(textoValor(f)).width;
         ancho = Math.max(ancho, Math.max(izq, sub) + SEP_COL + der + CELDA_X * 2);
       }
     }
     return Math.ceil(ancho);
   });
+
+  if (o.mismoAncho && anchoCol.length) {
+    const w = Math.max(...anchoCol);
+    anchoCol.fill(w);
+  }
 
   const altoCol = o.columnas.map(
     (col) => col.reduce((a, t) => a + altoTabla(t), 0) + GAP_Y * (col.length - 1));
@@ -176,30 +237,54 @@ export async function reporteComoImagen(o: Opciones): Promise<Blob | null> {
     let y = BARRA_H + PAD;
     for (const t of col) {
       // Título del banco, sobre su banda.
-      ctx.fillStyle = BANDA;
+      ctx.fillStyle = t.color ?? BANDA;
       ctx.fillRect(colX, y, w, H_TITULO);
       ctx.strokeStyle = LINEA;
       ctx.lineWidth = 1;
       ctx.strokeRect(colX + 0.5, y + 0.5, w - 1, H_TITULO - 1);
       ctx.fillStyle = TINTA;
       ctx.font = F_TITULO_TABLA;
+      ctx.textAlign = t.centrado ? "center" : "left";
+      ctx.fillText(t.titulo.toUpperCase(),
+                   t.centrado ? colX + w / 2 : colX + CELDA_X, y + H_TITULO / 2);
+      // Vuelve al default: las filas de abajo dan por sentado que arranca en
+      // "left" y una tabla centrada corrompería a la siguiente.
       ctx.textAlign = "left";
-      ctx.fillText(t.titulo.toUpperCase(), colX + CELDA_X, y + H_TITULO / 2);
       y += H_TITULO;
 
       for (const f of t.filas) {
         const h = alto(f);
+        if (f.destacada) {
+          ctx.fillStyle = BANDA;
+          ctx.fillRect(colX, y, w, h);
+        }
         ctx.strokeStyle = LINEA;
-        ctx.lineWidth = f.corte ? 2 : 1;
+        ctx.lineWidth = f.corte || f.destacada ? 2 : 1;
         ctx.strokeRect(colX + 0.5, y + 0.5, w - 1, h - 1);
 
         const medio = f.sub ? y + 12 : y + h / 2;
+        ctx.font = f.destacada ? F_TOTAL : F_CUENTA;
         ctx.fillStyle = TINTA;
-        ctx.font = F_CUENTA;
         ctx.textAlign = "left";
         ctx.fillText(f.cuenta, colX + CELDA_X, medio);
+        // El color va SOLO en los números: pintar también el nombre haría que la
+        // tabla se lea como un semáforo y se pierde qué es lo que cambia.
         ctx.textAlign = "right";
-        ctx.fillText(f.valor, colX + w - CELDA_X, medio);
+        if (typeof f.valor === "string") {
+          ctx.fillStyle = color(f.tono);
+          ctx.fillText(f.valor, colX + w - CELDA_X, medio);
+        } else {
+          // De derecha a izquierda: cada celda se ancla al borde de la que ya
+          // se dibujó. Medir el texto real (y no asumir un ancho) mantiene el
+          // alineado aunque la fuente monoespaciada no esté disponible.
+          let bordeDer = colX + w - CELDA_X;
+          for (let i = f.valor.length - 1; i >= 0; i--) {
+            const c = f.valor[i];
+            ctx.fillStyle = color(c.tono);
+            ctx.fillText(c.texto, bordeDer, medio);
+            bordeDer -= ctx.measureText(c.texto).width;
+          }
+        }
         if (f.sub) {
           ctx.fillStyle = TENUE;
           ctx.font = F_SUB;
@@ -207,6 +292,15 @@ export async function reporteComoImagen(o: Opciones): Promise<Blob | null> {
           ctx.fillText(f.sub, colX + CELDA_X, y + h - 10);
         }
         y += h;
+      }
+      // Las filas vacías del alto reservado. Se DIBUJAN (con su borde) en vez
+      // de dejar el hueco en blanco: así la tabla se ve completa y se nota que
+      // no hay más datos, no que se cortó.
+      for (let k = 0; k < relleno(t); k++) {
+        ctx.strokeStyle = LINEA;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(colX + 0.5, y + 0.5, w - 1, H_FILA - 1);
+        y += H_FILA;
       }
       y += GAP_Y;
     }

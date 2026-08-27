@@ -12,6 +12,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { DownloadButton } from "@/components/download-button";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
 
 interface SeriePoint {
@@ -103,6 +104,56 @@ const CUENTA_FILTER_OPTS: { value: CuentaFilter; label: string }[] = [
 
 type Moneda = "ARS" | "USD";
 
+// ── Filtros madre por NIVEL (multi-select) ───────────────────────────────
+// Los cuatro niveles que la mesa filtra en AUM. NIVEL 4 no está a propósito:
+// no se pidió y sumar una dimensión que nadie cruza sólo agranda la barra.
+// El orden de este array es el orden en pantalla.
+const NIVELES = [
+  { key: "nivel_1", label: "NIVEL 1" },
+  { key: "nivel_2", label: "NIVEL 2" },
+  { key: "nivel_3", label: "NIVEL 3" },
+  { key: "nivel_5", label: "NIVEL 5" },
+] as const;
+type NivelKey = (typeof NIVELES)[number]["key"];
+type NivelSel = Record<NivelKey, string[]>;
+
+const NIVELES_VACIO: NivelSel = { nivel_1: [], nivel_2: [], nivel_3: [], nivel_5: [] };
+
+// Combo = una combinación (operador, niveles) que EXISTE en las cuentas activas,
+// con cuántas cuentas la tienen. Es lo que permite cruzar los filtros: cada nivel
+// ofrece sólo lo que convive con lo ya elegido en los otros.
+type NivelCombo = {
+  operador_email: string | null;
+  nivel_1: string | null;
+  nivel_2: string | null;
+  nivel_3: string | null;
+  nivel_5: string | null;
+  n_cuentas: number;
+};
+
+// Los niveles viajan al backend como params REPETIDOS (`&nivel_1=A&nivel_1=B`);
+// adentro de un nivel valen con OR y entre niveles con AND.
+function _appendNiveles(q: URLSearchParams, sel: NivelSel) {
+  for (const { key } of NIVELES) for (const v of sel[key]) q.append(key, v);
+}
+
+// CARTERA viaja igual (params repetidos) pero es OTRO eje: los niveles eligen
+// CUENTAS, la cartera elige POSICIONES dentro de esas cuentas.
+function _appendCartera(q: URLSearchParams, sel: string[]) {
+  for (const v of sel) q.append("cartera", v);
+}
+
+// Huella de la selección, para la cache del snapshot (`snapKeyRef`). Va ORDENADA:
+// tildar A y después B tiene que dar la misma clave que tildar B y después A, si no
+// el snapshot se re-pide por un cambio que no cambió el filtro.
+function _nivelKey(sel: NivelSel): string {
+  return NIVELES.map(({ key }) => `${key}:${[...sel[key]].sort().join(",")}`).join("|");
+}
+
+function _hayNiveles(sel: NivelSel): boolean {
+  return NIVELES.some(({ key }) => sel[key].length > 0);
+}
+
 // Persiste tab/sub-tab/cuenta en la URL para que el refresh no te
 // expulse a la vista por default. Usamos un parser tolerante: si el
 // valor de la query no es uno de los esperados, cae al default.
@@ -133,10 +184,23 @@ export function AumView() {
   // scopea a sus cuentas. "" = todos. Se pasa como `operador=` a cada endpoint;
   // el backend (scope_aum) estrecha el scope → no hay lógica por tab.
   const [operador, setOperador] = useState<string>("");
-  // Filtro MADRE Nivel 1 (segmento): scopea la vista TOTAL a las cuentas de ese
-  // nivel_1. "" = todos. Se pasa como `nivel_1=` (intersecta con operador si hay).
-  const [nivel1, setNivel1] = useState<string>("");
-  const [niveles1, setNiveles1] = useState<string[]>([]);
+  // Filtros MADRE por NIVEL (1, 2, 3 y 5): scopean la vista TOTAL a las cuentas de
+  // esos niveles. Cada uno acepta VARIOS valores — adentro del nivel valen con OR,
+  // entre niveles con AND — y todos intersectan con el operador si hay. `[]` en un
+  // nivel = "todos" (ese nivel no filtra). Viajan como params repetidos.
+  const [nivelSel, setNivelSel] = useState<NivelSel>(NIVELES_VACIO);
+  const [combos, setCombos] = useState<NivelCombo[]>([]);
+  // Filtro MADRE por CARTERA. A diferencia de los niveles (que scopean CUENTAS)
+  // éste filtra POSICIONES, así que viaja como param propio de serie/snapshot y
+  // no por `scope_aum`. Hasta ahora la cartera sólo se podía elegir clickeando
+  // el leaderboard de abajo: eso pinea UNA y sólo afecta al drill-down, no al
+  // chart ni al TOTAL. Como filtro madre recorta las tres cosas juntas.
+  const [carteraSel, setCarteraSel] = useState<string[]>([]);
+  const [carteraOpts, setCarteraOpts] = useState<{ cartera: string; n_posiciones: number }[]>([]);
+  const carteraKey = [...carteraSel].sort().join(",");
+  const nivelKey = _nivelKey(nivelSel);
+  const setNivel = (k: NivelKey) => (next: string[]) =>
+    setNivelSel((prev) => ({ ...prev, [k]: next }));
   const [operadores, setOperadores] = useState<
     { operador_email: string; operador_nombre: string | null; n_cuentas: number }[]
   >([]);
@@ -204,15 +268,73 @@ export function AumView() {
     })();
   }, []);
 
-  // Valores de Nivel 1 (segmento) para el filtro madre de TOTAL.
+  // Combos (operador × niveles) de las cuentas activas, para poblar y CRUZAR los
+  // filtros madre de TOTAL. Vienen del backend: el front no deriva ni inventa
+  // combinaciones — sólo ofrece las que existen.
   useEffect(() => {
     let alive = true;
-    fetch("/api/portfolio/niveles-1", { cache: "no-store" })
+    fetch("/api/portfolio/niveles", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d: { niveles_1?: string[] } | null) => { if (alive && d) setNiveles1(d.niveles_1 ?? []); })
+      .then((d: { combos?: NivelCombo[] } | null) => {
+        if (alive && d && Array.isArray(d.combos)) setCombos(d.combos);
+      })
       .catch(() => {});
     return () => { alive = false; };
   }, []);
+
+  // Opciones de CARTERA — las que EXISTEN hoy en el AuM del scope puesto. Se
+  // repiden al cambiar operador/niveles: una cartera que con ese scope no tiene
+  // ni una posición no debe ofrecerse, porque elegirla deja la pantalla vacía.
+  // No se manda `cartera`: pedir las opciones filtradas por la propia selección
+  // dejaría el desplegable con sólo lo ya tildado.
+  useEffect(() => {
+    if (!opsListo) return;
+    let alive = true;
+    const q = new URLSearchParams();
+    if (operador) q.set("operador", operador);
+    _appendNiveles(q, nivelSel);
+    const suffix = q.toString() ? `?${q}` : "";
+    fetch(`/api/portfolio/carteras${suffix}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { carteras?: { cartera: string; n_posiciones: number }[] } | null) => {
+        if (alive && d && Array.isArray(d.carteras)) setCarteraOpts(d.carteras);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [operador, nivelSel, opsListo]);
+
+  // ── Cross-filter: cada nivel ofrece SOLO lo compatible con los OTROS ──────
+  // (mismo modelo que la barra madre de /operadores). Sin esto el usuario puede
+  // tildar un Nivel 3 que ningún Nivel 1 elegido tiene y la vista queda vacía
+  // sin explicar por qué. NO se podan las selecciones al cruzar: el MultiSelect
+  // sigue mostrando lo tildado aunque el cruce lo saque de las opciones, así
+  // marcar en un nivel no borra lo elegido en otro.
+  const opcionesPorNivel = useMemo(() => {
+    const sets: Record<NivelKey, Set<string>> = {
+      nivel_1: new Set(nivelSel.nivel_1), nivel_2: new Set(nivelSel.nivel_2),
+      nivel_3: new Set(nivelSel.nivel_3), nivel_5: new Set(nivelSel.nivel_5),
+    };
+    // Un combo pasa el filtro de un nivel si ese nivel no filtra o si su valor está tildado.
+    const pasa = (c: NivelCombo, k: NivelKey) => sets[k].size === 0 || (!!c[k] && sets[k].has(c[k]!));
+    const pasaOperador = (c: NivelCombo) => !operador || c.operador_email === operador;
+    const out = {} as Record<NivelKey, { value: string; label: string; n: number }[]>;
+    for (const { key } of NIVELES) {
+      // Para las opciones de un nivel se aplican todos los OTROS filtros, no el propio
+      // (si no, un nivel con algo tildado sólo se ofrecería a sí mismo).
+      const acc = new Map<string, number>();
+      for (const c of combos) {
+        if (!pasaOperador(c)) continue;
+        if (NIVELES.some(({ key: k }) => k !== key && !pasa(c, k))) continue;
+        const v = c[key];
+        if (!v) continue;
+        acc.set(v, (acc.get(v) ?? 0) + c.n_cuentas);
+      }
+      out[key] = [...acc.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0], "es"))
+        .map(([value, n]) => ({ value, label: value, n }));
+    }
+    return out;
+  }, [combos, operador, nivelSel]);
 
   const [loadingSerie, setLoadingSerie] = useState(true);
   const [serieErr, setSerieErr] = useState<string | null>(null);
@@ -243,7 +365,7 @@ export function AumView() {
         const q = new URLSearchParams({ moneda });
         if (cuentaFilter !== "todas") q.set("cuenta_filter", cuentaFilter);
         if (operador) q.set("operador", operador);
-        if (nivel1 && tab === "total") q.set("nivel_1", nivel1);
+        if (tab === "total") { _appendNiveles(q, nivelSel); _appendCartera(q, carteraSel); }
         const res = await fetch(`${base}?${q}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
@@ -275,7 +397,7 @@ export function AumView() {
     return () => {
       cancelled = true;
     };
-  }, [tab, moneda, cuentaFilter, operador, nivel1, opsListo]);
+  }, [tab, moneda, cuentaFilter, operador, nivelSel, carteraSel, opsListo]);
 
   // Snapshot — depende de fecha + cuentaFilter + moneda. Es lo que cambia
   // cuando el usuario juega con los filtros; el chart de evolución se queda
@@ -287,7 +409,7 @@ export function AumView() {
     if (tab !== "fci" && tab !== "total") return;
     if (!opsListo) return;  // esperar el operador resuelto (evita doble fetch)
     if (tab === "fci" && !fechaSel) return;  // FCI no soporta "última" server-side
-    const key = [tab, fechaSel, cuentaFilter, moneda, operador, nivel1].join("|");
+    const key = [tab, fechaSel, cuentaFilter, moneda, operador, nivelKey, carteraKey].join("|");
     if (key === snapKeyRef.current) return;  // ya está cargado exactamente esto
     let cancelled = false;
     (async () => {
@@ -298,13 +420,13 @@ export function AumView() {
         if (fechaSel) q.set("fecha", fechaSel);
         if (cuentaFilter !== "todas") q.set("cuenta_filter", cuentaFilter);
         if (operador) q.set("operador", operador);
-        if (nivel1 && tab === "total") q.set("nivel_1", nivel1);
+        if (tab === "total") { _appendNiveles(q, nivelSel); _appendCartera(q, carteraSel); }
         const res = await fetch(`${base}?${q}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         if (cancelled) return;
         const fechaResuelta: string = (typeof json.fecha === "string" && json.fecha) || fechaSel;
-        snapKeyRef.current = [tab, fechaResuelta, cuentaFilter, moneda, operador, nivel1].join("|");
+        snapKeyRef.current = [tab, fechaResuelta, cuentaFilter, moneda, operador, nivelKey, carteraKey].join("|");
         if (!fechaSel && fechaResuelta) setFechaSel(fechaResuelta);
         const rawDocs = Array.isArray(json.docs) ? json.docs : [];
         const rows: SnapshotRow[] = rawDocs.map((d: { unidad: string; emisor?: string; cartera?: string; ticker?: string; cuenta: string; id_cuenta: string; valuacion: number; cantidad: number }) => ({
@@ -328,7 +450,7 @@ export function AumView() {
     return () => {
       cancelled = true;
     };
-  }, [tab, fechaSel, cuentaFilter, moneda, operador, nivel1, opsListo]);
+  }, [tab, fechaSel, cuentaFilter, moneda, operador, nivelSel, nivelKey, carteraSel, carteraKey, opsListo]);
 
   const fechasAll = useMemo(() => serie.map((s) => s.fecha), [serie]);
 
@@ -458,7 +580,7 @@ export function AumView() {
     setUnidadSel(null);
     setCuentaQuery("");
     setUnidadQuery("");
-  }, [tab, operador, nivel1]);
+  }, [tab, operador, nivelSel, carteraSel]);
 
   const detalleEmisor = useMemo(() => {
     if (!emisorSel) return [];
@@ -486,7 +608,7 @@ export function AumView() {
   }, [snapshot, emisorSel]);
 
   const tabBar = (
-    <div className="flex items-center gap-1 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
+    <div className="flex items-center gap-1 gap-y-1.5 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0 flex-wrap">
       {(["total", "fci", "analisis_dinero"] as AumTab[]).map((t) => (
         <button key={t} onClick={() => setTab(t)}
           className={`px-3 py-0.5 text-[11px] font-semibold tracking-wide border transition-colors ${
@@ -517,22 +639,42 @@ export function AumView() {
           ))}
         </select>
       </div>
+      {/* NIVELES 1/2/3/5 — filtros MADRE multi-select (mismo componente que la barra
+          de /operadores). Adentro de un nivel los valores valen con OR, entre niveles
+          con AND; el desplegable de cada uno ofrece sólo lo compatible con los otros. */}
       {tab === "total" && (
-        <div className="flex items-center gap-1">
-          <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">NIVEL 1</span>
-          <select
-            value={nivel1}
-            onChange={(e) => setNivel1(e.target.value)}
-            className={`bg-[var(--t-panel)] border text-[10px] px-2 py-0.5 font-mono focus:outline-none ${
-              nivel1 ? "border-[var(--t-accent)] text-[var(--t-accent)]" : "border-[var(--t-border-2)] text-[var(--t-text)] focus:border-[var(--t-accent)]"
-            }`}
-            title="Filtra la vista AUM Total a las cuentas de un Nivel 1 (segmento)"
-          >
-            <option value="">TODOS</option>
-            {niveles1.map((n) => (
-              <option key={n} value={n}>{n}</option>
-            ))}
-          </select>
+        <div className="flex items-center gap-1 flex-wrap">
+          {NIVELES.map(({ key, label }) => (
+            <MultiSelect
+              key={key}
+              label={label}
+              selected={nivelSel[key]}
+              onChange={setNivel(key)}
+              options={opcionesPorNivel[key]}
+              width="max-w-[170px]"
+            />
+          ))}
+          {/* CARTERA — mismo desplegable, otro eje: los niveles eligen CUENTAS y
+              esto elige POSICIONES. Antes sólo se podía pinear una clickeando el
+              leaderboard, y eso no tocaba ni el chart ni el TOTAL. */}
+          <MultiSelect
+            label="CARTERA"
+            selected={carteraSel}
+            onChange={setCarteraSel}
+            options={carteraOpts.map((c) => ({
+              value: c.cartera, label: c.cartera, n: c.n_posiciones,
+            }))}
+            width="max-w-[170px]"
+          />
+          {(_hayNiveles(nivelSel) || carteraSel.length > 0) && (
+            <button
+              onClick={() => { setNivelSel(NIVELES_VACIO); setCarteraSel([]); }}
+              className="text-[9px] tracking-widest text-[var(--t-accent)] border border-[var(--t-accent)] px-1.5 py-0.5 hover:opacity-80"
+              title="Saca todos los filtros de nivel y de cartera"
+            >
+              LIMPIAR
+            </button>
+          )}
         </div>
       )}
       {(tab === "fci" || tab === "total") && (
