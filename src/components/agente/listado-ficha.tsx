@@ -19,7 +19,7 @@
 // `datos.tsx`, y el lint lo hace estructural — un fetch suelto adentro de una
 // tab es cómo nacieron «apliqué y los botones volvieron» y «el informe
 // desapareció al cambiar de tab».
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 
 export type FilaFicha = {
   unidad: string;
@@ -36,6 +36,19 @@ export function ListadoFicha({ campo, filas, opciones, ocupado, onAplicar }: {
   ocupado: boolean;
   onAplicar: (datos: { unidad: string; valor: string }[]) => Promise<void>;
 }) {
+  // ⚠️⚠️ **EL ID DEL DESPLEGABLE TIENE QUE SER ÚNICO EN TODO EL DOCUMENTO.**
+  //
+  // La primera versión lo derivaba del PLACEHOLDER, y en las filas el
+  // placeholder es «—»: al sacarle los no-alfanuméricos quedaba la cadena
+  // vacía, o sea `id="op-"` para TODAS las filas de TODOS los listados
+  // abiertos. Y como ENCONTRÓ ordena por severidad, el listado de CARTERA
+  // (alta) se dibuja ANTES que el de CLASE_ACTIVO (media) — así que el
+  // navegador resolvía `list="op-"` contra el primero que encontraba y
+  // **CLASE_ACTIVO ofrecía los valores de CARTERA**.
+  //
+  // No fallaba: ofrecía opciones plausibles y equivocadas, que es peor.
+  // `useId()` da un id estable y único por instancia del componente.
+  const listaId = `${useId()}-${campo}`;
   const [valores, setValores] = useState<Record<string, string>>({});
   const [busca, setBusca] = useState("");
   // El valor que se aplica «a todos los que se ven». No es un default global:
@@ -72,6 +85,13 @@ export function ListadoFicha({ campo, filas, opciones, ocupado, onAplicar }: {
 
   return (
     <div className="flex flex-col gap-1.5">
+      {/* UNO por listado, no uno por fila: con 379 filas eran 379 copias de la
+          misma lista en el DOM. */}
+      {opciones.length > 0 && (
+        <datalist id={listaId}>
+          {opciones.map((o) => <option key={o} value={o} />)}
+        </datalist>
+      )}
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="text-[var(--t-text-dim)]">
           {filas.length} título(s) sin <b className="text-[var(--t-text)]">{campo}</b>
@@ -86,7 +106,7 @@ export function ListadoFicha({ campo, filas, opciones, ocupado, onAplicar }: {
             tipear 200 veces lo mismo es cómo nacen `HD ` y `hd` — que no fallan
             y rompen los filtros que comparan exacto. */}
         <ValorInput
-          valor={enMasa} onChange={setEnMasa} opciones={opciones}
+          valor={enMasa} onChange={setEnMasa} lista={listaId}
           placeholder={`${campo} para los ${vistas.length} visibles`}
           ancho="w-44"
         />
@@ -127,7 +147,7 @@ export function ListadoFicha({ campo, filas, opciones, ocupado, onAplicar }: {
                   <ValorInput
                     valor={valores[f.unidad] ?? ""}
                     onChange={(v) => setValores((x) => ({ ...x, [f.unidad]: v }))}
-                    opciones={opciones}
+                    lista={listaId}
                     placeholder="—"
                     ancho="w-36"
                   />
@@ -166,28 +186,24 @@ export function ListadoFicha({ campo, filas, opciones, ocupado, onAplicar }: {
 // El campo con las opciones que YA existen en el catálogo. Es un `datalist`, no
 // un `select`: hay que poder escribir un valor nuevo —el primero de una clase
 // tiene que poder entrar— pero lo que ya existe se elige en vez de tipearse.
-function ValorInput({ valor, onChange, opciones, placeholder, ancho }: {
+//
+// El `<datalist>` lo dibuja el listado UNA vez y le pasa su id: acá no se
+// deriva nada. Derivarlo del placeholder fue lo que hizo que CLASE_ACTIVO
+// ofreciera los valores de CARTERA.
+function ValorInput({ valor, onChange, lista, placeholder, ancho }: {
   valor: string;
   onChange: (v: string) => void;
-  opciones: string[];
+  lista: string;
   placeholder: string;
   ancho: string;
 }) {
-  const id = `op-${placeholder.replace(/\W+/g, "")}`;
   return (
-    <>
-      <input
-        list={opciones.length ? id : undefined}
-        value={valor}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className={`text-[9px] px-1.5 py-0.5 bg-[var(--t-surface)] border border-[var(--t-border)] text-[var(--t-text)] ${ancho}`}
-      />
-      {opciones.length > 0 && (
-        <datalist id={id}>
-          {opciones.map((o) => <option key={o} value={o} />)}
-        </datalist>
-      )}
-    </>
+    <input
+      list={lista || undefined}
+      value={valor}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className={`text-[9px] px-1.5 py-0.5 bg-[var(--t-surface)] border border-[var(--t-border)] text-[var(--t-text)] ${ancho}`}
+    />
   );
 }
