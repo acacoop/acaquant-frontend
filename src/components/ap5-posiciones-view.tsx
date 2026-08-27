@@ -97,6 +97,11 @@ type Vista = {
   actualizado: Actualizado;
   requerimiento_margenes: Requerimiento;
   activo_integrado: Requerimiento;
+  /** Si ESTE usuario puede cargar el activo integrado a mano (escritura de Mesa
+   *  de Dinero). ⚠️ Es sólo para no ofrecer un lápiz que va a dar 403: **el
+   *  permiso real lo aplica el backend en el POST**. Esconder un botón no es un
+   *  permiso. */
+  puede_editar_activo_integrado?: boolean;
 };
 
 /** El requerimiento de márgenes de las cuentas elegidas.
@@ -106,7 +111,16 @@ type Vista = {
  *  cuenta en cero, y este cuadro se imprime para gerencia. */
 type Requerimiento = {
   fecha: string | null;
-  por_moneda: { moneda: string; importe: number; filas: number }[];
+  /** ⚠️ `origen` sólo lo trae ACTIVO INTEGRADO, que por ahora se carga a mano:
+   *  `manual` = lo escribió la mesa y `calculado` guarda lo que decía la
+   *  cámara, con quién y cuándo. El manual NO borra al calculado — los dos se
+   *  muestran, porque un número tipeado que tapa al automático sin dejar rastro
+   *  es cómo un error de carga sobrevive semanas. */
+  por_moneda: {
+    moneda: string; importe: number; filas: number;
+    origen?: "manual" | "calculado"; calculado?: number | null;
+    nota?: string | null; por?: string | null; actualizado_at?: string | null;
+  }[];
   // Una fila por CONCEPTO (`Márgenes`, `Inicial A3`, …). `importe` es `margen`
   // con el signo ya dado vuelta — `primas` e `inter_temporal` viajan porque la
   // cámara los manda, pero NO son parte del número: `Márgenes` trae un
@@ -312,6 +326,9 @@ export function Ap5PosicionesView() {
   // ⚠️ Guarda la FILA entera, no sólo el producto: el modal muestra el número
   // del cuadro AL LADO del suyo, y para eso necesita el original.
   const [auditar, setAuditar] = useState<{ b: Consolidado; r: ConsFila } | null>(null);
+  // La moneda del ACTIVO INTEGRADO que se está cargando a mano. Es temporal:
+  // el número de la cámara trae errores y por un tiempo lo escribe la mesa.
+  const [editarAI, setEditarAI] = useState<{ moneda: string; r: Requerimiento } | null>(null);
   const [copiando, setCopiando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const recargar = useCallback(() => setRecarga((n) => n + 1), []);
@@ -617,7 +634,12 @@ export function Ap5PosicionesView() {
           <Margenes r={v.requerimiento_margenes} />
         </Cabecera>
         <Cabecera titulo="Activo integrado">
-          <Margenes r={v.activo_integrado} />
+          <Margenes
+            r={v.activo_integrado}
+            onEditar={v.puede_editar_activo_integrado
+              ? (moneda) => setEditarAI({ moneda, r: v.activo_integrado })
+              : undefined}
+          />
         </Cabecera>
       </div>
       )}
@@ -717,6 +739,15 @@ export function Ap5PosicionesView() {
           onCerrar={() => setAuditar(null)}
         />
       )}
+
+      {editarAI && (
+        <ModalActivoIntegrado
+          moneda={editarAI.moneda}
+          fila={editarAI.r.por_moneda.find((m) => m.moneda === editarAI.moneda)}
+          onCerrar={() => setEditarAI(null)}
+          onGuardado={() => { setEditarAI(null); recargar(); }}
+        />
+      )}
     </div>
   );
 }
@@ -742,7 +773,12 @@ function Cabecera({ titulo, children }: { titulo: string; children: React.ReactN
  *  3. **Si falta una cuenta, se dice.** Con dos cuentas y una sola presente el
  *     número igual sale y se ve creíble; el aviso es lo único que lo delata.
  */
-function Margenes({ r }: { r: Requerimiento }) {
+function Margenes({ r, onEditar }: {
+  r: Requerimiento;
+  /** Si viene, cada moneda es clickeable para cargarla a mano. Sólo lo pasa
+   *  ACTIVO INTEGRADO, y sólo a quien tiene escritura en Mesa de Dinero. */
+  onEditar?: (moneda: string) => void;
+}) {
   if (!r || (r.por_moneda.length === 0 && r.cuentas_encontradas === 0)) {
     return <Vacio texto="sin datos este día" />;
   }
@@ -761,8 +797,22 @@ function Margenes({ r }: { r: Requerimiento }) {
         <span key={m.moneda} className="flex items-baseline gap-1.5">
           <span className="text-[9px] text-[var(--t-text-muted)]">En {m.moneda}</span>
           <span
-            className="font-mono tabular-nums font-semibold"
+            onClick={onEditar ? () => onEditar(m.moneda) : undefined}
+            className={`font-mono tabular-nums font-semibold ${
+              onEditar ? "cursor-pointer hover:underline decoration-dotted" : ""
+            } ${m.origen === "manual" ? "text-[var(--t-accent)]" : ""}`}
             title={[
+              // ⚠️ Lo PRIMERO que dice el tooltip es de dónde salió el número.
+              // Un valor tipeado que se ve idéntico al calculado es cómo un
+              // error de carga sobrevive semanas.
+              ...(m.origen === "manual"
+                ? [`⚠ CARGADO A MANO por ${m.por ?? "—"}`,
+                   `La cámara calculaba: ${m.calculado === null || m.calculado === undefined
+                     ? "nada para esta moneda" : fmt0(m.calculado)}`,
+                   ...(m.nota ? [`Nota: ${m.nota}`] : []),
+                   ...(m.actualizado_at ? [`Cargado: ${m.actualizado_at}`] : []),
+                   ""]
+                : []),
               `Conceptos: ${r.conceptos.join(" + ")}`,
               "",
               // El desglose por concepto va PRIMERO: es lo que contesta «¿por
@@ -780,6 +830,12 @@ function Margenes({ r }: { r: Requerimiento }) {
             ].join("\n")}
           >
             {fmt0(m.importe)}
+            {/* La marca de que el número NO es el de la cámara. Va en la card,
+                no escondida en un tooltip: el que la mira de reojo tiene que
+                ver que ese valor lo escribió una persona. */}
+            {m.origen === "manual" && (
+              <span className="ml-1 text-[9px] font-sans font-normal">✎ manual</span>
+            )}
           </span>
         </span>
       ))}
@@ -991,6 +1047,145 @@ function TablaAca({ titulo, color, etiquetaNocional, filas, totales }: {
             </tfoot>
           )}
         </table>
+      </div>
+    </div>
+  );
+}
+
+/** Carga a mano el ACTIVO INTEGRADO de una moneda.
+ *
+ *  Es TEMPORAL: el número que sale de la cámara trae errores y por un tiempo lo
+ *  escribe la mesa (pedido del user, 2026-08-27).
+ *
+ *  ⚠️ **Muestra SIEMPRE lo que calculó la cámara**, aunque se esté escribiendo
+ *  otro valor. Sin eso, corregir un número es taparlo: nadie puede después
+ *  decir cuánto daba el automático ni cuánto se apartó la carga.
+ *
+ *  ⚠️ **Se puede BORRAR y volver al calculado.** Tiene que haber forma de
+ *  deshacer que no sea escribir un cero: un cero cargado a mano y «no hay dato»
+ *  se ven idénticos, y éste es un número que va al reporte de la mesa.
+ *
+ *  ⚠️ **Quien no tiene permiso ni ve el lápiz, pero el permiso NO es eso**: el
+ *  backend aplica `require_escritura_mesa` en el POST. Esconder un botón es UX.
+ */
+function ModalActivoIntegrado({ moneda, fila, onCerrar, onGuardado }: {
+  moneda: string;
+  fila: Requerimiento["por_moneda"][number] | undefined;
+  onCerrar: () => void;
+  onGuardado: () => void;
+}) {
+  const calculado = fila?.origen === "manual" ? fila?.calculado : fila?.importe;
+  const [valor, setValor] = useState(
+    fila?.origen === "manual" && fila?.importe !== undefined ? String(fila.importe) : "");
+  const [nota, setNota] = useState(fila?.nota ?? "");
+  const [err, setErr] = useState<string | null>(null);
+  const [guardando, setGuardando] = useState(false);
+
+  async function enviar(borrar: boolean) {
+    setErr(null);
+    // Coma decimal y separadores de miles: se tipea como se lee en la pantalla.
+    const n = Number(valor.replace(/\./g, "").replace(",", "."));
+    if (!borrar && (valor.trim() === "" || !Number.isFinite(n))) {
+      setErr("Escribí un número, o usá «volver al calculado».");
+      return;
+    }
+    setGuardando(true);
+    try {
+      await fetchJson("/api/ap5/activo-integrado", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ moneda, importe: borrar ? null : n, nota: nota || null }),
+      });
+      onGuardado();
+    } catch (e) {
+      // El 403 del backend llega con su mensaje: es el permiso REAL, y tiene
+      // que verse tal cual en vez de un «no se pudo guardar».
+      setErr(String((e as Error)?.message ?? e));
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onCerrar}>
+      <div className="w-[440px] max-w-[92vw] border border-[var(--t-border)] bg-[var(--t-panel)]"
+           onClick={(e) => e.stopPropagation()}>
+        <div className="px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-brand)]">
+          <div className="text-[11px] font-semibold text-white">Activo integrado · {moneda}</div>
+          <div className="text-[10px] text-white/70">Carga manual, mientras el dato de la cámara falle</div>
+        </div>
+
+        <div className="p-3 space-y-3 text-[11px]">
+          {/* Lo que dice la cámara, siempre a la vista. */}
+          <div className="flex items-baseline justify-between border border-[var(--t-border)] bg-[var(--t-bg)] px-2 py-1.5">
+            <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">
+              Lo que calcula la cámara
+            </span>
+            <span className="font-mono tabular-nums">
+              {calculado === null || calculado === undefined ? "sin dato" : fmt0(calculado)}
+            </span>
+          </div>
+
+          <label className="block">
+            <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">
+              Importe de la mesa
+            </span>
+            <input
+              value={valor}
+              onChange={(e) => setValor(e.target.value)}
+              inputMode="decimal"
+              placeholder="ej. -1.234.567,89"
+              autoFocus
+              className="mt-0.5 w-full bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1 font-mono tabular-nums"
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">
+              Nota (por qué se corrige)
+            </span>
+            <input
+              value={nota}
+              onChange={(e) => setNota(e.target.value)}
+              maxLength={500}
+              placeholder="opcional, pero es lo único que lo explica en un mes"
+              className="mt-0.5 w-full bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1"
+            />
+          </label>
+
+          {/* No se arrastra: hay que decirlo, porque lo contrario es lo que se
+              espera de un valor cargado a mano. */}
+          <div className="text-[10px] text-[var(--t-text-muted)]">
+            Vale sólo para ESTE día. Mañana la card vuelve al calculado hasta que
+            se cargue de nuevo — un importe heredado se leería como el dato de hoy
+            sin que nadie lo haya revisado.
+          </div>
+
+          {err && <div className="text-[var(--t-neg)]">{err}</div>}
+        </div>
+
+        <div className="flex items-center gap-2 px-3 py-2 border-t border-[var(--t-border)]">
+          {fila?.origen === "manual" && (
+            <button
+              onClick={() => enviar(true)}
+              disabled={guardando}
+              title="Borra la carga manual y vuelve a mostrar el número de la cámara"
+              className="px-2 py-1 text-[10px] text-[var(--t-neg)] border border-[var(--t-border-2)] disabled:opacity-50"
+            >
+              VOLVER AL CALCULADO
+            </button>
+          )}
+          <button onClick={onCerrar} className="ml-auto px-3 py-1 text-[11px] text-[var(--t-text-dim)]">
+            Cancelar
+          </button>
+          <button
+            onClick={() => enviar(false)}
+            disabled={guardando}
+            className="px-3 py-1 text-[11px] font-semibold bg-[var(--t-accent)] text-[var(--t-on-accent)] disabled:opacity-50"
+          >
+            {guardando ? "GUARDANDO…" : "GUARDAR"}
+          </button>
+        </div>
       </div>
     </div>
   );
