@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
-import { ControlesPanel } from "./manager-controles-panel";
 // Imports estáticos: la carga diferida (next/dynamic) hacía que cada tab trajera
 // su chunk al entrar → se sentía lento (sobre todo Clientes). Con imports
 // estáticos las tabs son instantáneas (cuesta un poco más el load inicial, pero
@@ -220,8 +219,12 @@ function ObservabilidadGroup() {
   // gasto no se dispare y que las llamadas no fallen— es ahora un CHEQUEO del
   // AV AGENT (`ia:gateway`), o sea una señal que te busca en vez de una pantalla
   // que hay que ir a abrir. Que es, otra vez, el argumento que fundó SALUD.
-  // "uso" quedó en el union solo para migrar el estado persistido viejo (la
-  // telemetría de USO fue decomisada del backend) — cae a "controles".
+  // "uso" y "controles" quedan en el union SOLO para migrar el estado
+  // persistido viejo: la telemetría de USO se decomisó del backend y el
+  // auto-control de calidad de datos se dio de baja entero (2026-08-27,
+  // sus dieciséis controles eran el AV AGENT o se dieron de baja). A quien
+  // los tenga guardados hay que llevarlo a una tab que exista, o la
+  // pantalla le abre vacía y parece rota.
   // Migración del estado guardado: quien tenía CONTROLES o JOBS elegidos cae a
   // SALUD, que es donde vive ese contenido ahora.
   // Migración del estado guardado: los que quedaron con una tab que ya no existe
