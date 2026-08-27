@@ -213,16 +213,8 @@ type CuentaConsolidada = Cuenta & {
   gastos_desglose: Desglose | null;
   // Cuánto del cierre lo puso una persona. Se muestra aparte: un saldo con
   // ajuste manual no vale lo mismo que uno que informó el banco.
-  //
-  // ⚠️ `ajuste_manual` es el ACUMULADO de todo lo cargado a mano hasta este día,
-  // no lo de hoy: el banco no va a informar nunca esos movimientos, así que
-  // siguen siendo parte del saldo para siempre. `_dia` es lo que se tocó hoy, y
-  // puede ser 0 con el acumulado distinto de 0 — ese es el caso normal.
-  // El importe y su conteo van siempre en pareja del mismo conjunto.
   ajuste_manual: number | null;
   movimientos_manuales: number;
-  ajuste_manual_dia: number;
-  movimientos_manuales_dia: number;
 };
 
 type Banco = {
@@ -905,22 +897,12 @@ function BloqueBanco({
                 informando, pero es otra fuente y el back office tiene que poder
                 distinguirlo de un cierre respaldado por su detalle. */}
             {/* Cuánto de este cierre lo puso una persona. Un saldo ajustado a
-                mano y uno informado por el banco no se leen igual.
-
-                El tooltip separa el ACUMULADO de lo de HOY a propósito: ver
-                «±man» un día en que nadie cargó nada es lo esperable —el manual
-                de un día anterior sigue adentro— y sin esa distinción parece un
-                error de la pantalla. */}
+                mano y uno informado por el banco no se leen igual. */}
             {c.ajuste_manual != null && (
               <span
                 className="ml-1 text-[9px] uppercase text-[var(--t-accent)]"
                 title={`Incluye ${plata(c.ajuste_manual)} de ${c.movimientos_manuales} `
-                  + "movimiento(s) cargado(s) a mano, que el banco no informa "
-                  + "y por eso siguen contando todos los días.\n"
-                  + (c.movimientos_manuales_dia
-                      ? `De hoy: ${plata(c.ajuste_manual_dia)} en `
-                        + `${c.movimientos_manuales_dia} movimiento(s).`
-                      : "Hoy no se cargó ninguno: todo viene de días anteriores.")}
+                  + "movimiento(s) cargado(s) a mano, que el banco no informa."}
               >
                 ±man
               </span>
@@ -2588,15 +2570,14 @@ function ModalManuales({
           <span className="text-[var(--t-accent)]">{fecha}</span>
           <Ayuda texto={
             "Lo que el banco no informa. SIEMPRE impacta el saldo al cierre del "
-            + "día que se le carga… Y DE AHÍ EN ADELANTE: el banco no lo va a "
-            + "informar nunca, así que sigue siendo parte del saldo todos los "
-            + "días siguientes.\n\n"
+            + "día que se le carga, y ese cierre es la APERTURA del día "
+            + "siguiente.\n\n"
+            + "No se arrastra más allá de ahí: el saldo que Interbanking informa "
+            + "al otro día ya trae el movimiento adentro, así que volver a "
+            + "sumarlo lo contaría dos veces.\n\n"
             + "En una cuenta de Interbanking se suma arriba de su extracto. En una "
             + "cuenta manual —un banco que no está en Interbanking— el saldo ES la "
             + "suma de estos movimientos.\n\n"
-            + "⚠️ Si alguno de estos movimientos aparece MÁS TARDE en el extracto "
-            + "del banco, queda contado dos veces. El arreglo es borrarlo desde "
-            + "acá, poniendo la fecha en la que se cargó.\n\n"
             + "La moneda no se elige: cada cuenta ya es de una moneda."
           } />
           <button
