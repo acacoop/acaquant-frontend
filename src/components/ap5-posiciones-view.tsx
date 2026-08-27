@@ -234,6 +234,31 @@ type ConsTotal = {
   compra: number; venta: number; neta: number;
   acum_hoy: number; acum_ayer: number; diaria: number; sin_multiplicador: number;
 };
+/** El detalle de UNA fila del consolidado: cuenta por cuenta, símbolo por
+ *  símbolo. Es AUDITORÍA — contesta «¿de dónde sale este número?».
+ *
+ *  ⚠️ **`total` viene del backend y tiene que dar igual que la fila que
+ *  explica.** Viaja aparte para poder mostrarlo AL LADO del número del cuadro:
+ *  un detalle que dice explicar una cifra y no cierra con ella deja al que
+ *  audita con dos números y ninguna forma de saber cuál vale. */
+type DetalleFila = {
+  cuenta: string; nombre: string; grupo: string; symbol: string;
+  unidad: string | null; multiplicador: number | null;
+  compra_contratos: number; venta_contratos: number;
+  compra: number | null; venta: number | null; neta: number | null;
+  patas: number; acum_hoy: number; acum_ayer: number; diaria: number;
+};
+type DetalleTotal = {
+  compra: number | null; venta: number | null; neta: number | null;
+  acum_hoy: number; acum_ayer: number; diaria: number;
+  cuentas: number; simbolos: number; sin_multiplicador: number;
+};
+type Detalle = {
+  tab: string; moneda: string; producto: string; etiqueta: string;
+  fecha: string | null; fecha_anterior: string | null;
+  filas: DetalleFila[]; total: DetalleTotal;
+};
+
 type Consolidado = {
   tab: TabFam; moneda: string; unidad: string | null; unidades: string[];
   filas: ConsFila[]; total: ConsTotal;
@@ -283,6 +308,10 @@ export function Ap5PosicionesView() {
   const [aca, setAca] = useState<
     { cuenta: string; filas: FilaAca[]; totales: TotalAca[]; excluida?: boolean }
     | null>(null);
+  // La fila del consolidado que se está auditando. `null` = modal cerrado.
+  // ⚠️ Guarda la FILA entera, no sólo el producto: el modal muestra el número
+  // del cuadro AL LADO del suyo, y para eso necesita el original.
+  const [auditar, setAuditar] = useState<{ b: Consolidado; r: ConsFila } | null>(null);
   const [copiando, setCopiando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const recargar = useCallback(() => setRecarga((n) => n + 1), []);
@@ -629,7 +658,10 @@ export function Ap5PosicionesView() {
            Un bloque por (tab, moneda) — agrícolas arriba, U$S abajo — con su
            TOTAL ya sumado por el backend. */
         <div className="flex-1 min-h-0 overflow-auto p-3 space-y-3">
-          {v.consolidado.map((b) => <CuadroConsolidado key={`${b.tab}-${b.moneda}`} b={b} />)}
+          {v.consolidado.map((b) => (
+            <CuadroConsolidado key={`${b.tab}-${b.moneda}`} b={b}
+                               onAuditar={(r) => setAuditar({ b, r })} />
+          ))}
           {v.consolidado.length === 0 && (
             <div className="text-[11px] text-[var(--t-text-dim)]">Sin posición este día.</div>
           )}
@@ -672,6 +704,17 @@ export function Ap5PosicionesView() {
           grupos={v.grupos}
           onCerrar={() => setEditar(null)}
           onGuardado={() => { setEditar(null); recargar(); }}
+        />
+      )}
+
+      {/* ⚠️ El modal de auditoría vive FUERA de la captura: `copiar()` arma la
+          imagen desde los DATOS (`v.consolidado`), no desde el DOM, así que
+          nada de lo que se abra acá puede colarse en el mail. */}
+      {auditar && (
+        <ModalAuditoria
+          b={auditar.b}
+          r={auditar.r}
+          onCerrar={() => setAuditar(null)}
         />
       )}
     </div>
@@ -953,6 +996,175 @@ function TablaAca({ titulo, color, etiquetaNocional, filas, totales }: {
   );
 }
 
+/** AUDITORÍA de una fila del consolidado: de qué cuentas y símbolos sale.
+ *
+ *  Contesta UNA pregunta —«¿de dónde sale este número?»— y por eso no tiene
+ *  botones ni filtros: no es una vista, es la trazabilidad de una celda.
+ *
+ *  ⚠️ **Muestra el número del CUADRO y el del DETALLE, uno al lado del otro.**
+ *  Un detalle que dice explicar una cifra y no cierra con ella deja al que
+ *  audita con dos números y ninguna forma de saber cuál vale; mostrando los dos,
+ *  si alguna vez se separan **se ve en la pantalla** en vez de descubrirse
+ *  comparando contra una planilla. Los dos salen del backend, de los mismos
+ *  predicados — acá no se suma nada.
+ *
+ *  ⚠️ **Sólo lo que ENTRA.** Lo que el cuadro excluye (las cuentas del grupo
+ *  OTROS) no se lista: esto explica una fila, y meter renglones que no la
+ *  componen invita a sumarlos.
+ */
+function ModalAuditoria({ b, r, onCerrar }: {
+  b: Consolidado; r: ConsFila; onCerrar: () => void;
+}) {
+  const [d, setD] = useState<Detalle | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelado = false;
+    const q = new URLSearchParams({ tab: b.tab, moneda: b.moneda, producto: r.producto });
+    fetchJson<Detalle>(`/api/ap5/consolidado/detalle?${q}`)
+      .then((x) => { if (!cancelado) setD(x); })
+      .catch((e) => { if (!cancelado) setErr(String(e?.message ?? e)); });
+    return () => { cancelado = true; };
+  }, [b.tab, b.moneda, r.producto]);
+
+  // Compara el número del cuadro con el del detalle. `null` de los dos lados es
+  // igual: «no se pudo convertir» no es una discrepancia.
+  const cierra = (a: number | null, c: number | null | undefined) =>
+    (a ?? null) === (c ?? null);
+
+  const CAMPOS: { k: keyof ConsFila & keyof DetalleTotal; label: string }[] = [
+    { k: "compra", label: "Compra" },
+    { k: "venta", label: "Venta" },
+    { k: "neta", label: b.unidad ? `Posición ${b.unidad} Neta` : "Posición Neta" },
+    { k: "acum_hoy", label: "Acum. al día" },
+    { k: "acum_ayer", label: "Acum. al día ant." },
+    { k: "diaria", label: "Diferencia diaria" },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onCerrar}>
+      <div
+        className="w-[1080px] max-w-[96vw] max-h-[88vh] flex flex-col border border-[var(--t-border)] bg-[var(--t-panel)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-brand)] flex items-baseline gap-2">
+          <div className="text-[11px] font-semibold text-white">
+            {r.etiqueta} · {b.tab === "agro" ? "FUTUROS AGRÍCOLAS" : "FUTUROS U$S"}
+          </div>
+          <div className="text-[10px] text-white/70">
+            {b.moneda} · de qué cuentas y símbolos sale
+          </div>
+          <button onClick={onCerrar}
+                  className="ml-auto text-[11px] text-white/70 hover:text-white">✕</button>
+        </div>
+
+        {/* La comprobación: el número del cuadro contra la Σ del detalle. */}
+        <div className="shrink-0 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px bg-[var(--t-border)] border-b border-[var(--t-border)]">
+          {CAMPOS.map(({ k, label }) => {
+            const arriba = r[k] as number | null;
+            const abajo = d?.total?.[k] as number | null | undefined;
+            const ok = d ? cierra(arriba, abajo) : true;
+            return (
+              <div key={k} className="bg-[var(--t-panel)] px-2 py-1.5">
+                <div className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] truncate"
+                     title={label}>{label}</div>
+                <div className="font-mono tabular-nums text-[11px] font-semibold">
+                  {arriba === null ? "—" : fmt0(arriba)}
+                </div>
+                <div className={`text-[9px] ${ok ? "text-[var(--t-text-muted)]" : "text-[var(--t-neg)]"}`}>
+                  {!d ? "verificando…"
+                    : ok ? "✓ el detalle suma lo mismo"
+                    : `✗ el detalle da ${abajo === null || abajo === undefined ? "—" : fmt0(abajo)}`}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-auto">
+          {err && <div className="p-3 text-[11px] text-[var(--t-neg)]">{err}</div>}
+          {!d && !err && <div className="p-3 text-[11px] text-[var(--t-text-dim)]">Cargando…</div>}
+          {d && (
+            <table className="w-full text-[11px] font-mono tabular-nums whitespace-nowrap">
+              <thead className="sticky top-0 bg-[var(--t-panel-2)]">
+                <tr className="text-[9px] uppercase text-[var(--t-text-muted)]">
+                  {["Cuenta", "Nombre", "Grupo", "Símbolo", "Mult.", "Compra", "Venta",
+                    "Neta", "Acum. día", "Acum. día ant.", "Diaria"].map((h, i) => (
+                    <th key={h} className={`px-2 py-1 font-normal ${i <= 3 ? "text-left" : "text-right"}`}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {d.filas.map((f) => (
+                  <tr key={`${f.cuenta}-${f.symbol}`} className="border-t border-[var(--t-border-2)]">
+                    <td className="px-2 py-0.5">{f.cuenta}</td>
+                    <td className="px-2 py-0.5 font-sans max-w-[240px] truncate" title={f.nombre}>
+                      {f.nombre}
+                    </td>
+                    <td className="px-2 py-0.5 font-sans text-[var(--t-text-dim)]">{f.grupo}</td>
+                    <td className="px-2 py-0.5">
+                      {f.symbol}
+                      {/* La PK incluye `position_type` y `side`: si se agregó
+                          más de una fila, se dice — un renglón que es una suma
+                          y uno que es un dato no se pueden ver igual. */}
+                      {f.patas > 1 && (
+                        <span className="ml-1 text-[9px] text-[var(--t-text-muted)]">×{f.patas}</span>
+                      )}
+                    </td>
+                    {/* Vacío y NO cero cuando falta el multiplicador: los
+                        contratos están, lo que falta es con qué convertirlos. */}
+                    <td className="px-2 py-0.5 text-right"
+                        title={f.multiplicador === null
+                          ? "Sin multiplicador cargado: la cantidad no se puede expresar en su unidad"
+                          : `${fmt0(f.compra_contratos)} / ${fmt0(f.venta_contratos)} contratos × ${fmt0(f.multiplicador)}`}>
+                      {f.multiplicador === null
+                        ? <span className="text-[var(--t-neg)]">sin mult.</span>
+                        : fmt0(f.multiplicador)}
+                    </td>
+                    <td className="px-2 py-0.5 text-right">
+                      {f.compra === null ? "—" : fmt0(f.compra)}
+                    </td>
+                    <td className="px-2 py-0.5 text-right">
+                      {f.venta === null ? "—" : fmt0(f.venta)}
+                    </td>
+                    <td className="px-2 py-0.5 text-right font-semibold">
+                      {f.neta === null ? "—" : fmt0(f.neta)}
+                    </td>
+                    <td className={`px-2 py-0.5 text-right ${tono(f.acum_hoy)}`}>{fmt0(f.acum_hoy)}</td>
+                    <td className={`px-2 py-0.5 text-right ${tono(f.acum_ayer)}`}>{fmt0(f.acum_ayer)}</td>
+                    <td className={`px-2 py-0.5 text-right font-semibold ${tono(f.diaria)}`}>
+                      {fmt0(f.diaria)}
+                    </td>
+                  </tr>
+                ))}
+                {d.filas.length === 0 && (
+                  <tr><td colSpan={11} className="px-2 py-3 text-center text-[var(--t-text-dim)]">
+                    Sin filas para este instrumento.
+                  </td></tr>
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {d && (
+          <div className="shrink-0 px-3 py-1.5 border-t border-[var(--t-border)] text-[10px] text-[var(--t-text-muted)] flex flex-wrap gap-x-4">
+            <span>{d.total.cuentas} cuenta(s) · {d.total.simbolos} símbolo(s)</span>
+            {d.total.sin_multiplicador > 0 && (
+              <span className="text-[var(--t-neg)]">
+                {d.total.sin_multiplicador} símbolo(s) sin multiplicador: su cantidad no entra en la posición
+              </span>
+            )}
+            <span>Día {fmtFecha(d.fecha)}{d.fecha_anterior ? ` · anterior ${fmtFecha(d.fecha_anterior)}` : ""}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** Un cuadro del CONSOLIDADO: FUTUROS AGRÍCOLAS o FUTUROS U$S.
  *
  *  Cabecera de dos pisos como el mail: POSICIÓN agrupa compra/venta/neta.
@@ -961,7 +1173,9 @@ function TablaAca({ titulo, color, etiquetaNocional, filas, totales }: {
  *  misma query que las filas. Un total sumado en el navegador no se puede
  *  verificar del lado del servidor — y este cuadro se imprime para gerencia.
  */
-function CuadroConsolidado({ b }: { b: Consolidado }) {
+function CuadroConsolidado({ b, onAuditar }: {
+  b: Consolidado; onAuditar: (r: ConsFila) => void;
+}) {
   const agro = b.tab === "agro";
   const titulo = agro ? "FUTUROS AGRÍCOLAS" : "FUTUROS U$S";
   // El rótulo de la posición sale de la UNIDAD real, no de un supuesto: si en
@@ -1005,7 +1219,14 @@ function CuadroConsolidado({ b }: { b: Consolidado }) {
         </thead>
         <tbody>
           {b.filas.map((r) => (
-            <tr key={r.producto} className="border-b border-[var(--t-border-2)]">
+            /* Click = AUDITAR esta fila: de qué cuentas y símbolos sale.
+               El cursor y el hover son la única señal de que se puede: no hay
+               botón, porque una columna de botones en un cuadro que se imprime
+               ensucia el reporte. */
+            <tr key={r.producto}
+                onClick={() => onAuditar(r)}
+                title={`Ver de qué cuentas y símbolos sale ${r.etiqueta}`}
+                className="border-b border-[var(--t-border-2)] cursor-pointer hover:bg-[var(--t-bg)]">
               <td className="px-2 py-1 font-semibold">{r.etiqueta}</td>
               {/* Sin multiplicador la cantidad en unidad NO se puede afirmar:
                   se muestran los CONTRATOS crudos, en vez de un número 100
