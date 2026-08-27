@@ -167,7 +167,8 @@ export default function AgenteModal() {
                   filas={v.encontro.filas}
                   porHabilidad={v.encontro.por_habilidad}
                   preview={(id) => d.calcular("/api/agente/preview", { id })}
-                  aplicar={(id) => d.escribir("/api/agente/aplicar", { id }, ["vista"])}
+                  aplicar={(id, datos) =>
+                    d.escribir("/api/agente/aplicar", { id, datos }, ["vista"])}
                   ignorar={async (id) => {
                     await d.escribir("/api/agente/ignorar", { id }, ["vista"]);
                   }}

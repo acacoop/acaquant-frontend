@@ -14,6 +14,7 @@
 // recalcula al aplicar, así lo que se escribe es lo cierto AHORA.
 import { useState } from "react";
 
+import { ListadoFicha, type FilaFicha } from "@/components/agente/listado-ficha";
 import { COLOR, fechaHora, type Hallazgo } from "@/components/agente/tipos";
 
 type Paso = { titulo?: string; estado?: string; detalle?: string;
@@ -27,7 +28,12 @@ type Preview = {
   escala?: string; rama?: string; vencimiento?: string; simbolo?: string;
   tea?: number | null; precio?: number | null;
   ejes?: Record<string, string>;
+  // Solo los arreglos que PIDEN DATOS (hoy `completar_ficha`): el listado que
+  // se despliega para cargar a mano, y los valores que ese campo ya tiene.
+  campo?: string; filas?: FilaFicha[]; opciones?: string[];
 };
+
+type Datos = { unidad: string; valor: string }[];
 
 const n2 = (v: number | null | undefined, d = 2) =>
   v == null ? "—" : v.toLocaleString("es-AR",
@@ -47,7 +53,8 @@ export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: 
   filas: Hallazgo[];
   porHabilidad: Record<string, number>;
   preview: (id: number) => Promise<Preview>;
-  aplicar: (id: number) => Promise<{ ok: boolean; error?: string; detalle?: string; aviso?: string }>;
+  aplicar: (id: number, datos?: Datos)
+    => Promise<{ ok: boolean; error?: string; detalle?: string; aviso?: string }>;
   ignorar: (id: number) => Promise<void>;
 }) {
   const [filtro, setFiltro] = useState("");
@@ -67,14 +74,22 @@ export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: 
     } finally { setOcupado(null); }
   }
 
-  async function hacer(id: number) {
+  async function hacer(id: number, datos?: Datos) {
     setOcupado(id);
     try {
-      const r = await aplicar(id);
+      const r = await aplicar(id, datos);
       setResultado((x) => ({
         ...x,
         [id]: r.ok ? (r.aviso || r.detalle || "aplicado") : (r.error || "falló"),
       }));
+      // ⚠️ **SE RECALCULA EL LISTADO DESPUÉS DE ESCRIBIR.** Es lo que hace que
+      // lo completado desaparezca. No se filtra en el navegador: la lista viva
+      // la arma el backend, así que lo que sale es lo que dejó de faltar de
+      // verdad — y si una escritura falló, esa fila SIGUE ahí.
+      if (datos) {
+        const p = await preview(id);
+        setPreviews((prev) => ({ ...prev, [id]: p }));
+      }
     } finally { setOcupado(null); }
   }
 
@@ -162,14 +177,20 @@ export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: 
                 >
                   ver qué haría
                 </button>
-                <button
-                  disabled={ocupado === f.id || f.estado === "en_curso"}
-                  onClick={() => void hacer(f.id)}
-                  title={f.arreglo_donde || ""}
-                  className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-bg)] disabled:opacity-40"
-                >
-                  {ocupado === f.id ? "…" : (f.arreglo_titulo || f.arreglo)}
-                </button>
+                {/* Los que PIDEN DATOS no tienen botón de aplicar acá: su
+                    escritura sale del listado, que no puede guardar nada hasta
+                    que se cargue un valor. Un botón «aplicar» al lado de un
+                    listado vacío promete escribir sin tener qué. */}
+                {!p?.filas && (
+                  <button
+                    disabled={ocupado === f.id || f.estado === "en_curso"}
+                    onClick={() => void hacer(f.id)}
+                    title={f.arreglo_donde || ""}
+                    className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-bg)] disabled:opacity-40"
+                  >
+                    {ocupado === f.id ? "…" : (f.arreglo_titulo || f.arreglo)}
+                  </button>
+                )}
                 <button
                   disabled={ocupado === f.id}
                   onClick={() => void ignorar(f.id)}
@@ -211,7 +232,20 @@ export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: 
                           ))}
                       </div>
 
-                      {p.puede_aplicar === false && (
+                      {/* EL LISTADO EDITABLE. Solo `completar_ficha` lo trae:
+                          es el único arreglo cuyo valor no lo calcula el
+                          sistema, así que su pantalla no es un botón. */}
+                      {p.filas && (
+                        <ListadoFicha
+                          campo={p.campo || ""}
+                          filas={p.filas}
+                          opciones={p.opciones ?? []}
+                          ocupado={ocupado === f.id}
+                          onAplicar={(datos) => hacer(f.id, datos)}
+                        />
+                      )}
+
+                      {p.puede_aplicar === false && !p.filas && (
                         <div className="text-[var(--t-neg)]">
                           ✘ {p.veredicto || "la cadena FRENA: aplicar no va a escribir"}
                         </div>
