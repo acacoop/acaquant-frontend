@@ -356,33 +356,72 @@ export function CurvasChart({
     // -80% cuando ese cierre tenía bonos con flujos malos, aunque el dato live
     // ya estuviera bien. La curva oficial del fair value vive en la pestaña
     // FAIR VALUE (esa sí usa los β del cierre).
+    // ⚠️ PERFORMANCE — la GRILLA DEL FIT ES COMPARTIDA, y esa es toda la
+    // diferencia entre que la pantalla ande y que se arrastre.
+    //
+    // Antes cada tipo generaba SU propia rampa de 101 puntos. Como recharts
+    // recibe UN dataset con una fila por valor de X, cada rampa aportaba 101
+    // filas NUEVAS que ninguna otra serie compartía. Con EMISOR=SOBERANO hay 2
+    // familias (Bonares/Globales) → ~200 filas de fit y no se notaba. Con
+    // EMISOR=CORPORATIVO el tipo es la INDUSTRIA y son hasta 10 → ~1.010 filas
+    // de fit, y encima 20 series (una Line + un Scatter por industria) que
+    // recorren el dataset ENTERO cada una. Y esto se rehace cada 5 segundos, en
+    // las DOS columnas, porque la tabla es live.
+    //
+    // Con una sola grilla de GRID_FIT valores para todo el gráfico, las 10
+    // industrias comparten las mismas filas: el dataset baja de ~1.100 a ~150
+    // filas sin que el dibujo cambie (una curva log sobre 48 puntos ya es
+    // suave; los 101 originales caían todos dentro del mismo pixel).
+    //
+    // Cada tipo se evalúa SOLO dentro de su propio rango [xA, xB] — un fit no
+    // se extrapola fuera de los bonos que lo generaron. Como ese rango es
+    // contiguo, los huecos quedan en las PUNTAS y nunca en el medio, así que el
+    // `connectNulls` de la Line no puede inventar un tramo que no existe.
+    const GRID_FIT = 48;
     const fitPorTipo: Record<string, { Duration: number; y: number }[] | null> = {};
     const allY: number[] = [];
     const allX: number[] = [];
 
-    for (const t of Object.keys(puntosPorTipo)) {
+    const tiposOrden = Object.keys(puntosPorTipo);
+    for (const t of tiposOrden) {
       puntosPorTipo[t].sort((a, b) => a.Duration - b.Duration);
-      const xs = puntosPorTipo[t].map((p) => p.Duration);
-      const ys = puntosPorTipo[t].map((p) => p.y);
-      allX.push(...xs);
-      allY.push(...ys);
+      for (const p of puntosPorTipo[t]) {
+        allX.push(p.Duration);
+        allY.push(p.y);
+      }
+    }
 
+    // La grilla se arma sobre el rango de TODOS los puntos graficados, una vez.
+    const gX = allX.length ? Math.min(...allX) : 0;
+    const gY = allX.length ? Math.max(...allX) : 1;
+    const grilla: number[] = [];
+    if (gY > gX) {
+      for (let i = 0; i <= GRID_FIT; i++) {
+        grilla.push(+(gX + ((gY - gX) * i) / GRID_FIT).toFixed(4));
+      }
+    }
+
+    for (const t of tiposOrden) {
+      const pts = puntosPorTipo[t];
       let fitArr: { Duration: number; y: number }[] | null = null;
-      if (xs.length >= 2) {
+      if (pts.length >= 2 && grilla.length) {
+        const xs = pts.map((p) => p.Duration);
+        const ys = pts.map((p) => p.y);
         const xA = xs[0];
         const xB = xs[xs.length - 1];
-        const steps = 100;
         const fitted = logFit(xs, ys);
         if (fitted) {
-          fitArr = [];
-          for (let i = 0; i <= steps; i++) {
-            const x = xA + ((xB - xA) * i) / steps;
-            fitArr.push({
-              Duration: +x.toFixed(4),
-              y: +(fitted.a * Math.log(x) + fitted.b).toFixed(4),
-            });
-          }
-          allY.push(...fitArr.map((p) => p.y));
+          // Las puntas EXACTAS del rango entran siempre, aunque no caigan sobre
+          // la grilla: sin ellas el fit de una industria de pocos bonos podría
+          // quedarse sin un solo punto adentro y desaparecer del gráfico.
+          const xsFit = grilla.filter((x) => x >= xA && x <= xB);
+          if (xsFit[0] !== xA) xsFit.unshift(xA);
+          if (xsFit[xsFit.length - 1] !== xB) xsFit.push(xB);
+          fitArr = xsFit.map((x) => ({
+            Duration: x,
+            y: +(fitted.a * Math.log(x) + fitted.b).toFixed(4),
+          }));
+          for (const p of fitArr) allY.push(p.y);
         }
       }
       fitPorTipo[t] = fitArr;
@@ -410,6 +449,29 @@ export function CurvasChart({
   }, [bonos, curva, metricaUsada, modo, histByCurva, fechaSel, fairValueInicial,
       aislada]);
 
+  const totalPuntos = tipos.reduce(
+    (n, t) => n + (puntosPorTipo[t]?.length || 0),
+    0,
+  );
+
+  // ⚠️ PERFORMANCE + LEGIBILIDAD — las ETIQUETAS DE TICKER se apagan solas
+  // cuando son demasiadas, y se pueden volver a prender a mano.
+  //
+  // Cada `<Scatter>` lleva un `<LabelList>`, y recharts evalúa una etiqueta por
+  // FILA DEL DATASET y por serie — no por punto con valor. Con EMISOR=CORPORATIVO
+  // eso eran ~10 industrias × ~1.100 filas ≈ 11.000 etiquetas para dibujar 102
+  // tickers, cada 5 segundos y en las dos columnas.
+  //
+  // Y aunque fuera gratis, 102 tickers de 10px sobre un gráfico no se leen: se
+  // pisan entre ellos y tapan los puntos. Con SOBERANO (~20-60 puntos) sí se
+  // leen, y ahí siguen prendidos.
+  //
+  // `null` = automático. El usuario lo puede forzar en cualquier sentido, y el
+  // botón dice en cuál está — apagar algo en silencio es peor que la lentitud.
+  const [tickersModo, setTickersModo] = useState<boolean | null>(null);
+  const AUTO_TICKERS_MAX = 40;
+  const mostrarTickers = tickersModo ?? totalPuntos <= AUTO_TICKERS_MAX;
+
   // Construir el dataset combinado: cada punto tiene un campo dinámico
   // por tipo (scatterY_<tipo> y fitY_<tipo>) para que recharts pueda
   // renderizar series independientes con sus propios colores.
@@ -427,7 +489,9 @@ export function CurvasChart({
       for (const p of puntosPorTipo[tipo] || []) {
         const row = ensure(p.Duration);
         row[`scatterY_${tipo}`] = p.y;
-        row[`Ticker_${tipo}`] = p.Ticker;
+        // El ticker solo viaja si se va a dibujar: es una string por punto y por
+        // serie en un dataset que recharts recorre entero.
+        if (mostrarTickers) row[`Ticker_${tipo}`] = p.Ticker;
       }
       const fit = fitPorTipo[tipo];
       if (fit) {
@@ -440,12 +504,8 @@ export function CurvasChart({
     return Array.from(map.values()).sort(
       (a, b) => (a.Duration as number) - (b.Duration as number),
     );
-  }, [puntosPorTipo, fitPorTipo, tipos]);
+  }, [puntosPorTipo, fitPorTipo, tipos, mostrarTickers]);
 
-  const totalPuntos = tipos.reduce(
-    (n, t) => n + (puntosPorTipo[t]?.length || 0),
-    0,
-  );
   const hayHist = fechasHist.length > 0;
   // La leyenda nombra FAMILIAS (Bonares, Globales…). `default` no es una
   // familia: es "todo lo demás", y no tiene nombre — mostrarlo produjo la
@@ -509,6 +569,27 @@ export function CurvasChart({
         {(curva === "tasa_fija" || curva === "cer") && (
           <FilterBtn active={modo === "fair"} onClick={() => setModo("fair")}>
             FAIR VALUE
+          </FilterBtn>
+        )}
+        {/* Las etiquetas se apagan solas cuando son ilegibles (y caras). El
+            botón EXISTE para que eso no sea un misterio: dice en qué estado
+            está y deja forzarlo. Un click alterna respecto de lo que se ve
+            ahora, así que siempre hace lo que el botón promete. */}
+        {modoEfectivo !== "fair" && totalPuntos >= 2 && (
+          <FilterBtn
+            active={mostrarTickers}
+            onClick={() => setTickersModo(!mostrarTickers)}
+            title={
+              mostrarTickers
+                ? `Ocultar los ${totalPuntos} tickers del gráfico`
+                : `Mostrar los ${totalPuntos} tickers${
+                    tickersModo === null
+                      ? ` (apagados automáticamente: más de ${AUTO_TICKERS_MAX} puntos se pisan entre sí)`
+                      : ""
+                  }`
+            }
+          >
+            TICKERS
           </FilterBtn>
         )}
 
@@ -657,12 +738,14 @@ export function CurvasChart({
                     fill={c.scatter}
                     isAnimationActive={false}
                   >
-                    <LabelList
-                      dataKey={`Ticker_${t}`}
-                      position="top"
-                      fill="#aaaaaa"
-                      style={{ fontSize: 10, fontFamily: "JetBrains Mono, monospace" }}
-                    />
+                    {mostrarTickers && (
+                      <LabelList
+                        dataKey={`Ticker_${t}`}
+                        position="top"
+                        fill="#aaaaaa"
+                        style={{ fontSize: 10, fontFamily: "JetBrains Mono, monospace" }}
+                      />
+                    )}
                   </Scatter>
                 );
               })}
@@ -682,14 +765,17 @@ function FilterBtn({
   active,
   onClick,
   children,
+  title,
 }: {
   active: boolean;
   onClick: () => void;
   children: React.ReactNode;
+  title?: string;
 }) {
   return (
     <button
       onClick={onClick}
+      title={title}
       className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
         active
           ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
