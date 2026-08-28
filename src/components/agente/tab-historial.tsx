@@ -21,10 +21,24 @@ import { useCallback, useEffect, useState } from "react";
 
 import { fechaHora, type Accion, type Historial } from "@/components/agente/tipos";
 
+// ⚠️⚠️ **ESTA COLUMNA HABLA DEL PROBLEMA, NO DE LA ESCRITURA.**
+//
+// La escritura ya la afirma la línea: el ✔ y el `cartera: — → HD`. Acá se
+// contesta otra pregunta —«¿el aviso que la motivó quedó cerrado?»— y decía
+// «esperando confirmación», que se lee como «capaz no se escribió».
+//
+// User (2026-08-28), viendo cuatro títulos que acababa de cargar a mano:
+// *«¿confirmación de qué?? si yo ya lo apliqué»*. Y tenía razón: lo que falta
+// confirmar no es su carga, es que el AVISO se pueda cerrar — y ese aviso es
+// de todo el campo, así que sigue abierto mientras queden títulos sin
+// completar. Son dos cosas distintas y el texto las hacía una sola.
+//
+// (Del otro lado se arregló la mitad que era un bug: completar el ÚLTIMO
+// título ahora sí es inmediato — no hay nada que esperar.)
 const ESTADO: Record<string, { txt: string; color: string }> = {
-  nuevo: { txt: "sigue abierto", color: "var(--t-neg)" },
-  en_curso: { txt: "esperando confirmación", color: "var(--t-accent)" },
-  resuelto: { txt: "quedó arreglado", color: "var(--t-pos)" },
+  nuevo: { txt: "el aviso sigue abierto", color: "var(--t-neg)" },
+  en_curso: { txt: "escrito · el aviso sigue abierto", color: "var(--t-accent)" },
+  resuelto: { txt: "el aviso quedó cerrado", color: "var(--t-pos)" },
   reincidio: { txt: "⚠ volvió", color: "var(--t-neg)" },
   ignorado: { txt: "ignorado", color: "var(--t-text-dim)" },
 };
