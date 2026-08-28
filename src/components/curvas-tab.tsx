@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { BonoCurva, CurvasVista, FairValueDoc, PillDef } from "@/lib/types";
 import { usePoll } from "@/lib/use-poll";
 import { FilterBtn, Panel } from "@/components/ui";
 import { CurvasChart, type Curva } from "@/components/curvas-chart";
 import { BonosTable } from "@/components/bonos-table";
+import { BonoModal } from "@/components/bono-modal";
 import { LibroPanel } from "@/components/libro-panel";
 import { VentanaFlotante } from "@/components/ventana-flotante";
 
@@ -46,6 +47,143 @@ const PILL_A_CURVA: Record<string, Curva> = {
 // Existía en la tabla vieja (`renta-fija-table`) y se perdió en la migración a
 // la tab CURVAS: el componente quedó vivo y sin nadie que lo montara.
 
+// ── FILTRO DE TEA ──────────────────────────────────────────────────────────
+//
+// Un piso de tasa: "mostrame solo lo que rinde de acá para arriba". Es el corte
+// que la pantalla no tenía y que con EMISOR=CORPORATIVO hace falta de verdad —
+// 134 ONs no se leen de un saque, pero las que pagan +10% sí.
+//
+// ⚠️ **Es GLOBAL y las dos escalas NO son comparables.** En ARS las TEA viven
+// entre 30% y 60%, en USD entre 5% y 15%. Un mismo "TEA ≥ 5" no filtra NADA a la
+// izquierda y sí a la derecha. Es una decisión tomada a conciencia (un solo
+// control, arriba, como el de EMISOR), y por eso el botón MUESTRA el número
+// activo en vez de guardárselo: el efecto asimétrico tiene que ser visible, no
+// una sorpresa cuando una columna se vacía.
+//
+// Los presets cubren las dos escalas por el mismo motivo.
+const PRESETS_TEA = [5, 7, 10, 15, 25, 35, 45, 60];
+
+function FiltroTea({
+  valor, setValor, ocultos,
+}: {
+  valor: number | null;
+  setValor: (v: number | null) => void;
+  // Cuántos bonos quedaron afuera POR NO TENER tasa comparable (celda vacía o
+  // tasa ruido). No es lo mismo que "no llega al piso" y no se puede callar: si
+  // un bono desaparece de la tabla, la pantalla tiene que poder decir por qué.
+  ocultos: number;
+}) {
+  const [abierto, setAbierto] = useState(false);
+  const [texto, setTexto] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Click afuera cierra. Sin esto el popover se queda abierto tapando la tabla.
+  useEffect(() => {
+    if (!abierto) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setAbierto(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setAbierto(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [abierto]);
+
+  const aplicar = (v: number | null) => {
+    setValor(v);
+    setAbierto(false);
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <FilterBtn
+        active={valor !== null}
+        onClick={() => setAbierto((v) => !v)}
+        title={
+          valor === null
+            ? "Filtrar por tasa: mostrar solo los bonos que rinden de un piso para arriba"
+            : `Mostrando solo TEA ≥ ${valor}%${ocultos ? ` — ${ocultos} bono(s) sin tasa comparable quedan afuera` : ""}`
+        }
+      >
+        {valor === null ? "TEA ≥" : `TEA ≥ ${valor}%`}
+        {valor !== null && ocultos > 0 && (
+          <span className="ml-1 opacity-60" title={`${ocultos} sin tasa comparable`}>
+            −{ocultos}
+          </span>
+        )}
+      </FilterBtn>
+
+      {abierto && (
+        <div className="absolute right-0 top-full mt-1 z-40 bg-[var(--t-panel)] border border-[var(--t-border-2)] p-2 w-[230px] shadow-lg">
+          <div className="text-[9px] text-[var(--t-text-muted)] mb-1 leading-snug">
+            Piso de TEA. Aplica a las DOS columnas — ojo que en ARS las tasas son
+            de otra escala que en USD.
+          </div>
+          <div className="flex flex-wrap gap-1 mb-2">
+            {PRESETS_TEA.map((v) => (
+              <button
+                key={v}
+                onClick={() => aplicar(v)}
+                className={`px-1.5 py-0.5 text-[10px] font-semibold border transition-colors ${
+                  valor === v
+                    ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+                    : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+                }`}
+              >
+                {v}%
+              </button>
+            ))}
+          </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const n = parseFloat(texto.replace(",", "."));
+              // Un input vacío o ilegible QUITA el filtro en vez de dejar la
+              // pantalla en un estado que nadie pidió.
+              aplicar(Number.isFinite(n) ? n : null);
+              setTexto("");
+            }}
+            className="flex items-center gap-1"
+          >
+            <input
+              type="text"
+              inputMode="decimal"
+              value={texto}
+              onChange={(e) => setTexto(e.target.value)}
+              placeholder="otro %"
+              className="flex-1 min-w-0 bg-transparent border border-[var(--t-border-2)] px-1.5 py-0.5 text-[10px] text-[var(--t-text-dim)] focus:outline-none focus:border-[var(--t-accent)]"
+            />
+            <button
+              type="submit"
+              className="px-1.5 py-0.5 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+            >
+              OK
+            </button>
+          </form>
+          {valor !== null && (
+            <button
+              onClick={() => aplicar(null)}
+              className="mt-2 w-full px-1.5 py-0.5 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+            >
+              QUITAR FILTRO
+            </button>
+          )}
+          {valor !== null && ocultos > 0 && (
+            <div className="mt-2 text-[9px] text-[var(--t-text-muted)] leading-snug">
+              {ocultos} bono(s) quedan afuera por no tener tasa comparable (celda
+              vacía o tasa de plazo muy corto). No es que no lleguen al piso: es
+              que no se los puede comparar.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface Props {
   barra?: React.ReactNode;   // las tabs, para que compartan fila con el filtro
   inicial: CurvasVista;
@@ -53,7 +191,7 @@ interface Props {
 }
 
 function Columna({
-  lado, pills, bonos, pill, setPill, fairValueInicial, libro,
+  lado, pills, bonos, pill, setPill, fairValueInicial, libro, onSelect,
 }: {
   lado: "ARS" | "USD";
   pills: PillDef[];
@@ -64,6 +202,10 @@ function Columna({
   // El botón del LIBRO, ya armado por el padre (es él quien tiene la ventana).
   // La columna no sabe qué hace: solo dónde va.
   libro?: React.ReactNode;
+  // Click en una fila → la ficha del bono. El modal lo monta el PADRE (una sola
+  // vez, fuera de las dos columnas): dos modales montados en paralelo es cómo
+  // nacen los "se abrió el bono equivocado".
+  onSelect?: (tickerCorto: string) => void;
 }) {
   const delLado = pills.filter((p) => p.lado === lado);
   const filas = bonos.filter((b) => b.pill === pill);
@@ -89,7 +231,7 @@ function Columna({
           </FilterBtn>
         ))}
       >
-        <BonosTable bonos={filas} />
+        <BonosTable bonos={filas} onSelect={onSelect} />
       </Panel>
 
       <Panel title={`CURVA ${lado}`} fill expandable>
@@ -125,11 +267,44 @@ export function CurvasTab({ barra, inicial, fairValueInicial }: Props) {
   // la app te abra sola una ventana que no pediste esta vez es peor que tener
   // que clickear de nuevo.
   const [libroAbierto, setLibroAbierto] = useState(false);
+  // Piso de TEA (en %, no en fracción — es lo que el usuario escribe). `null` =
+  // sin filtro. NO se persiste a propósito: un filtro que esconde bonos y
+  // sobrevive a la navegación es una pantalla que miente al que vuelve a ella.
+  const [teaMin, setTeaMin] = useState<number | null>(null);
+  // El bono cuya ficha está abierta (`null` = ninguna). Es el CORTO.
+  const [fichaDe, setFichaDe] = useState<string | null>(null);
 
-  const bonos = useMemo(
+  // El filtro de EMISOR primero, el de TEA después: así el contador de "sin tasa
+  // comparable" habla de lo que el usuario está mirando y no del universo entero.
+  const delEmisor = useMemo(
     () => data.bonos.filter((b) => emisores.includes(b.emisor_tipo)),
     [data.bonos, emisores],
   );
+
+  // ⚠️ Un bono SIN TEA no puede cumplir "TEA ≥ 5", así que sale — pero eso es
+  // MUY distinto de no llegar al piso, y esta pantalla no puede tapar la
+  // diferencia: se cuentan aparte y el botón los muestra.
+  //
+  // La TASA RUIDO entra en la misma bolsa: con duration ~0 el número existe pero
+  // es un artefacto de anualizar pocos días (una ON a 3 días marcaba 142%). Un
+  // piso de tasa lo dejaría pasar SIEMPRE y arriba de todo, que es exactamente al
+  // revés de para qué sirve el filtro. Es el mismo criterio con el que el
+  // gráfico ya lo excluye — y lo decide el backend (`tasa_ruido`), no acá.
+  const { bonos, sinTasa } = useMemo(() => {
+    if (teaMin === null) return { bonos: delEmisor, sinTasa: 0 };
+    const piso = teaMin / 100;
+    const out: BonoCurva[] = [];
+    const fuera = new Set<string>();
+    for (const b of delEmisor) {
+      const tea = b.metrics?.TEA;
+      if (tea === undefined || tea === null || b.tasa_ruido) {
+        fuera.add(b.ticker_corto);
+        continue;
+      }
+      if (tea >= piso) out.push(b);
+    }
+    return { bonos: out, sinTasa: fuera.size };
+  }, [delEmisor, teaMin]);
 
   // Los contadores de las pills tienen que reflejar el filtro de emisor: si no,
   // una pill diría 129 y la tabla mostraría 21.
@@ -213,6 +388,11 @@ export function CurvasTab({ barra, inicial, fairValueInicial }: Props) {
             {e.label} <span className="ml-1 opacity-60">{e.n}</span>
           </FilterBtn>
         ))}
+        {/* A la DERECHA del todo: el piso de tasa corta sobre lo que el emisor
+            ya dejó pasar, y ese orden se lee de izquierda a derecha. */}
+        <div className="ml-auto">
+          <FiltroTea valor={teaMin} setValor={setTeaMin} ocultos={sinTasa} />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 flex-1 min-h-0">
@@ -220,12 +400,18 @@ export function CurvasTab({ barra, inicial, fairValueInicial }: Props) {
           lado="ARS" pills={pills} bonos={bonos} pill={pillArs} setPill={setPillArs}
           fairValueInicial={fairValueInicial}
           libro={botonLibro}
+          onSelect={setFichaDe}
         />
         <Columna
           lado="USD" pills={pills} bonos={bonos} pill={pillUsd} setPill={setPillUsd}
           fairValueInicial={fairValueInicial}
+          onSelect={setFichaDe}
         />
       </div>
+
+      {/* La FICHA del bono. Se monta acá, una sola vez para las dos columnas, y
+          se desmonta al cerrar: así no queda un fetch corriendo escondido. */}
+      {fichaDe && <BonoModal ticker={fichaDe} onClose={() => setFichaDe(null)} />}
 
       {/* La ventana se monta FUERA de la grilla (va por portal al body): no le
           saca ancho ni alto a las columnas, que es todo el punto. Se desmonta al

@@ -218,3 +218,74 @@ export interface CurvasVista {
   bonos:           BonoCurva[];
   sin_clasificar:  string[];
 }
+
+// ── FICHA DE UN BONO (`GET /api/cotizaciones/bono/<ticker>`) ────────────────
+//
+// Lo que abre el click en una fila de la tab CURVAS. El backend arma el
+// cronograma con la MISMA función que el motor usa para calcular la TEA que
+// muestra la tabla (`engines.curvas.rama_calculo` + su `monto_flujo_*`), así el
+// modal no puede contradecir a la fila que lo abrió.
+
+export interface FlujoBono {
+  fecha:                string;    // YYYY-MM-DD
+  amortizacion:         number;    // por 100 VN
+  interes:              number;    // por 100 VN
+  monto:                number;    // amortizacion + interes, por 100 VN
+  residual_previo_pct:  number | null;
+  futuro:               boolean;   // >= hoy
+  bullet?:              boolean;   // sintetizado de `flujo_vencimiento` (Lecap/Boncap)
+}
+
+export interface PataBono {
+  pill:         string;
+  lado:         "ARS" | "USD";
+  pata:         string | null;
+  metrics:      Record<string, number>;
+  tea_fuente:   string | null;
+  tea_fecha:    string | null;
+  margen:       number | null;
+  tasa_ruido:   boolean | null;
+  tc_breakeven: number | null;
+}
+
+export interface BonoDetalle {
+  // El backend contesta 200 con `error` cuando el ticker no está en el master:
+  // el modal tiene que poder decir "no lo encontré" sin romper la pantalla.
+  error?:        string;
+  ticker?:       string;
+  instrumento?:  string | null;
+  ficha?: {
+    emisor:            string | null;
+    emisor_tipo:       string | null;
+    industria:         string | null;
+    tipo:              string | null;
+    curva:             string | null;
+    moneda:            string | null;
+    moneda_flujo:      string | null;
+    ajuste:            string | null;
+    ajuste_alt:        string | null;
+    ley:               string | null;
+    fecha_emision:     string | null;
+    fecha_vencimiento: string | null;
+    valor_nominal:     number | null;
+    cupon_anual:       number | null;
+    cer_emision:       number | null;
+    flujo_vencimiento: number | null;
+    cer_fijado:        boolean;
+  };
+  // La rama de cálculo del motor (soberanos | cer | on | tasa_fija | …). Viaja
+  // para que se pueda ver, desde la pantalla, con qué fórmula se valúa el bono.
+  rama?:          string;
+  // Qué significa "100" en la columna MONTO. Lo decide el backend porque depende
+  // de la rama: un número por 100 VN sin unidad no se puede leer.
+  unidad_flujo?:  string;
+  nota_flujo?:    string | null;
+  flujos?:        FlujoBono[];
+  resumen?: {
+    n_pagos_futuros: number;
+    proximo_pago:    FlujoBono | null;
+    total_futuro:    number;
+    ultimo_pago:     FlujoBono | null;
+  };
+  patas?:         PataBono[];
+}

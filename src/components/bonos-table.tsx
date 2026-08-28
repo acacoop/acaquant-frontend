@@ -53,7 +53,17 @@ const pct = (v: number | undefined, d = 1) =>
 const num = (v: number | undefined, d = 2) =>
   v === undefined || v === null ? "--" : v.toFixed(d);
 
-export function BonosTable({ bonos }: { bonos: BonoCurva[] }) {
+// Click en una fila abre la FICHA del bono (`bono-modal.tsx`). El componente no
+// sabe qué pasa después: avisa qué ticker se clickeó y el padre decide. Si nadie
+// pasa `onSelect` la tabla se comporta exactamente como antes — el cursor no
+// cambia y no hay nada que clickear.
+export function BonosTable({
+  bonos,
+  onSelect,
+}: {
+  bonos: BonoCurva[];
+  onSelect?: (tickerCorto: string) => void;
+}) {
   if (bonos.length === 0) {
     return (
       <div className="h-full flex items-center justify-center text-[var(--t-text-2)] text-xs">
@@ -133,7 +143,12 @@ export function BonosTable({ bonos }: { bonos: BonoCurva[] }) {
           const color = (v: number | null) =>
             v === null ? "" : v > 0 ? "text-[var(--t-pos)]" : v < 0 ? "text-[var(--t-neg)]" : "";
           return (
-            <tr key={b.ticker_corto}>
+            <tr
+              key={b.ticker_corto}
+              onClick={onSelect ? () => onSelect(b.ticker_corto) : undefined}
+              className={onSelect ? "cursor-pointer hover:bg-[var(--t-border-2)]/40" : ""}
+              title={onSelect ? "Ver flujo de fondos y ficha del bono" : undefined}
+            >
               <td className="!px-1 text-center font-medium" title={b.instrumento || ""}>
                 {b.ticker_corto}
                 {/* Un CER ya fijado se comporta como tasa fija y por eso aparece
