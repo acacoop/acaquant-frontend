@@ -15,7 +15,8 @@ const tasaTip = (b: BonoCurva) =>
     ? "Vence en pocos días: anualizar ese plazo infla la tasa. No es comparable con el resto de la curva."
     : "";
 
-// A diferencia de `renta-fija-table`, acá NO se clasifica ni se filtra por curva:
+// A diferencia de la tabla vieja (borrada 2026-08-30), acá NO se clasifica ni se
+// filtra por curva:
 // las filas llegan YA resueltas por el backend (`/api/cotizaciones/curvas-vista`).
 // Este componente solo formatea.
 //

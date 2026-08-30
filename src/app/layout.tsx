@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
-import { AnuncioChicagoModal } from "@/components/anuncio-chicago-modal";
-import { AnuncioDolarFuturoModal } from "@/components/anuncio-dolar-futuro-modal";
-import { AnuncioResearchModal } from "@/components/anuncio-research-modal";
 import { BriefingModal } from "@/components/briefing-modal";
 import { MisAvisos } from "@/components/mis-avisos";
 import AgenteModal from "@/components/agente/modal";
@@ -92,21 +89,6 @@ export default async function RootLayout({
         <Header modules={modules} />
 
         <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
-
-        {/* SALUD: avisa al admin cuando algo se rompe, en vez de esperar a que
-            entre a mirar. Solo se abre ante una transición NUEVA sin ver.
-            ADMIN-ONLY server-side (ver `esAdmin` arriba). */}
-
-        {/* Anuncio de lanzamiento de la nueva vista RESEARCH (solo 20-21 jul 2026). */}
-        <AnuncioResearchModal />
-
-        {/* Anuncio de los precios de CHICAGO en AGRO (solo 24 jul 2026). */}
-        <AnuncioChicagoModal />
-
-        {/* Anuncio de la nueva vista OPERACIONES → DÓLAR FUTURO (mesa, no invitado). */}
-        <AnuncioDolarFuturoModal />
-
-        {/* Anuncio de la nueva vista OPERACIONES → DIFERENCIAS DIARIAS (mesa, no invitado). */}
 
 
         <footer className="flex items-center gap-3 h-5 px-3 bg-[var(--t-panel)] border-t border-[var(--t-border)] text-[10px] text-[var(--t-text-muted)]">

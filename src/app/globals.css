@@ -221,32 +221,6 @@ body {
   border-radius: 2px;
 }
 
-/* ── Ticker tape animation ── */
-@keyframes ticker-scroll {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-50%);
-  }
-}
-
-.ticker-wrap {
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.ticker-content {
-  display: inline-flex;
-  align-items: center;
-  gap: 2rem;
-  animation: ticker-scroll 90s linear infinite;
-}
-
-.ticker-content:hover {
-  animation-play-state: paused;
-}
-
 /* ── Tables ──
    En @layer base para que las utilidades de Tailwind (ej. whitespace-normal,
    break-words) puedan sobreescribir estos defaults. Sin el layer, estas reglas

@@ -20,14 +20,12 @@ export default async function Home() {
   // que el gráfico dedujera el vencimiento. Ahora el gráfico dibuja los bonos que
   // le pasa la tabla, que ya vienen de `curvas-vista` con duration y TEA.
   const [
-    rentaFija,
     forwards,
     forwardsZscore,
     fairValueTF,
     fairValueCER,
     curvasVista,
   ] = await Promise.all([
-    safeFetch<RentaFijaDoc[]>("/api/cotizaciones/renta-fija", [], 10),
     safeFetch<ForwardDoc[]>("/api/cotizaciones/forwards", [], 30),
     safeFetch<ForwardZscoreDoc[]>("/api/cotizaciones/forwards-zscore", [], 300),
     safeFetch<FairValueDoc | { error: string }>("/api/cotizaciones/fair-value?curva=tasa_fija", { error: "init" }, 60),
@@ -44,7 +42,6 @@ export default async function Home() {
 
   return (
     <RentaFijaLiveView
-      initialRentaFija={rentaFija}
       initialForwards={forwards}
       forwardsZscore={forwardsZscore}
       fairValueInicial={fairValueInicial}

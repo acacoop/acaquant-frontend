@@ -91,12 +91,6 @@ export function registrarMs(etiqueta: string, ms: number): void {
   acumular(etiqueta, ms, "ms");
 }
 
-/** Registra el tamaño de un payload recibido. En KB porque es la unidad en la
- *  que se piensa el problema (y la que usa el diag del backend). */
-export function registrarBytes(etiqueta: string, bytes: number): void {
-  if (!habilitado()) return;
-  acumular(etiqueta, bytes / 1024, "KB");
-}
 
 /** Cuenta ocurrencias de algo (no mide tiempo). Sirve para ratios: cuántos
  *  polls trajeron data nueva vs cuántos trajeron exactamente lo mismo. */

@@ -73,7 +73,7 @@ export function fmtHoraAR(epochMs: number): string {
 }
 
 // Botón de filtro/pill. Copia CANÓNICA: el mismo componente estaba definido
-// local e idéntico en renta-fija-table, curvas-chart, breakevens-block y
+// local e idéntico en curvas-chart y
 // descomposicion-tab. Los nuevos (tab CURVAS del rediseño) usan este; los
 // viejos se migran cuando se los toque, sin cambio visual — es el mismo markup.
 export function FilterBtn({

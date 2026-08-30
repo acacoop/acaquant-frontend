@@ -3,11 +3,9 @@
 import { useMemo, useState } from "react";
 import type {
   BreakevenDoc,
-  BreakevenHistDoc,
   FairValueDoc,
   ForwardDoc,
   ForwardZscoreDoc,
-  RentaFijaDoc,
 } from "@/lib/types";
 import { usePoll } from "@/lib/use-poll";
 import { FilterBtn, fmtHoraAR } from "@/components/ui";
@@ -24,13 +22,11 @@ import type { CurvasVista } from "@/lib/types";
 const POLL_SNAPSHOT_MS = 5_000;
 
 interface SnapshotLive {
-  renta_fija: RentaFijaDoc[];
   forwards: ForwardDoc[];
   breakevens: BreakevenDoc[];
 }
 
 interface Props {
-  initialRentaFija:      RentaFijaDoc[];
   initialForwards:       ForwardDoc[];
   forwardsZscore:        ForwardZscoreDoc[];
   fairValueInicial?:     Record<string, FairValueDoc>;
@@ -38,7 +34,6 @@ interface Props {
 }
 
 export function RentaFijaLiveView({
-  initialRentaFija,
   initialForwards,
   forwardsZscore,
   fairValueInicial,
@@ -49,15 +44,13 @@ export function RentaFijaLiveView({
   // disparaba el setState, lo que causa re-render → loop infinito
   // (React error #185 "Maximum update depth exceeded").
   const initialSnapshot: SnapshotLive = useMemo(() => ({
-    renta_fija: initialRentaFija,
     forwards:   initialForwards,
     breakevens: [],
-  }), [initialRentaFija, initialForwards]);
+  }), [initialForwards]);
 
   const { data: snapshot, lastAt } = usePoll<SnapshotLive>(
     "/api/cotizaciones/snapshot-live", initialSnapshot, POLL_SNAPSHOT_MS,
   );
-  const rentaFija  = snapshot.renta_fija;
   const forwards   = snapshot.forwards;
 
 

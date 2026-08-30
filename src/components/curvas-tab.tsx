@@ -44,7 +44,7 @@ const PILL_A_CURVA: Record<string, Curva> = {
 //   2. al ocupar el panel te TAPABA la tabla y la curva — justo contra lo que
 //      uno compara el tape. Flotando, se mira el libro Y la vista entera.
 //
-// Existía en la tabla vieja (`renta-fija-table`) y se perdió en la migración a
+// Existía en la tabla vieja (borrada 2026-08-30) y se perdió en la migración a
 // la tab CURVAS: el componente quedó vivo y sin nadie que lo montara.
 
 // ── FILTRO DE TEA ──────────────────────────────────────────────────────────

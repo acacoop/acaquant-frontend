@@ -3,42 +3,6 @@
 import { useEffect, useState } from "react";
 
 /**
- * HelpTooltip — `?` chiquito con tooltip inline (hover).
- *
- * Casos: explicación corta al lado de un label específico. Aparece al
- * hover, posicionado relativo al icono. Para explicaciones largas o
- * glosarios completos usar `TableHelp` (modal).
- */
-export function HelpTooltip({
-  text,
-  position = "top",
-}: {
-  text: string;
-  position?: "top" | "bottom";
-}) {
-  const [show, setShow] = useState(false);
-  const verticalClass =
-    position === "top" ? "bottom-full mb-1" : "top-full mt-1";
-
-  return (
-    <span
-      className="relative inline-block ml-0.5"
-      onMouseEnter={() => setShow(true)}
-      onMouseLeave={() => setShow(false)}
-    >
-      <sup className="text-[var(--t-text-muted)] cursor-help select-none text-[9px]">?</sup>
-      {show && (
-        <span
-          className={`absolute z-50 ${verticalClass} left-1/2 -translate-x-1/2 px-2 py-1 bg-[var(--t-border)] border border-[var(--t-border-2)] text-[10px] text-[var(--t-text)] whitespace-normal max-w-[280px] w-max pointer-events-none normal-case tracking-normal text-left font-normal leading-tight`}
-        >
-          {text}
-        </span>
-      )}
-    </span>
-  );
-}
-
-/**
  * TableHelp — `?` que abre un MODAL con el glosario completo de una
  * tabla. Click para abrir, click afuera o Escape para cerrar.
  *

@@ -53,7 +53,6 @@ const PATH_MODULES: [string, string[]][] = [
   ["/aum", ["portfolios"]],
   ["/valuaciones", ["portfolios"]],
   ["/api/portfolio", ["portfolios"]],
-  ["/api/titulos", ["portfolios"]],
   ["/back-office", ["back-office"]],
   // /api/back-office (SENEBIS, tenencia, tesorería…) — módulo `back-office`.
   // Además de pre-gatear, el matcher SANITIZA los headers de identidad de
@@ -212,7 +211,6 @@ export const config = {
     "/api/risk/:path*",
     "/api/cuentas/:path*",
     "/api/portfolio/:path*",
-    "/api/titulos/:path*",
     "/mesa-dinero/:path*",
     "/api/mesa-dinero/:path*",
     "/aca/:path*",
