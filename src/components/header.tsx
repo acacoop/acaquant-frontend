@@ -47,7 +47,6 @@ const NAV: Entry[] = [
     items: [
       { href: "/agro",           label: "Agro",           module: "agro" },
       { href: "/derivados",      label: "Derivados",      module: "derivados" },
-      { href: "/retorno",        label: "Estrategia",     module: "estrategia" },
       { href: "/renta-fija",     label: "Renta Fija",     module: "renta-fija" },
       { href: "/renta-variable", label: "Renta Variable", module: "renta-variable" },
       { href: "/sinteticos",     label: "Sintéticos",     module: "sinteticos" },

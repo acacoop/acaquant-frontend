@@ -289,3 +289,61 @@ export interface BonoDetalle {
   };
   patas?:         PataBono[];
 }
+
+// ── SIMULAR INVERSIÓN (modal de /renta-fija) — GET /api/analitica/simular-inversion ──
+// El backend corre el MISMO motor de la tabla con el precio que tipeó el usuario
+// y devuelve el cronograma escalado al importe. El front no deriva nada.
+export interface FlujoSimulado {
+  fecha:         string;
+  amortizacion:  number;   // ya escalado al importe
+  interes:       number;
+  monto:         number;
+  monto_por_100: number;   // por 100 VN (CER ya ajustado), para auditar la escala
+}
+
+export interface SimulacionInversion {
+  error?:             string;
+  ticker:             string;
+  instrumento:        string | null;
+  rama:               string;
+  ficha: {
+    emisor:            string | null;
+    emisor_tipo:       string | null;
+    tipo:              string | null;
+    curva:             string | null;
+    moneda:            string | null;
+    moneda_flujo:      string | null;
+    ajuste:            string | null;
+    ajuste_alt:        string | null;
+    ley:               string | null;
+    fecha_emision:     string | null;
+    fecha_vencimiento: string | null;
+    valor_nominal:     number | null;
+    cupon_anual:       number | null;
+    cer_emision:       number | null;
+    flujo_vencimiento: number | null;
+  };
+  moneda_precio:      string | null;   // en qué moneda está el precio que se tipea
+  moneda_flujo:       string | null;   // en qué moneda se cobran los flujos
+  precio_referencia:  number | null;   // last del snapshot live (el default)
+  simulacion: {
+    precio:                  number;
+    importe:                 number;
+    vn_nominal:              number;
+    metrics: {
+      TEA: number | null; TEM: number | null; TNA: number | null;
+      duration: number | null; mod_duration: number | null;
+      convexity: number | null; paridad: number | null;
+    };
+    rendimiento_al_vto:      number | null;
+    dias_al_vto:             number | null;
+    total_a_cobrar:          number;
+    importe_en_moneda_flujo: number | null;
+    ganancia:                number | null;
+    rendimiento_directo:     number | null;
+    flujos:                  FlujoSimulado[];
+    n_pagos:                 number;
+    cer_proyectado:          boolean;
+  };
+  warnings:           string[];
+}

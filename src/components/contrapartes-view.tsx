@@ -115,7 +115,7 @@ export function ContrapartesView() {
     if (monedasDisp.length && monSel.length === 0) setMonSel(monedasDisp);
   }, [monedasDisp, monSel.length]);
 
-  // Fechas únicas (YYYY-MM-DD) ordenadas ASC. Base del DualRange.
+  // Fechas únicas (YYYY-MM-DD) ordenadas ASC. Base del rango de fechas.
   const diasAll = useMemo(() => {
     const set = new Set<string>();
     for (const r of filas) set.add(r.dia);

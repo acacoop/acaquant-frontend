@@ -13,6 +13,7 @@ import { Maximizable } from "@/components/maximizable";
 import { ResearchLab } from "@/components/research-lab";
 import { ResearchRetornoTotal } from "@/components/research-retorno-total";
 import { ReutersView } from "@/components/reuters-view";
+import { SensibilidadTable } from "@/components/sensibilidad-table";
 import { MESES_CORTOS as MESES } from "@/lib/fmt";
 
 export interface ResearchDestilado { resumen?: string; temas?: string[]; hechos?: { hecho: string }[] }
@@ -51,7 +52,7 @@ function Parrafo({ texto }: { texto: string }) {
 }
 
 // ── Tabs de la vista (keep-alive, mismo patrón que trading-shell) ─────────────
-type Tab = "argentina" | "reportes" | "bcra" | "internacional" | "rv-int";
+type Tab = "argentina" | "sensibilidad" | "reportes" | "bcra" | "internacional" | "rv-int";
 
 export function ResearchView({ initial }: { initial: ResearchData }) {
   const [tab, setTab] = useState<Tab>("argentina");
@@ -62,6 +63,10 @@ export function ResearchView({ initial }: { initial: ResearchData }) {
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-1 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <TabBtn active={tab === "argentina"} onClick={() => setTab("argentina")}>RENTA FIJA ARGENTINA</TabBtn>
+        {/* ANÁLISIS SENSIBILIDAD vivía en /retorno (vista ESTRATEGIA, eliminada
+            2026-08-30). Se mudó acá tal cual: mismo componente, mismo endpoint
+            (/api/analitica/sensibilidad-retorno). */}
+        <TabBtn active={tab === "sensibilidad"} onClick={() => setTab("sensibilidad")}>ANÁLISIS SENSIBILIDAD</TabBtn>
         <TabBtn active={tab === "reportes"} onClick={() => setTab("reportes")}>REPORTES FINANCIEROS</TabBtn>
         <TabBtn active={tab === "bcra"} onClick={() => setTab("bcra")}>BCRA</TabBtn>
         <TabBtn active={tab === "internacional"} onClick={() => setTab("internacional")}>DATOS INTERNACIONALES</TabBtn>
@@ -86,6 +91,11 @@ export function ResearchView({ initial }: { initial: ResearchData }) {
               <Maximizable><ResearchLab modoFijo="overlay" /></Maximizable>
               <Maximizable><ResearchRetornoTotal /></Maximizable>
             </div>
+          </Pane>
+        )}
+        {visited.has("sensibilidad") && (
+          <Pane active={tab === "sensibilidad"}>
+            <Maximizable><SensibilidadTable compact /></Maximizable>
           </Pane>
         )}
         {visited.has("reportes") && (

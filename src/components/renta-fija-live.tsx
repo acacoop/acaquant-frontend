@@ -11,6 +11,7 @@ import { usePoll } from "@/lib/use-poll";
 import { FilterBtn, fmtHoraAR } from "@/components/ui";
 import { CurvasTab } from "@/components/curvas-tab";
 import { ForwardsTab } from "@/components/forwards-tab";
+import { SimularInversionModal } from "@/components/simular-inversion-modal";
 import type { CurvasVista } from "@/lib/types";
 
 // Polling unificado: 1 sola request al endpoint /snapshot-live cada 5s
@@ -64,6 +65,11 @@ export function RentaFijaLiveView({
   const [tab, setTab] = useState<"curvas" | "forwards" | "clasica">(
     curvasVista ? "curvas" : "clasica",
   );
+  // SIMULAR INVERSIÓN no es una tab con pantalla propia: el botón vive en la
+  // fila de tabs y abre un MODAL (mismo patrón que la FICHA de la tab CURVAS).
+  // Se monta una sola vez acá y se desmonta al cerrar — así no queda un fetch
+  // corriendo escondido.
+  const [simulador, setSimulador] = useState(false);
 
   // Las TABS se pasan a la tab activa para que compartan fila con SUS controles
   // (el filtro de emisor en CURVAS, los modos en FORWARDS). Una fila de tabs +
@@ -78,6 +84,15 @@ export function RentaFijaLiveView({
       <FilterBtn active={tab === "forwards"} onClick={() => setTab("forwards")}>
         FORWARDS
       </FilterBtn>
+      {curvasVista && (
+        <FilterBtn
+          active={simulador}
+          onClick={() => setSimulador(true)}
+          title="Simular una compra: importe + bono + precio → TIR y cronograma de cobros"
+        >
+          SIMULAR INVERSIÓN
+        </FilterBtn>
+      )}
       <span className="w-px h-3 bg-[var(--t-border-2)] mx-1" />
     </>
   );
@@ -98,6 +113,13 @@ export function RentaFijaLiveView({
           </div>
           <ForwardsTab forwards={forwards} zscoreInicial={forwardsZscore} />
         </>
+      )}
+
+      {simulador && curvasVista && (
+        <SimularInversionModal
+          bonos={curvasVista.bonos}
+          onClose={() => setSimulador(false)}
+        />
       )}
     </div>
   );

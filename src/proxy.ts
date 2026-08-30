@@ -6,7 +6,7 @@ import { isGuestRequest, trustedEmail } from "./lib/cf-access";
  *
  * Consulta /api/me del backend y restringe rutas por módulo según el role
  * del user. Solo corre en paths restringidos (config.matcher más abajo),
- * las rutas públicas (home, renta-fija, derivados, estrategia) no pagan
+ * las rutas públicas (home, renta-fija, derivados) no pagan
  * el fetch.
  *
  * Mapeo path → módulo coincide con ENDPOINT_MODULE_PREFIXES del backend
