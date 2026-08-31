@@ -45,7 +45,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **No tiene base de datos ni lógica de negocio propia.** Es una terminal que renderiza
 lo que sirve el backend FastAPI (`api.acaquant.com`, repo hermano
-`acaquant-backend`). Las ~75 route handlers de `src/app/api/**` son **proxies**
+`acaquant-backend`). Las **73** route handlers de `src/app/api/**` son **proxies**
 hacia ese backend — inyectan auth y reenvían. Todo cálculo de negocio vive del otro
 lado; si algo hay que derivar, se deriva allá.
 
@@ -71,8 +71,8 @@ falla si rompiste un tipo, y Vercel lo va a correr igual.
 
 ## Convenciones que rompen cosas si se olvidan
 
-- **`export const dynamic = "force-dynamic"` en TODA page.** Las 20 páginas lo
-  tienen. El `layout.tsx` también, y ahí es **crítico para RBAC**: el nav se
+- **`export const dynamic = "force-dynamic"` en TODA page.** Las 19 páginas lo
+  tienen (recontado 2026-08-31; eran 20 hasta la baja de `/retorno`). El `layout.tsx` también, y ahí es **crítico para RBAC**: el nav se
   renderiza por usuario (`getMe()`), sin `force-dynamic` Vercel puede servirle a un
   trader el HTML cacheado de un admin con el link de MANAGER a la vista.
 - **Route handlers que proxean data live**: `export const revalidate = 0` +
@@ -201,7 +201,8 @@ Doc del backend: **`docs/AGENT_2.0.md`**. El agente se rehízo entero el
 | **ENCONTRÓ** | lo abierto que **tiene arreglo** | ver qué haría · aplicar · no me interesa |
 | **HISTORIAL** | el libro: qué escribió el agente, de qué valor a qué valor | ninguno |
 
-Y a la **derecha, siempre visible**, el panel de HABILIDADES: las 16, cada una
+Y a la **derecha, siempre visible**, el panel de HABILIDADES: las **18** (el
+número manda desde `agente/catalogo.py` del backend, no de acá), cada una
 con **la última hora que se ejecutó**, su estado (miró · no pudo mirar · reventó
 · todavía no le tocó) y cuántos hallazgos tiene abiertos.
 

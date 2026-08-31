@@ -71,13 +71,6 @@ export function ResearchView({ initial }: { initial: ResearchData }) {
         <TabBtn active={tab === "bcra"} onClick={() => setTab("bcra")}>BCRA</TabBtn>
         <TabBtn active={tab === "internacional"} onClick={() => setTab("internacional")}>DATOS INTERNACIONALES</TabBtn>
         <TabBtn active={tab === "rv-int"} onClick={() => setTab("rv-int")}>RENTA VARIABLE INTERNACIONAL</TabBtn>
-        {/* UN copiloto para toda Research (vista `research`): manda la tab activa
-            como params y el server arma el contexto de ESA tab + los mails 1816.
-            En RV INTERNACIONAL no se muestra: esa tab tiene su vista `reuters`. */}
-        {tab !== "rv-int" && (
-          <div className="ml-auto">
-          </div>
-        )}
       </div>
       <div className="flex-1 min-h-0 overflow-hidden relative">
         {visited.has("argentina") && (
