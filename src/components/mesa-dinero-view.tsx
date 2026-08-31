@@ -63,6 +63,18 @@ type Alcance = "todo" | "resultados";
 type Opciones = {
   traders: string[]; observaciones: string[]; clientes: string[];
   puede_escribir: boolean; alcance?: Alcance | null;
+  // Solo dibuja (o no) el botón de importar el Excel de ACA VALORES. El permiso
+  // REAL es `require_admin` en POST /retorno/import — esto viaja desde el backend
+  // para no tener DOS criterios de "es admin" que se puedan contradecir.
+  es_admin?: boolean;
+};
+// Respuesta de POST /retorno/import (con y sin dry_run: el mismo shape, que es
+// lo que permite mostrar el preview y el resultado con el mismo componente).
+type ImportDetalle = { periodo: string; filas: number; existentes: number; cash: number };
+type ImportRes = {
+  archivo: string; periodos: string[]; filas: number; total_vn: number;
+  total_cash: number; detalle: ImportDetalle[]; sin_fecha: number;
+  dry_run: boolean; borradas: number;
 };
 // ACA VALORES RETORNO TOTAL — filas crudas del período (se agregan en el cliente
 // para el cross-filter interactivo: tocar un agente/operación/papel/día filtra el resto).
@@ -316,6 +328,124 @@ function TcCell({ dia, editable, onSet }: { dia: Dia; editable: boolean; onSet: 
   );
 }
 
+// ── Importar el informe de ACA VALORES (admin) ─────────────────────────────
+// DOS pasos a propósito. Importar no agrega filas: REEMPLAZA los períodos que
+// trae el archivo, así que un Excel equivocado se lleva puesto el mes entero. El
+// preview (`dry_run`, que no escribe nada) muestra cuántas filas trae y cuántas
+// hay HOY en la base para esos períodos — es decir, exactamente lo que se pisa.
+// Sin ese número, "importar" es apretar un botón a ciegas.
+function ImportarInforme({ onImportado }: { onImportado: (periodo: string) => void }) {
+  const [abierto, setAbierto] = useState(false);
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [preview, setPreview] = useState<ImportRes | null>(null);
+  const [hecho, setHecho] = useState<ImportRes | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const reset = () => { setArchivo(null); setPreview(null); setHecho(null); setError(null); };
+
+  const enviar = async (f: File, dryRun: boolean): Promise<ImportRes> => {
+    const fd = new FormData();
+    fd.append("archivo", f);
+    // Sin Content-Type a mano: el boundary lo pone el browser.
+    return getJson<ImportRes>(
+      `/api/mesa-dinero/retorno/import${dryRun ? "?dry_run=true" : ""}`,
+      { method: "POST", body: fd },
+    );
+  };
+
+  const elegir = async (f: File | null) => {
+    reset();
+    setArchivo(f);
+    if (!f) return;
+    // El backend acepta hasta 15 MB, pero el cuerpo de una Function de Vercel
+    // corta MUCHO antes (~4,5 MB) y lo hace con un error opaco que nunca llega
+    // al backend. Se avisa acá para que el mensaje diga qué pasó: el informe
+    // real pesa decenas de KB, así que superar esto es haber elegido otro archivo.
+    if (f.size > 4_000_000) {
+      setArchivo(null);
+      setError(`El archivo pesa ${(f.size / 1e6).toFixed(1)} MB. El informe real pesa ` +
+               "decenas de KB — ¿es el Excel de ACA VALORES?");
+      return;
+    }
+    setBusy(true);
+    try { setPreview(await enviar(f, true)); }
+    catch (e) { setError(String(e instanceof Error ? e.message : e)); }
+    finally { setBusy(false); }
+  };
+
+  const confirmar = async () => {
+    if (!archivo) return;
+    setBusy(true); setError(null);
+    try {
+      const res = await enviar(archivo, false);
+      setHecho(res); setPreview(null); setArchivo(null);
+      onImportado(res.periodos[res.periodos.length - 1]);
+    } catch (e) {
+      setError(String(e instanceof Error ? e.message : e));
+    } finally { setBusy(false); }
+  };
+
+  if (!abierto) {
+    return (
+      <button onClick={() => setAbierto(true)}
+        className="px-2 py-0.5 text-[9px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
+        title="Subir el Excel 'OP Aca Valores FCI' (solo admin)">
+        ↑ IMPORTAR .XLS
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap border border-[var(--t-border-2)] bg-[var(--t-surface)] px-2 py-1">
+      <span className="text-[9px] font-semibold text-[var(--t-accent)]">IMPORTAR INFORME</span>
+      <input type="file" accept=".xls,.xlsx,.xlsm" disabled={busy}
+        onChange={(e) => elegir(e.target.files?.[0] ?? null)}
+        className="text-[10px] text-[var(--t-text-dim)] file:mr-2 file:border file:border-[var(--t-border-2)] file:bg-[var(--t-panel)] file:px-2 file:py-0.5 file:text-[9px] file:text-[var(--t-text)]" />
+      {busy && <span className="text-[9px] text-[var(--t-text-muted)]">procesando…</span>}
+
+      {preview && (
+        <>
+          <span className="text-[9px] text-[var(--t-text-dim)]">
+            {preview.filas} fila(s) · Σ CASH {fmt0(preview.total_cash)}
+          </span>
+          {preview.detalle.map((d) => (
+            <span key={d.periodo} className="text-[9px] text-[var(--t-text-dim)]">
+              <b className="text-[var(--t-text)]">{d.periodo}</b>: {d.filas} nuevas
+              {d.existentes > 0 && (
+                <span className="text-[var(--t-neg)]"> · reemplaza {d.existentes}</span>
+              )}
+            </span>
+          ))}
+          {preview.sin_fecha > 0 && (
+            <span className="text-[9px] text-[var(--t-neg)]">
+              {preview.sin_fecha} fila(s) sin fecha se descartan
+            </span>
+          )}
+          <button onClick={confirmar} disabled={busy}
+            className="px-2 py-0.5 text-[9px] font-semibold bg-[var(--t-accent)] text-[var(--t-on-accent)] disabled:opacity-40">
+            CONFIRMAR
+          </button>
+        </>
+      )}
+
+      {hecho && (
+        <span className="text-[9px] text-[var(--t-pos)]">
+          OK — {hecho.periodos.join(", ")}: {hecho.filas} fila(s) importadas
+          {hecho.borradas > 0 && `, ${hecho.borradas} reemplazadas`}.
+        </span>
+      )}
+
+      {error && <span className="text-[9px] text-[var(--t-neg)] max-w-[38rem]">{error}</span>}
+
+      <button onClick={() => { reset(); setAbierto(false); }}
+        className="px-2 py-0.5 text-[9px] border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:text-[var(--t-accent)]">
+        cerrar
+      </button>
+    </div>
+  );
+}
+
 // ── Vista principal ────────────────────────────────────────────────────────
 export function MesaDineroView() {
   const [mes, setMes] = usePersistedState<string>("mesaDinero.mes", mesActual());
@@ -325,6 +455,11 @@ export function MesaDineroView() {
   const [resultados, setResultados] = useState<Resultados | null>(null);
   const [retorno, setRetorno] = useState<Retorno | null>(null);
   const [retPeriodo, setRetPeriodo] = usePersistedState<string>("mesaDinero.retPeriodo", "");
+  // Se incrementa después de importar para RE-pedir /retorno aunque el período
+  // seleccionado sea el mismo que se acaba de reemplazar (que es el caso normal:
+  // se re-importa agosto estando parado en agosto). Sin esto, el efecto no
+  // vuelve a correr y la pantalla sigue mostrando las filas viejas.
+  const [retNonce, setRetNonce] = useState(0);
   // Cross-filter de la tab: null = sin filtro en esa dimensión. Tocar una fila
   // togglea el filtro de SU dimensión; los demás paneles se recalculan.
   const [fOp, setFOp] = useState<string | null>(null);
@@ -381,7 +516,7 @@ export function MesaDineroView() {
     getJson<Retorno>(`/api/mesa-dinero/retorno${qs}`)
       .then((r) => { setRetorno(r); if (!retPeriodo && r.periodo) setRetPeriodo(r.periodo); })
       .catch(console.error);
-  }, [tabActiva, retPeriodo, setRetPeriodo]);
+  }, [tabActiva, retPeriodo, retNonce, setRetPeriodo]);
 
   // Al cambiar de período se limpian los filtros cruzados.
   useEffect(() => { setFOp(null); setFAg(null); setFPa(null); setFFecha(null); }, [retPeriodo]);
@@ -813,6 +948,14 @@ export function MesaDineroView() {
               className="px-2 py-0.5 text-[9px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:text-[var(--t-accent)]">
               limpiar todo
             </button>
+          )}
+          {opciones?.es_admin && (
+            <div className="ml-auto">
+              <ImportarInforme onImportado={(p) => {
+                if (p && p !== retPeriodo) setRetPeriodo(p);
+                setRetNonce((n) => n + 1);
+              }} />
+            </div>
           )}
         </div>
 

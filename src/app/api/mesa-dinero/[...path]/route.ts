@@ -10,6 +10,10 @@ const API_KEY = process.env.API_KEY || "";
 const CF_CLIENT_ID = process.env.CF_ACCESS_CLIENT_ID || "";
 const CF_CLIENT_SECRET = process.env.CF_ACCESS_CLIENT_SECRET || "";
 
+// Parsear el Excel del informe + reemplazar el mes tarda más que el default
+// de Vercel. Mismo criterio que el proxy de Manager.
+export const maxDuration = 90;
+
 async function proxy(req: Request, path: string[]) {
   try {
     const url = new URL(req.url);
@@ -35,10 +39,20 @@ async function proxy(req: Request, path: string[]) {
     const init: RequestInit = { method, headers, cache: "no-store" };
 
     if (method !== "GET" && method !== "DELETE") {
-      const text = await req.text();
-      if (text) {
-        headers["Content-Type"] = "application/json";
-        init.body = text;
+      const contentType = req.headers.get("content-type") || "";
+      if (contentType.includes("multipart/form-data")) {
+        // Importación del Excel de ACA VALORES (POST /retorno/import). Se
+        // reenvía el FormData INTACTO y sin setear Content-Type a mano: el
+        // boundary lo genera fetch y escribirlo nosotros lo rompe. Leerlo con
+        // req.text() —lo que hacía este proxy para todo— convertía el archivo
+        // en un string y el backend recibía un multipart ilegible.
+        init.body = await req.formData();
+      } else {
+        const text = await req.text();
+        if (text) {
+          headers["Content-Type"] = "application/json";
+          init.body = text;
+        }
       }
     }
 
