@@ -26,9 +26,11 @@ import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
 // muestra las cuentas que la componen — mismo patrón que el modal de DÍAS SIN
 // OPERAR y que el detalle por celda de Tesorería.
 
+type Gran = "mes" | "trimestre";
 type Fila = {
   mes: string; label: string; ini: string; fin: string; en_curso: boolean;
   clientes: number;
+  altas: number;
   con_aum: number | null;
   sin_aum: number | null;
   activos: number;
@@ -51,6 +53,7 @@ type Columnas = {
 type OpcionOp = { valor: string; label: string; n_boletos: number };
 type Resp = {
   moneda: string; desde: string; hasta: string; filas: Fila[];
+  granularidad: Gran; total_altas: number;
   operacion: string[];
   operaciones_disponibles: OpcionOp[];
   columnas: Columnas;
@@ -76,7 +79,7 @@ type Detalle = {
 };
 
 type Metrica =
-  | "clientes" | "con_aum" | "sin_aum" | "activos"
+  | "clientes" | "altas" | "con_aum" | "sin_aum" | "activos"
   | "ratio_actividad" | "aranceles" | "arancel_por_activo" | "aum";
 
 // Definición ÚNICA de las columnas: el header, de qué campo sale, cómo se formatea
@@ -101,7 +104,10 @@ function ayudaDe(c: Col, columnas: Columnas | undefined, acotada: boolean): stri
 }
 const COLS: Col[] = [
   { k: "clientes", label: "Clientes", tipo: "int",
-    ayuda: "Cuentas activas con legajo dado de alta al último día del mes." },
+    ayuda: "Cuentas activas con legajo dado de alta al último día del período. Es el STOCK acumulado." },
+  { k: "altas", label: "Altas", tipo: "int",
+    ayuda: "Cuentas dadas de alta DENTRO del período (fecha de alta del legajo). Es el FLUJO: "
+      + "las de períodos anteriores ya están contadas en CLIENTES, no acá." },
   { k: "con_aum", label: "Con AuM", tipo: "int",
     ayuda: "Cuentas con valuación > 0 en la foto de tenencia del último día del mes." },
   { k: "sin_aum", label: "Sin AuM", tipo: "int",
@@ -224,8 +230,10 @@ function PorMes(
   // El filtro de OPERACIÓN vive en ESTA vista, no en la barra madre: solo acota
   // esta tabla, y en la barra parecería que aplica a las otras solapas.
   const [operacion, setOperacion] = usePersistedState<string[]>("profundidad.operacion", []);
+  // MES o TRIMESTRE. Se persiste como el resto de las elecciones de la vista.
+  const [gran, setGran] = usePersistedState<Gran>("profundidad.granularidad", "mes");
   const qs = filtrosQS(f) + arrQS("operacion", operacion);
-  const url = `/api/operaciones/comercial/profundidad?moneda=${moneda}${qs}`;
+  const url = `/api/operaciones/comercial/profundidad?moneda=${moneda}&granularidad=${gran}${qs}`;
   // La respuesta viaja JUNTO con la url que la produjo. Así "estoy cargando" se
   // DERIVA (`res.url !== url`) en vez de ser un tercer estado que hay que
   // resetear a mano en el efecto: un `setLoading(true)` sincrónico encadena
@@ -281,6 +289,7 @@ function PorMes(
         { header: "Mes", key: "mes", format: "text", width: 10 },
         { header: "Último día", key: "fin", format: "date", width: 12 },
         { header: "Clientes", key: "clientes", format: "integer" },
+        { header: "Altas", key: "altas", format: "integer" },
         { header: "Con AuM", key: "con_aum", format: "integer" },
         { header: "Sin AuM", key: "sin_aum", format: "integer" },
         { header: "Activos", key: "activos", format: "integer" },
@@ -333,6 +342,19 @@ function PorMes(
         )}
 
         <div className="ml-auto flex items-center gap-2">
+          <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+            {([["mes", "Mes"], ["trimestre", "Trimestre"]] as const).map(([v, t]) => (
+              <button key={v} onClick={() => setGran(v)}
+                title={v === "trimestre"
+                  ? "Una fila por trimestre. Los extremos se anclan al trimestre completo."
+                  : "Una fila por mes."}
+                className={"px-2 py-0.5 text-[10px] uppercase tracking-wider " +
+                  (gran === v ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
+                    : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>
+                {t}
+              </button>
+            ))}
+          </div>
           <MultiSelect label="Operación" selected={operacion} onChange={setOperacion}
             options={(d?.operaciones_disponibles ?? []).map((o) => ({
               value: o.valor, label: o.label, n: o.n_boletos }))}
@@ -351,7 +373,9 @@ function PorMes(
         <table className="w-full text-[12px]">
           <thead className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] sticky top-0 bg-[var(--t-panel)] z-10">
             <tr className="border-b border-[var(--t-border-2)]">
-              <th className="px-3 py-2 text-left font-normal w-[12%]">Mes</th>
+              <th className="px-3 py-2 text-left font-normal w-[12%]">
+                {gran === "trimestre" ? "Trimestre" : "Mes"}
+              </th>
               {COLS.map((c) => {
                 // Con filtro puesto, la columna que NO acota se dibuja apagada: si
                 // se vieran todas iguales, un 5% al lado de un 1.408 parece que se
@@ -423,6 +447,43 @@ function PorMes(
               </td></tr>
             )}
           </tbody>
+          {/* TOTAL: solo lo que se PUEDE sumar a lo largo del tiempo.
+              · ALTAS y ARANCELES son flujos → suman.
+              · CLIENTES y AuM son stocks (la misma cuenta está en todas las filas)
+                y ACTIVOS doble-cuenta a quien operó en más de un período.
+              Sumarlos igual daría un número grande, plausible y falso — así que
+              esas celdas van en "—" con el motivo en el tooltip. */}
+          {!!filas.length && d && (
+            <tfoot className="sticky bottom-0 bg-[var(--t-surface)]">
+              <tr className="border-t-2 border-[var(--t-border-2)] font-semibold">
+                <td className="px-3 py-1.5 whitespace-nowrap">
+                  TOTAL
+                  <span className="ml-1.5 text-[9px] font-normal text-[var(--t-text-muted)]">
+                    {filas.length} {gran === "trimestre" ? "trim." : "meses"}
+                  </span>
+                </td>
+                {COLS.map((c) => {
+                  const sumable = c.k === "altas" || c.k === "aranceles";
+                  const total = c.k === "altas"
+                    ? d.total_altas
+                    : filas.reduce((a, r) => a + (r.aranceles ?? 0), 0);
+                  return (
+                    <td key={c.k}
+                      title={sumable ? undefined
+                        : (c.k === "activos"
+                          ? "No se suma: una cuenta que operó en varios períodos se contaría más de una vez."
+                          : "No se suma: es un stock, la misma cuenta está en todas las filas.")}
+                      className={"px-3 py-1.5 text-right tabular-nums " +
+                        (sumable ? "text-[var(--t-text)]" : "text-[var(--t-text-muted)]")}>
+                      {sumable
+                        ? (c.k === "altas" ? fmtInt(total) : fmtPesos(total))
+                        : "—"}
+                    </td>
+                  );
+                })}
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
 
@@ -438,7 +499,7 @@ function PorMes(
           una celda de 47 y saldrían 389 cuentas. Va en la `key` para que cambiar el
           filtro con el modal abierto lo remonte en vez de dejar datos viejos. */}
       {celda && (
-        <ModalCelda key={`${celda.mes}|${celda.metrica}|${qs}`} mes={celda.mes} metrica={celda.metrica}
+        <ModalCelda key={`${celda.mes}|${celda.metrica}|${gran}|${qs}`} mes={celda.mes} metrica={celda.metrica} gran={gran}
           moneda={moneda} qs={qs} onCerrar={() => setCelda(null)} />
       )}
     </div>
@@ -450,8 +511,9 @@ function PorMes(
 // predicados y el MISMO snapshot que la tabla, y muestra los totales que él
 // devuelve — calculados sobre TODAS las cuentas, antes del límite de la lista.
 function ModalCelda(
-  { mes, metrica, moneda, qs, onCerrar }:
-  { mes: string; metrica: Metrica; moneda: string; qs: string; onCerrar: () => void },
+  { mes, metrica, moneda, qs, gran, onCerrar }:
+  { mes: string; metrica: Metrica; moneda: string; qs: string; gran: Gran;
+    onCerrar: () => void },
 ) {
   const [d, setD] = useState<Detalle | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -468,14 +530,18 @@ function ModalCelda(
     void (async () => {
       try {
         const r = await fetchJson<Detalle>(
-          `/api/operaciones/comercial/profundidad/detalle?mes=${mes}&metrica=${metrica}&moneda=${moneda}${qs}`);
+          `/api/operaciones/comercial/profundidad/detalle?mes=${mes}&metrica=${metrica}`
+          + `&moneda=${moneda}&granularidad=${gran}${qs}`);
         if (vivo) setD(r);
       } catch (e) {
         if (vivo) setErr(e instanceof Error ? e.message : String(e));
       }
     })();
     return () => { vivo = false; };
-  }, [mes, metrica, moneda, qs]);
+    // `gran` va en las deps y en la `key`: el modal tiene que abrir el MISMO
+    // período que la fila. Con la tabla en trimestral y el modal en mensual
+    // mostraría un tercio de las cuentas y el total no cerraría contra la celda.
+  }, [mes, metrica, moneda, qs, gran]);
 
   // Buscador local sobre lo que YA vino (no re-pide: filtrar en el server cambiaría
   // los totales y el modal dejaría de cuadrar con la tabla).
