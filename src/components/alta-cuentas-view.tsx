@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import {
-  Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Bar, CartesianGrid, ComposedChart, LabelList, Legend, Line, ResponsiveContainer,
+  Tooltip, XAxis, YAxis,
 } from "recharts";
 
 import { fetchJson } from "@/lib/fetch-json";
@@ -13,16 +14,22 @@ import type { Filtros } from "./profundidad-clientes-view";
 
 // Tab ALTA DE CUENTAS (dentro de PROFUNDIDAD DE CLIENTES).
 //
-// El histórico COMPLETO de altas de `clientes.comitentes`: arriba el gráfico a lo
-// ancho, abajo la misma serie como tabla auditable.
+// El histórico COMPLETO de altas de `clientes.comitentes`. El GRÁFICO ocupa el 100 %
+// del alto; la tabla con los mismos números vive detrás de un pill, no partiendo la
+// pantalla al medio.
 //
-// **Una serie por vez, con conmutador ALTAS / ACUMULADO — no las dos juntas.**
-// Dibujar las barras del flujo (decenas) y la curva del acumulado (miles) en el
-// mismo gráfico obliga a un segundo eje Y, y un gráfico de doble eje deja que
-// cualquiera de las dos series "cruce" a la otra donde el que escaló los ejes
-// quiso: la forma la decide la escala elegida, no los datos. Las dos preguntas se
-// contestan igual —cuántas entraron, cuánta base hay— y la tabla de abajo tiene
-// las dos columnas juntas para compararlas como números.
+// **DOBLE EJE, decidido por el user (2026-08-31) después de plantearle el problema.**
+// Las barras del flujo (decenas) y la curva del acumulado (miles) van juntas, con un
+// segundo eje Y a la derecha. Lo que hay que saber: en un gráfico de doble eje el
+// punto donde una serie "cruza" a la otra lo decide la escala que se eligió, no los
+// datos — dos escalas distintas se pueden acomodar para que la curva pase por arriba
+// o por abajo de las barras a gusto. Por eso acá:
+//
+//   · **cada eje lleva el color de SU serie** (izquierda = altas, derecha = acumulado
+//     en rojo). Es lo único que impide leer un valor contra la escala equivocada.
+//   · **el acumulado lleva su número escrito en cada punto**, así el dato no depende
+//     de medirlo contra un eje.
+//   · la leyenda está siempre: con dos series, la identidad no puede ser solo el color.
 //
 // Nada se deriva acá: las barras, el acumulado, el % del total y el rango salen
 // del backend, de la misma query.
@@ -38,7 +45,7 @@ type Resp = {
   meta: { advertencias: string[] };
 };
 type Gran = "mes" | "trimestre" | "ano";
-type Serie = "altas" | "acumulado";
+type Panel = "grafico" | "tabla";
 
 const fmtInt = (n: number | null | undefined) =>
   n == null ? "—" : n.toLocaleString("es-AR");
@@ -71,7 +78,10 @@ export function AltaCuentasView(
 ) {
   const f: Filtros = filtros;
   const [gran, setGran] = usePersistedState<Gran>("altas.granularidad", "trimestre");
-  const [serie, setSerie] = usePersistedState<Serie>("altas.serie", "altas");
+  // El gráfico ocupa el 100% (pedido del user). La tabla no se borra —es donde los
+  // números se leen exactos y se cotejan— pero vive detrás de un click en vez de
+  // comerse la mitad del alto.
+  const [panel, setPanel] = usePersistedState<Panel>("altas.panel", "grafico");
   // Default: TODAS las comitentes. Una cuenta abierta en 2019 y cerrada en 2022 fue
   // un alta de 2019 — filtrar por estado hace que el pasado se achique cada vez que
   // alguien cierra una cuenta, y un histórico que cambia hacia atrás no sirve.
@@ -119,9 +129,6 @@ export function AltaCuentasView(
     ] }],
   });
 
-  const titulo = serie === "altas"
-    ? "Altas por período"
-    : "Base acumulada (sumatoria)";
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
@@ -137,9 +144,9 @@ export function AltaCuentasView(
           ) : "…"}
         </span>
         <div className="ml-auto flex items-center gap-2">
-          <Pills<Serie> valor={serie} onChange={setSerie} opciones={[
-            ["altas", "Altas", "Cuántas entraron en cada período (el flujo)"],
-            ["acumulado", "Acumulado", "Cuánta base había al final de cada período (la sumatoria)"],
+          <Pills<Panel> valor={panel} onChange={setPanel} opciones={[
+            ["grafico", "Gráfico", "Altas por período + la curva del acumulado"],
+            ["tabla", "Tabla", "Los mismos números, exactos, para cotejar"],
           ]} />
           <Pills<Gran> valor={gran} onChange={setGran} opciones={[
             ["mes", "Mes"], ["trimestre", "Trim."], ["ano", "Año"],
@@ -163,10 +170,11 @@ export function AltaCuentasView(
         </div>
       </div>
 
-      {/* ── 50% superior: el gráfico, a todo el ancho ──────────────────────── */}
-      <div className="h-1/2 min-h-0 border-b border-[var(--t-border-2)] flex flex-col">
+      {/* ── EL GRÁFICO: 100% del alto ─────────────────────────────────────── */}
+      {panel === "grafico" && (
+      <div className="flex-1 min-h-0 flex flex-col">
         <div className="px-3 pt-2 text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] shrink-0">
-          {titulo}
+          Altas por período · base acumulada
           <span className="ml-2 normal-case tracking-normal text-[var(--t-text-muted)]">
             {gran === "ano" ? "por año" : gran === "trimestre" ? "por trimestre" : "por mes"}
             {soloActivas ? " · solo cuentas hoy activas" : " · todas las comitentes"}
@@ -178,51 +186,53 @@ export function AltaCuentasView(
               {cargando ? "cargando…" : err ? "no se pudo leer" : "sin altas para mostrar"}
             </div>
           ) : (
-            <ResponsiveContainer key={`${vk}-${serie}`} width="100%" height="100%">
-              {serie === "altas" ? (
-                <BarChart data={filas} margin={{ top: 8, right: 16, bottom: 4, left: 4 }}>
-                  <CartesianGrid stroke="var(--t-border)" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
-                    axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false}
-                    interval="preserveStartEnd" minTickGap={8} />
-                  <YAxis tick={{ fill: "var(--t-text-dim)", fontSize: 9 }} width={44}
-                    axisLine={false} tickLine={false} allowDecimals={false} />
-                  <Tooltip
-                    contentStyle={{ background: "var(--t-surface)", border: "1px solid var(--t-border-2)", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
-                    labelStyle={{ color: "var(--t-text-dim)" }}
-                    cursor={{ fill: "color-mix(in srgb, var(--t-text) 8%, transparent)" }}
-                    formatter={(v, _n, it: { payload?: Fila }) => [
-                      `${fmtInt(Number(v))} altas · ${it?.payload?.pct_del_total ?? 0}% del total`,
-                      "Altas"]} />
-                  {/* Punta redondeada arriba, anclada a la línea de base. */}
-                  <Bar dataKey="altas" fill="var(--t-brand)" isAnimationActive={false}
-                    radius={[4, 4, 0, 0]} />
-                </BarChart>
-              ) : (
-                <LineChart data={filas} margin={{ top: 8, right: 16, bottom: 4, left: 4 }}>
-                  <CartesianGrid stroke="var(--t-border)" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
-                    axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false}
-                    interval="preserveStartEnd" minTickGap={8} />
-                  <YAxis tick={{ fill: "var(--t-text-dim)", fontSize: 9 }} width={52}
-                    axisLine={false} tickLine={false} allowDecimals={false} />
-                  <Tooltip
-                    contentStyle={{ background: "var(--t-surface)", border: "1px solid var(--t-border-2)", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
-                    labelStyle={{ color: "var(--t-text-dim)" }}
-                    formatter={(v, _n, it: { payload?: Fila }) => [
-                      `${fmtInt(Number(v))} cuentas · +${fmtInt(it?.payload?.altas ?? 0)} en el período`,
-                      "Base acumulada"]} />
-                  <Line type="monotone" dataKey="acumulado" stroke="var(--t-accent)"
-                    strokeWidth={2} dot={false} isAnimationActive={false} />
-                </LineChart>
-              )}
+            <ResponsiveContainer key={`${vk}-${gran}`} width="100%" height="100%">
+              <ComposedChart data={filas} margin={{ top: 20, right: 8, bottom: 4, left: 4 }}>
+                <CartesianGrid stroke="var(--t-border)" vertical={false} />
+                <XAxis dataKey="label" tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
+                  axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false}
+                  interval="preserveStartEnd" minTickGap={8} />
+                {/* Cada eje con el COLOR de su serie. Con dos escalas distintas es lo
+                    único que impide leer un valor contra la que no le corresponde. */}
+                <YAxis yAxisId="altas" tick={{ fill: "var(--t-brand)", fontSize: 9 }} width={40}
+                  axisLine={false} tickLine={false} allowDecimals={false} />
+                <YAxis yAxisId="acum" orientation="right"
+                  tick={{ fill: "var(--t-neg)", fontSize: 9 }} width={52}
+                  axisLine={false} tickLine={false} allowDecimals={false} />
+                <Tooltip
+                  contentStyle={{ background: "var(--t-surface)", border: "1px solid var(--t-border-2)", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
+                  labelStyle={{ color: "var(--t-text-dim)" }}
+                  cursor={{ fill: "color-mix(in srgb, var(--t-text) 8%, transparent)" }}
+                  formatter={(v, name, it: { payload?: Fila }) => (
+                    name === "Acumulado"
+                      ? [`${fmtInt(Number(v))} cuentas`, "Base acumulada"]
+                      : [`${fmtInt(Number(v))} altas · ${it?.payload?.pct_del_total ?? 0}% del total`,
+                         "Altas del período"])} />
+                <Legend verticalAlign="top" align="right" height={18}
+                  wrapperStyle={{ fontSize: 10, color: "var(--t-text-dim)" }} />
+                {/* Punta redondeada arriba, anclada a la línea de base. */}
+                <Bar yAxisId="altas" dataKey="altas" name="Altas" fill="var(--t-brand)"
+                  isAnimationActive={false} radius={[4, 4, 0, 0]} />
+                <Line yAxisId="acum" type="monotone" dataKey="acumulado" name="Acumulado"
+                  stroke="var(--t-neg)" strokeWidth={2} isAnimationActive={false}
+                  dot={{ r: 2, fill: "var(--t-neg)", strokeWidth: 0 }}>
+                  {/* El número escrito en CADA punto: así el acumulado se lee sin
+                      medirlo contra el eje derecho, que es la parte frágil de tener
+                      dos escalas. Con granularidad mensual y muchos años se pisan —
+                      ahí conviene TRIM. o AÑO. */}
+                  <LabelList dataKey="acumulado" position="top" offset={8} fontSize={9}
+                    fill="var(--t-neg)" formatter={(v) => fmtInt(Number(v))} />
+                </Line>
+              </ComposedChart>
             </ResponsiveContainer>
           )}
         </div>
       </div>
+      )}
 
-      {/* ── 50% inferior: la misma serie, como número ──────────────────────── */}
-      <div className="h-1/2 min-h-0 flex flex-col">
+      {/* ── LA TABLA: los mismos números, exactos ─────────────────────────── */}
+      {panel === "tabla" && (
+      <div className="flex-1 min-h-0 flex flex-col">
         <div className="flex-1 min-h-0 overflow-auto">
           <table className="w-full text-[12px]">
             <thead className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] sticky top-0 bg-[var(--t-panel)] z-10">
@@ -287,6 +297,16 @@ export function AltaCuentasView(
           </div>
         )}
       </div>
+      )}
+
+      {/* Las advertencias también bajo el gráfico: en la vista donde MÁS se lee es
+          donde no pueden faltar (qué universo se está contando, cuántas cuentas no
+          tienen fecha de alta). */}
+      {panel === "grafico" && d && (
+        <div className="px-3 py-1.5 border-t border-[var(--t-border-2)] bg-[var(--t-surface)] text-[9px] text-[var(--t-text-muted)] shrink-0 space-y-0.5">
+          {d.meta.advertencias.map((a) => <div key={a}>⚠ {a}</div>)}
+        </div>
+      )}
     </div>
   );
 }
