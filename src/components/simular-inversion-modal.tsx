@@ -60,6 +60,29 @@ const WARNINGS: Record<string, string> = {
   cer_sin_serie: "Sin serie CER cargada: no se pudieron ajustar los flujos.",
 };
 
+/** Rótulo de cada panel del flujo: el swatch + qué es, pegado a SU chart. */
+function SubtituloFlujo({ color, texto }: { color: string; texto: string }) {
+  return (
+    <div className="flex items-center gap-1.5 px-1 pt-1 pb-0.5">
+      <span className="inline-block w-2.5 h-2.5 shrink-0" style={{ background: color }} />
+      <span className="text-[10px] text-[var(--t-text-dim)]">{texto}</span>
+    </div>
+  );
+}
+
+/** Props compartidas del tooltip de los dos paneles del flujo. */
+const tooltipFlujo = (nombre: string) => ({
+  contentStyle: {
+    background: "var(--t-surface)",
+    border: "1px solid var(--t-border-2)",
+    fontSize: 11,
+    fontFamily: "JetBrains Mono, monospace",
+  },
+  labelStyle: { color: "var(--t-text-dim)" },
+  labelFormatter: (v: unknown) => fmtFechaCorta(String(v)),
+  formatter: (v: unknown) => [fmt0(Number(v)), nombre] as [string, string],
+});
+
 /** Fila label → valor. Es la unidad de FICHA y RESULTADO: se lee en vertical. */
 function Fila({ label, valor, tip }: { label: string; valor: React.ReactNode; tip?: string }) {
   return (
@@ -467,8 +490,13 @@ export function SimularInversionModal({ bonos, onClose }: Props) {
                   )}
                 </div>
 
-                {/* El mapa del flujo de fondos, con su LEYENDA: sin ella los dos
-                    colores apilados no se pueden leer. */}
+                {/* El mapa del flujo de fondos. NO es un chart apilado ni de
+                    doble eje: en un bullet la amortización (~4.800) aplasta a
+                    los cupones (~90) y el perfil de renta se vuelve invisible,
+                    y el doble eje Y es el anti-patrón #1 (misma moneda en dos
+                    escalas → el ojo compara alturas que no son comparables).
+                    Son DOS paneles con el MISMO eje de fechas y cada uno su
+                    propia escala: arriba el capital, abajo la renta. */}
                 <Panel
                   titulo="FLUJO DE FONDOS"
                   extra={
@@ -478,25 +506,33 @@ export function SimularInversionModal({ bonos, onClose }: Props) {
                     </span>
                   }
                 >
-                  <div className="p-2">
-                    <div className="flex items-center gap-4 mb-1 px-1">
-                      <span className="flex items-center gap-1.5 text-[10px] text-[var(--t-text-dim)]">
-                        <span className="inline-block w-2.5 h-2.5" style={{ background: COLOR_AMORT }} />
-                        Amortización (te devuelven capital)
-                      </span>
-                      <span className="flex items-center gap-1.5 text-[10px] text-[var(--t-text-dim)]">
-                        <span className="inline-block w-2.5 h-2.5" style={{ background: COLOR_INTERES }} />
-                        Interés (la renta)
-                      </span>
-                    </div>
-                    {chart.length === 0 ? (
-                      <p className="text-[var(--t-text-muted)] text-xs text-center py-6">
-                        No quedan pagos futuros cargados para este bono.
-                      </p>
-                    ) : (
-                      <div className="h-[300px]">
+                  {chart.length === 0 ? (
+                    <p className="text-[var(--t-text-muted)] text-xs text-center py-6">
+                      No quedan pagos futuros cargados para este bono.
+                    </p>
+                  ) : (
+                    <div className="p-2">
+                      <SubtituloFlujo color={COLOR_AMORT} texto="CAPITAL — amortización (te devuelven lo invertido)" />
+                      <div className="h-[160px]">
                         <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={chart} margin={{ top: 8, right: 12, bottom: 28, left: 4 }} barCategoryGap="25%">
+                          <BarChart data={chart} margin={{ top: 4, right: 12, bottom: 0, left: 4 }} barCategoryGap="25%" syncId="flujo">
+                            <XAxis dataKey="fecha" tick={false} axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false} height={4} />
+                            <YAxis
+                              tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                              axisLine={{ stroke: "var(--t-border-2)" }}
+                              tickLine={false}
+                              width={64}
+                              tickFormatter={(v: number) => v.toLocaleString("es-AR", { notation: "compact" })}
+                            />
+                            <Tooltip {...tooltipFlujo("Amortización")} />
+                            <Bar dataKey="amortizacion" fill={COLOR_AMORT} isAnimationActive={false} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <SubtituloFlujo color={COLOR_INTERES} texto="RENTA — interés (el cupón, en su propia escala)" />
+                      <div className="h-[170px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={chart} margin={{ top: 4, right: 12, bottom: 28, left: 4 }} barCategoryGap="25%" syncId="flujo">
                             <XAxis
                               dataKey="fecha"
                               tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
@@ -515,29 +551,17 @@ export function SimularInversionModal({ bonos, onClose }: Props) {
                               width={64}
                               tickFormatter={(v: number) => v.toLocaleString("es-AR", { notation: "compact" })}
                             />
-                            <Tooltip
-                              contentStyle={{
-                                background: "var(--t-surface)",
-                                border: "1px solid var(--t-border-2)",
-                                fontSize: 11,
-                                fontFamily: "JetBrains Mono, monospace",
-                              }}
-                              labelStyle={{ color: "var(--t-text-dim)" }}
-                              labelFormatter={(v) => fmtFechaCorta(String(v))}
-                              formatter={(v, n) => [
-                                fmt0(Number(v)),
-                                n === "amortizacion" ? "Amortización" : "Interés",
-                              ]}
-                            />
-                            {/* Apiladas: la altura total es lo que entra ese día;
-                                el desglose separa capital de renta. */}
-                            <Bar dataKey="amortizacion" stackId="f" fill={COLOR_AMORT} isAnimationActive={false} />
-                            <Bar dataKey="interes" stackId="f" fill={COLOR_INTERES} isAnimationActive={false} />
+                            <Tooltip {...tooltipFlujo("Interés")} />
+                            <Bar dataKey="interes" fill={COLOR_INTERES} isAnimationActive={false} />
                           </BarChart>
                         </ResponsiveContainer>
                       </div>
-                    )}
-                  </div>
+                      <p className="text-[9px] text-[var(--t-text-muted)] px-1 mt-1 leading-snug">
+                        Mismas fechas, dos escalas: el capital y la renta viven en órdenes de
+                        magnitud distintos — en una sola escala el cupón desaparece.
+                      </p>
+                    </div>
+                  )}
                 </Panel>
               </div>
 
