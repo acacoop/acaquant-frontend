@@ -23,10 +23,10 @@ import { MESES_CORTOS as MESES } from "@/lib/fmt";
 // operador). 4 cuadrantes. Consume /api/operaciones/comercial/informe[-segmento].
 // Ver docs/TABLERO_COMERCIAL.md [5].
 
-type SegCount = { segmento: string; n: number; ctas_ops?: number };
+type SegCount = { segmento: string; n: number; ctas_ops?: number; ctas_ops_ano?: number };
 type SegmentoResp = {
-  mes: string; mes_min: string; mes_actual: string; total: number;
-  total_ctas_ops?: number; segmentos: SegCount[];
+  mes: string; mes_min: string; mes_actual: string; total: number; ano?: number;
+  total_ctas_ops?: number; total_ctas_ops_ano?: number; segmentos: SegCount[];
 };
 type Comercial = {
   rank: number; operador_email: string | null; operador_nombre: string;
@@ -40,10 +40,11 @@ type InformeResp = { mes_actual: string; comerciales: Comercial[]; aranceles_seg
 type ClienteArancel = {
   id_cuenta: string; denominacion: string; arancel_total: number; arancel_mes: number;
   opero_mes?: boolean;  // operó en el mes del corte (mismo criterio que CTAS OPS)
+  opero_ano?: boolean;  // operó en lo que va del año, hasta el corte
 };
 type SegDetalle = {
   segmento: string; n_clientes: number; clientes: ClienteArancel[];
-  n_operativas?: number;
+  n_operativas?: number; n_operativas_ano?: number;
 };
 
 const fmtN = (n: number) => Math.round(n).toLocaleString("es-AR");
@@ -114,19 +115,25 @@ function ComoSeCalcula({ onClose }: { onClose: () => void }) {
               <li><b>Volumen</b>: monto bruto operado. Excluye los cierres de caución (evita doble conteo).</li>
               <li><b>Arancel</b>: comisión cobrada. <b>Incluye</b> los cierres (ahí vive el arancel de caución). El detalle solo lista filas con arancel &gt; 0.</li>
               <li>Siempre se excluyen las solicitudes sin liquidar (solo operaciones concretadas).</li>
-              <li><b>Ctas Ops</b> (y el modo <b>Operativas</b>) cuentan la <b>cuenta, no el boleto</b>: vale 1 si tuvo
-                al menos una operación en el mes, opere una vez o mil. Cuentan <b>cualquier boleto no anulado</b>
-                —el mismo criterio que <i>días sin operar</i>—, así que incluyen lo que no suma volumen:
-                cuentas OTC, rescates de FCI, futuros.</li>
+              <li><b>Ctas Ops</b> (y los modos <b>Op. mes</b> / <b>Op. año</b>) cuentan la <b>cuenta, no el
+                boleto</b>: vale 1 si tuvo al menos una operación en la ventana, opere una vez o mil. Cuentan
+                <b>cualquier boleto no anulado</b> —el mismo criterio que <i>días sin operar</i>—, así que
+                incluyen lo que no suma volumen: cuentas OTC, rescates de FCI, futuros.</li>
+              <li><b>Ojo con la ventana.</b> <b>Ctas Ops</b> y <b>Op. mes</b> son el <b>mes del Hasta</b>;
+                <b>Op. año</b> es <b>del 1 de enero al Hasta</b>. Son preguntas distintas: una cuenta que
+                operó en marzo y paró NO cuenta en el mes y SÍ cuenta en el año. <b>El Desde no cambia
+                ninguna de las dos</b> — solo mueve el volumen y el arancel.</li>
             </ul>
           </div>
           <div>
             <p className="text-[var(--t-accent)] uppercase tracking-wider text-[10px] mb-1">Gráficos por segmento</p>
             <p>
               El <b>segmento</b> es el <i>nivel 1</i> del cliente (Productores, Empleados, etc.).
-              En modo <b>Operativas</b>, el % es la <b>penetración</b>: cuentas que operaron en el mes
-              sobre el total de cuentas de ese segmento (no sobre el total de la mesa).
-              <b> Cuentas</b> = padrón del segmento; <b>Arancel</b> = comisión total del período.
+              <b>Cuentas</b> = padrón del segmento; <b>Arancel</b> = comisión total del período.
+              <b>Op. mes</b> y <b>Op. año</b> cuentan las que operaron en esa ventana, y el % es la
+              <b>penetración</b>: sobre el total de cuentas de ESE segmento, no sobre la mesa.
+              <b>Click en una barra</b> de Op. mes / Op. año baja ese segmento al Detalle con el
+              mismo filtro puesto — para ver <i>quiénes</i>, no solo cuántos.
             </p>
           </div>
           <p className="text-[var(--t-text-dim)] text-[11px]">
@@ -193,10 +200,15 @@ export function ComercialInforme({
   // Vive ACÁ y no en la barra de la vista a propósito: si achicara el universo, el
   // % del gráfico Q1 (operativas / cuentas del segmento) daría 100% en todos los
   // segmentos y dejaría de significar nada. El filtro toca la lista, nunca la base.
-  const [soloOperativas, setSoloOperativas] = useState(false);
+  // null = sin filtro · "mes" = operó en el mes del corte · "ano" = operó en el año.
+  // La ventana es explícita porque son preguntas distintas: una cuenta que operó en
+  // marzo y paró NO operó este mes y SÍ operó este año — y era justo lo que ninguna
+  // pantalla contestaba (las pills de Análisis miden días desde la última op, y la
+  // única anual era la negativa, "sin operar en el año").
+  const [opFiltro, setOpFiltro] = useState<null | "mes" | "ano">(null);
   const [selComercial, setSelComercial] = useState<string | null>(null);
   const [segScoped, setSegScoped] = useState<ArancelSeg[] | null>(null);
-  const [q1mode, setQ1mode] = useState<"cuentas" | "operativas" | "aranceles">("cuentas");
+  const [q1mode, setQ1mode] = useState<"cuentas" | "operativas" | "operativas_ano" | "aranceles">("cuentas");
   const [showHelp, setShowHelp] = useState(false);
   // Contador de fetches en vuelo → overlay "Cargando…" centrado (evita que el usuario
   // vea cuadrantes cargando a destiempo y se confunda). >0 = hay algo cargando.
@@ -289,12 +301,13 @@ export function ComercialInforme({
   // En "operativas" el % es la PENETRACIÓN del segmento: cuentas que operaron / cuentas
   // TOTALES de ESE segmento (no sobre el total de operativas de la mesa). `etiqueta` trae
   // el texto ya armado ("N · P%") porque el LabelList de recharts solo recibe el valor.
+  const q1esOperativas = q1mode === "operativas" || q1mode === "operativas_ano";
   const q1data = q1mode === "aranceles"
     ? (q3segs ?? []).map((s) => ({ segmento: s.segmento, valor: s.ar_total, base: 0, pct: 0, etiqueta: "" }))
-    : q1mode === "operativas"
+    : q1esOperativas
     ? (seg?.segmentos ?? [])
         .map((s) => {
-          const valor = s.ctas_ops ?? 0;
+          const valor = q1mode === "operativas" ? (s.ctas_ops ?? 0) : (s.ctas_ops_ano ?? 0);
           const base = s.n;   // cuentas totales del segmento
           const pct = base > 0 ? Math.round((valor / base) * 100) : 0;
           return { segmento: s.segmento, valor, base, pct, etiqueta: `${fmtN(valor)} · ${pct}%` };
@@ -310,7 +323,8 @@ export function ComercialInforme({
     sheets: [{ name: "Cuentas x segmento", rows: seg?.segmentos ?? [], columns: [
       { header: "Segmento", key: "segmento", format: "text", width: 28 },
       { header: "Cuentas", key: "n", format: "integer" },
-      { header: "Operativas", key: "ctas_ops", format: "integer" },
+      { header: "Operaron (mes)", key: "ctas_ops", format: "integer", width: 15 },
+      { header: "Operaron (año)", key: "ctas_ops_ano", format: "integer", width: 15 },
     ] }],
   });
   const dlRanking = () => void exportToXlsx({
@@ -338,9 +352,10 @@ export function ComercialInforme({
   });
   // La lista de Q4 ya filtrada. El backend manda el flag por fila, así que el filtro
   // es instantáneo y no puede quedar desfasado de lo que la tabla ya dibujó.
-  const clientesQ4 = soloOperativas
-    ? (detalle?.clientes ?? []).filter((c) => c.opero_mes)
+  const clientesQ4 = opFiltro
+    ? (detalle?.clientes ?? []).filter((c) => (opFiltro === "mes" ? c.opero_mes : c.opero_ano))
     : (detalle?.clientes ?? []);
+  const nOpFiltro = opFiltro === "ano" ? detalle?.n_operativas_ano : detalle?.n_operativas;
 
   const dlDetalle = () => void exportToXlsx({
     filename: `comercial-detalle-${selSeg ?? "todos"}-${timestampSuffix()}.xlsx`,
@@ -375,18 +390,28 @@ export function ComercialInforme({
       {/* Q1 — Cuentas / Aranceles por segmento (barras HORIZONTALES) + toggle */}
       <Panel
         fill
-        title={`${q1mode === "aranceles" ? "Aranceles" : q1mode === "operativas" ? "Operativas" : "Cuentas"} por segmento${comercialNombre ? ` · ${comercialNombre}` : ""}${q1mode === "cuentas" && seg ? ` · ${seg.total}` : q1mode === "operativas" ? ` · ${q1total}` : ""}`}
+        title={`${q1mode === "aranceles" ? "Aranceles"
+          : q1mode === "operativas" ? `Operaron ${mes ? ymLabel(mes) : ""}`
+          : q1mode === "operativas_ano" ? `Operaron ${seg?.ano ?? ""}`
+          : "Cuentas"} por segmento${comercialNombre ? ` · ${comercialNombre}` : ""}${
+          q1mode === "cuentas" && seg ? ` · ${seg.total}` : q1esOperativas ? ` · ${q1total}` : ""}`}
         extra={
           <div className="flex items-center gap-1">
             <div className="inline-flex border border-[var(--t-border-2)] mr-1">
-              {(["cuentas", "operativas", "aranceles"] as const).map((m) => (
+              {(["cuentas", "operativas", "operativas_ano", "aranceles"] as const).map((m) => (
                 <button key={m} onClick={() => setQ1mode(m)}
+                  title={m === "operativas" ? "Cuentas que operaron en el MES del corte"
+                    : m === "operativas_ano" ? "Cuentas que operaron en lo que va del AÑO, hasta el corte"
+                    : undefined}
                   className={"px-1.5 py-0.5 text-[9px] uppercase tracking-wider " + (q1mode === m ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>
-                  {m === "cuentas" ? "Cuentas" : m === "operativas" ? "Operativas" : "Arancel"}
+                  {m === "cuentas" ? "Cuentas"
+                    : m === "operativas" ? "Op. mes"
+                    : m === "operativas_ano" ? `Op. ${seg?.ano ?? "año"}`
+                    : "Arancel"}
                 </button>
               ))}
             </div>
-            {(q1mode === "cuentas" || q1mode === "operativas") && (
+            {(q1mode === "cuentas" || q1esOperativas) && (
               <>
                 <span className="text-[10px] text-[var(--t-text)] font-mono min-w-[64px] text-center" title="Mes del corte (fijado por la fecha 'Al día' del header)">{mes ? ymLabel(mes) : "…"}</span>
                 <DownloadBtn onClick={dlCuentasSeg} />
@@ -409,17 +434,34 @@ export function ComercialInforme({
                 formatter={(v, _name, it: { payload?: { pct?: number; base?: number } }) => {
                   const n = Number(v);
                   if (q1mode === "aranceles") return [fmtMoney(n), "Arancel"];
-                  if (q1mode === "operativas") {
+                  if (q1esOperativas) {
                     const p = it?.payload;
-                    return [`${fmtN(n)} de ${fmtN(p?.base ?? 0)} · ${p?.pct ?? 0}% del segmento`, "Operativas"];
+                    return [`${fmtN(n)} de ${fmtN(p?.base ?? 0)} · ${p?.pct ?? 0}% del segmento`,
+                      q1mode === "operativas" ? "Operaron (mes)" : "Operaron (año)"];
                   }
                   return [fmtN(n), "Cuentas"];
                 }}
                 cursor={{ fill: "color-mix(in srgb, var(--t-text) 10%, transparent)" }} />
-              <Bar dataKey="valor" fill="var(--t-brand)" isAnimationActive={false}>
-                <LabelList dataKey={q1mode === "operativas" ? "etiqueta" : "valor"} position="right" fontSize={9} fill="var(--t-text)"
+              <Bar
+                dataKey="valor"
+                fill="var(--t-brand)"
+                isAnimationActive={false}
+                cursor={q1esOperativas ? "pointer" : undefined}
+                // Click en una barra de "operaron" = ver QUIÉNES. Baja el segmento a Q4
+                // y prende el filtro con la MISMA ventana del gráfico: la lista que se
+                // abre tiene que ser exactamente la que la barra contó.
+                onClick={q1esOperativas
+                  ? (d: { payload?: { segmento?: string } }) => {
+                      const sg = d?.payload?.segmento;
+                      if (!sg) return;
+                      setSelSeg(sg);
+                      setOpFiltro(q1mode === "operativas" ? "mes" : "ano");
+                    }
+                  : undefined}
+              >
+                <LabelList dataKey={q1esOperativas ? "etiqueta" : "valor"} position="right" fontSize={9} fill="var(--t-text)"
                   formatter={(v) => {
-                    if (q1mode === "operativas") return String(v);   // ya viene "N · P%"
+                    if (q1esOperativas) return String(v);   // ya viene "N · P%"
                     const n = Number(v);
                     if (q1mode === "aranceles") return fmtMoney(n);
                     return fmtN(n);
@@ -560,19 +602,33 @@ export function ComercialInforme({
                 className="text-[10px] text-[var(--t-accent)] hover:text-[var(--t-accent-hover)]"
               >✕ todos</button>
             )}
-            <button
-                onClick={() => setSoloOperativas((v) => !v)}
-                title={"Deja solo las cuentas que operaron en el mes del corte — las mismas "
-                  + "que cuenta CTAS OPS en el ranking (≥1 boleto no anulado)."}
-                className={
-                  "px-2 py-0.5 text-[10px] uppercase tracking-wider border border-[var(--t-border-2)] " +
-                  (soloOperativas
-                    ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
-                    : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
-                }
-              >
-                Solo operativas{detalle?.n_operativas != null ? ` · ${fmtN(detalle.n_operativas)}` : ""}
-              </button>
+            {/* Tres estados en un grupo, y la VENTANA a la vista: "operó" sin decir
+                cuándo es la ambigüedad que hacía que dos pantallas dieran distinto. */}
+            <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+              {([
+                [null, "Todas", "Sin filtro: todos los clientes del scope."],
+                ["mes", mes ? `Operaron ${ymLabel(mes)}` : "Operaron (mes)",
+                 "Operaron en el MES del corte — las mismas que cuenta CTAS OPS en el ranking."],
+                ["ano", seg?.ano ? `Operaron ${seg.ano}` : "Operaron (año)",
+                 "Operaron en lo que va del AÑO, hasta el corte. Incluye a las que operaron "
+                 + "en enero y pararon — que en Análisis Comercial figuran DORMIDAS."],
+              ] as const).map(([v, label, ayuda]) => (
+                <button
+                  key={String(v)}
+                  onClick={() => setOpFiltro(v)}
+                  title={ayuda}
+                  className={
+                    "px-2 py-0.5 text-[10px] uppercase tracking-wider " +
+                    (opFiltro === v
+                      ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
+                      : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
+                  }
+                >
+                  {label}
+                  {v !== null && v === opFiltro && nOpFiltro != null ? ` · ${fmtN(nOpFiltro)}` : ""}
+                </button>
+              ))}
+            </div>
             <DownloadBtn onClick={dlDetalle} />
           </div>
         }
@@ -591,7 +647,9 @@ export function ComercialInforme({
             <tbody>
               {clientesQ4.length === 0 && (
                 <tr><td colSpan={3} className="text-center text-[var(--t-text-muted)] py-4">
-                  {soloOperativas ? "Ninguna de estas cuentas operó en el mes." : "Sin aranceles."}
+                  {opFiltro === "mes" ? "Ninguna de estas cuentas operó en el mes."
+                    : opFiltro === "ano" ? "Ninguna de estas cuentas operó en el año."
+                    : "Sin aranceles."}
                 </td></tr>
               )}
               {clientesQ4.map((c) => (
@@ -605,7 +663,7 @@ export function ComercialInforme({
                     <span className="text-[var(--t-text-muted)]">[{c.id_cuenta}]</span> {c.denominacion}
                     {/* Operó y no dejó arancel: la fila más interesante de la tabla, y
                         la que antes ni aparecía (la lista nacía de un `arancel > 0`). */}
-                    {c.opero_mes && !c.arancel_total && (
+                    {(opFiltro === "ano" ? c.opero_ano : c.opero_mes) && !c.arancel_total && (
                       <span className="ml-1 text-[8px] uppercase tracking-wider text-[var(--t-accent)]">operó</span>
                     )}
                   </td>
