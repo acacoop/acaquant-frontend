@@ -13,6 +13,8 @@ import {
 } from "recharts";
 
 import { fmtMoney, fmtMoneyFull } from "@/lib/fmt-money";
+
+import { InformeClienteOpsModal } from "./informe-cliente-ops-modal";
 import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
 import { getJSON } from "@/lib/fetch-json";
 import { MESES_CORTOS as MESES } from "@/lib/fmt";
@@ -39,14 +41,9 @@ type ClienteArancel = {
   id_cuenta: string; denominacion: string; arancel_total: number; arancel_mes: number;
   opero_mes?: boolean;  // operó en el mes del corte (mismo criterio que CTAS OPS)
 };
-type OperacionArancel = {
-  fecha: string; id_cuenta: string; denominacion: string; comprobante: string;
-  ticker: string | null; categoria: string; op: string | null;
-  importe: number; moneda: string; arancel: number;
-};
 type SegDetalle = {
-  segmento: string; n_clientes: number; clientes: ClienteArancel[]; operaciones: OperacionArancel[];
-  n_operaciones?: number; n_operativas?: number;
+  segmento: string; n_clientes: number; clientes: ClienteArancel[];
+  n_operativas?: number;
 };
 
 const fmtN = (n: number) => Math.round(n).toLocaleString("es-AR");
@@ -146,15 +143,27 @@ async function getJson<T>(url: string, fallback: T): Promise<T> {
   return (await getJSON<T>(url)) ?? fallback;
 }
 
-function Panel({ title, extra, children, fill }: { title: string; extra?: React.ReactNode; children: React.ReactNode; fill?: boolean }) {
+function Panel({ title, extra, children, fill, headerless }: {
+  title: string; extra?: React.ReactNode; children: React.ReactNode;
+  fill?: boolean; headerless?: boolean;
+}) {
   // fill=true: el body llena el panel sin scroll (para charts → ResponsiveContainer
   // necesita un contenedor con altura concreta, no overflow-auto que lo colapsa).
+  //
+  // headerless=true: SIN banda de título propia — el `thead` de la tabla hace de
+  // encabezado y el título vive en su primera celda. Dos bandas apiladas (título +
+  // encabezado de columnas) se comían el alto útil en un cuadrante que ya es chico.
+  // `extra` queda flotando arriba a la derecha, por encima del thead sticky.
   return (
-    <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
-        <span className="text-[9px] text-[var(--t-text-dim)] tracking-widest uppercase mr-auto">{title}</span>
-        {extra}
-      </div>
+    <div className="relative min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+      {headerless ? (
+        extra ? <div className="absolute top-1 right-2 z-20 flex items-center gap-2">{extra}</div> : null
+      ) : (
+        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
+          <span className="text-[9px] text-[var(--t-text-dim)] tracking-widest uppercase mr-auto">{title}</span>
+          {extra}
+        </div>
+      )}
       <div className={`flex-1 min-h-0 ${fill ? "relative" : "overflow-auto"}`}>{children}</div>
     </div>
   );
@@ -176,7 +185,10 @@ export function ComercialInforme({
   const [mes, setMes] = useState<string | null>(null);
   const [selSeg, setSelSeg] = useState<string | null>(null);
   const [detalle, setDetalle] = useState<SegDetalle | null>(null);
-  const [q4tab, setQ4tab] = useState<"clientes" | "operaciones">("clientes");
+  // Cuenta abierta en el modal de boletos del mes. Reemplazó a la tab OPERACIONES,
+  // que listaba las operaciones de TODOS los clientes del segmento: miles de filas
+  // capeadas a 1.000, sin dueño, que no contestaban ninguna pregunta.
+  const [fichaCuenta, setFichaCuenta] = useState<string | null>(null);
   // Filtro de la tabla Q4: deja solo las cuentas que operaron en el mes del corte.
   // Vive ACÁ y no en la barra de la vista a propósito: si achicara el universo, el
   // % del gráfico Q1 (operativas / cuentas del segmento) daría 100% en todos los
@@ -332,23 +344,13 @@ export function ComercialInforme({
 
   const dlDetalle = () => void exportToXlsx({
     filename: `comercial-detalle-${selSeg ?? "todos"}-${timestampSuffix()}.xlsx`,
-    sheets: q4tab === "clientes"
-      ? [{ name: "Clientes", rows: clientesQ4, columns: [
-          { header: "Cuenta", key: "id_cuenta", format: "text", width: 10 },
-          { header: "Cliente", key: "denominacion", format: "text", width: 32 },
-          { header: "Aranc. total", key: "arancel_total", format: "currency" },
-          { header: "Aranc. mes", key: "arancel_mes", format: "currency" },
-        ] }]
-      : [{ name: "Operaciones", rows: detalle?.operaciones ?? [], columns: [
-          { header: "Fecha", key: "fecha", format: "text", width: 12 },
-          { header: "Cuenta", key: "id_cuenta", format: "text", width: 10 },
-          { header: "Cliente", key: "denominacion", format: "text", width: 28 },
-          { header: "Ticker", key: "ticker", format: "text", width: 14 },
-          { header: "Categoría", key: "categoria", format: "text", width: 14 },
-          { header: "Importe", key: "importe", format: "currency", width: 16 },
-          { header: "Moneda", key: "moneda", format: "text", width: 8 },
-          { header: "Arancel", key: "arancel", format: "currency" },
-        ] }],
+    sheets: [{ name: "Clientes", rows: clientesQ4, columns: [
+      { header: "Cuenta", key: "id_cuenta", format: "text", width: 10 },
+      { header: "Cliente", key: "denominacion", format: "text", width: 32 },
+      { header: "Operó en el mes", key: "opero_mes", format: "text", width: 16 },
+      { header: "Aranc. total", key: "arancel_total", format: "currency" },
+      { header: "Aranc. mes", key: "arancel_mes", format: "currency" },
+    ] }],
   });
 
   return (
@@ -506,16 +508,20 @@ export function ComercialInforme({
 
       {/* Q3 — Aranceles por segmento (nivel_1). Se re-scopea al comercial elegido. */}
       <Panel
+        headerless
         title={`Aranceles por segmento${comercialNombre ? ` · ${comercialNombre}` : ""}`}
         extra={<DownloadBtn onClick={dlAranceles} />}
       >
         <table className="w-full text-[11px] tabular-nums">
-          <thead className="sticky top-0 bg-[var(--t-panel)]">
-            <tr className="text-[9px] text-[var(--t-text-muted)] tracking-wide">
-              <th className="text-left px-3 py-2">SEGMENTO</th>
+          <thead className="sticky top-0 z-10 bg-[var(--t-panel)]">
+            <tr className="text-[9px] text-[var(--t-text-muted)] tracking-wide border-b border-[var(--t-border)]">
+              {/* El título del panel vive acá: una sola banda en vez de dos. */}
+              <th className="text-left px-3 py-2 text-[var(--t-text-dim)] tracking-widest">
+                ARANCELES POR SEGMENTO{comercialNombre ? ` · ${comercialNombre}` : ""}
+              </th>
               <th className="text-right px-2">ARANC. TOTAL</th>
               <th className="text-right px-2">ARANC. MES{MesTag}</th>
-              <th className="text-right px-3">TICKET PROM.</th>
+              <th className="text-right pl-2 pr-16">TICKET PROM.</th>
             </tr>
           </thead>
           <tbody>
@@ -535,7 +541,7 @@ export function ComercialInforme({
                 <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[200px]" title={s.segmento}>{s.segmento}</td>
                 <td className="text-right px-2 font-semibold text-[var(--t-data-arancel)]">{fmtFull(s.ar_total)}</td>
                 <td className="text-right px-2 text-[var(--t-data-arancel)]">{fmtFull(s.ar_mes)}</td>
-                <td className="text-right px-3 text-[var(--t-text)]">{fmtFull(s.ticket_promedio)}</td>
+                <td className="text-right pl-2 pr-16 text-[var(--t-text)]">{fmtFull(s.ticket_promedio)}</td>
               </tr>
             ))}
           </tbody>
@@ -544,7 +550,7 @@ export function ComercialInforme({
 
       {/* Q4 — detalle dinámico del segmento elegido en Q3 (2 tabs) */}
       <Panel
-        title={selSeg ? `Detalle · ${selSeg}` : "Detalle · todos"}
+        title={(selSeg ? `Detalle · ${selSeg}` : "Detalle · todos") + " — click en un cliente = sus boletos del mes"}
         extra={
           <div className="flex items-center gap-2">
             {selSeg && (
@@ -554,8 +560,7 @@ export function ComercialInforme({
                 className="text-[10px] text-[var(--t-accent)] hover:text-[var(--t-accent-hover)]"
               >✕ todos</button>
             )}
-            {q4tab === "clientes" && (
-              <button
+            <button
                 onClick={() => setSoloOperativas((v) => !v)}
                 title={"Deja solo las cuentas que operaron en el mes del corte — las mismas "
                   + "que cuenta CTAS OPS en el ranking (≥1 boleto no anulado)."}
@@ -568,28 +573,13 @@ export function ComercialInforme({
               >
                 Solo operativas{detalle?.n_operativas != null ? ` · ${fmtN(detalle.n_operativas)}` : ""}
               </button>
-            )}
-            <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-              {(["clientes", "operaciones"] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setQ4tab(t)}
-                  className={
-                    "px-2 py-0.5 text-[10px] uppercase tracking-wider " +
-                    (q4tab === t ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
-                  }
-                >
-                  {t === "clientes" ? "Clientes" : "Operaciones"}
-                </button>
-              ))}
-            </div>
             <DownloadBtn onClick={dlDetalle} />
           </div>
         }
       >
         {!detalle ? (
           <div className="h-full flex items-center justify-center text-[11px] text-[var(--t-text-muted)]">cargando…</div>
-        ) : q4tab === "clientes" ? (
+        ) : (
           <table className="w-full text-[11px] tabular-nums">
             <thead className="sticky top-0 bg-[var(--t-panel)]">
               <tr className="text-[9px] text-[var(--t-text-muted)] tracking-wide">
@@ -605,9 +595,19 @@ export function ComercialInforme({
                 </td></tr>
               )}
               {clientesQ4.map((c) => (
-                <tr key={c.id_cuenta} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]">
+                <tr
+                  key={c.id_cuenta}
+                  onClick={() => setFichaCuenta(c.id_cuenta)}
+                  title="Ver sus boletos del mes"
+                  className="border-t border-[var(--t-border)] cursor-pointer hover:bg-[var(--t-surface)]"
+                >
                   <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[200px]" title={c.denominacion}>
                     <span className="text-[var(--t-text-muted)]">[{c.id_cuenta}]</span> {c.denominacion}
+                    {/* Operó y no dejó arancel: la fila más interesante de la tabla, y
+                        la que antes ni aparecía (la lista nacía de un `arancel > 0`). */}
+                    {c.opero_mes && !c.arancel_total && (
+                      <span className="ml-1 text-[8px] uppercase tracking-wider text-[var(--t-accent)]">operó</span>
+                    )}
                   </td>
                   <td className="text-right px-2 font-semibold text-[var(--t-data-arancel)]">{fmtFull(c.arancel_total)}</td>
                   <td className="text-right px-3 text-[var(--t-data-arancel)]">{fmtFull(c.arancel_mes)}</td>
@@ -615,39 +615,17 @@ export function ComercialInforme({
               ))}
             </tbody>
           </table>
-        ) : (
-          <table className="w-full text-[11px] tabular-nums">
-            <thead className="sticky top-0 bg-[var(--t-panel)]">
-              <tr className="text-[9px] text-[var(--t-text-muted)] tracking-wide">
-                <th className="text-left px-3 py-2">FECHA</th>
-                <th className="text-left px-1">CLIENTE</th>
-                <th className="text-left px-1">TICKER</th>
-                <th className="text-right px-2">IMPORTE</th>
-                <th className="text-right px-3">ARANCEL</th>
-              </tr>
-            </thead>
-            <tbody>
-              {detalle.operaciones.length === 0 && (
-                <tr><td colSpan={5} className="text-center text-[var(--t-text-muted)] py-4">Sin operaciones.</td></tr>
-              )}
-              {(detalle.n_operaciones ?? 0) > detalle.operaciones.length && (
-                <tr><td colSpan={5} className="text-center text-[10px] text-[var(--t-text-muted)] py-1.5 border-b border-[var(--t-border)]">
-                  Mostrando las {fmtN(detalle.operaciones.length)} más recientes de {fmtN(detalle.n_operaciones!)} operaciones — acotá el período (Desde/Hasta) para ver todas.
-                </td></tr>
-              )}
-              {detalle.operaciones.map((o, i) => (
-                <tr key={o.comprobante + i} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]">
-                  <td className="px-3 py-1.5 text-[var(--t-text-dim)] whitespace-nowrap">{o.fecha}</td>
-                  <td className="px-1 py-1.5 text-[var(--t-text)] truncate max-w-[120px]" title={o.denominacion}>{o.denominacion}</td>
-                  <td className="px-1 py-1.5 text-[var(--t-text-dim)]">{o.ticker ?? o.categoria}</td>
-                  <td className="text-right px-2 text-[var(--t-text-dim)]">{fmtFull(o.importe)}</td>
-                  <td className="text-right px-3 font-semibold text-[var(--t-data-arancel)]">{fmtFull(o.arancel)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         )}
       </Panel>
+      {fichaCuenta && (
+        <InformeClienteOpsModal
+          key={fichaCuenta}
+          idCuenta={fichaCuenta}
+          moneda={moneda}
+          fecha={fecha || undefined}
+          onCerrar={() => setFichaCuenta(null)}
+        />
+      )}
     </div>
   );
 }
