@@ -133,7 +133,11 @@ export async function graficoComoImagen(o: Opciones): Promise<Blob | null> {
   // Fuera del documento no hay CSS: sin esto los ticks salen en la serif por
   // default del navegador y la imagen no se parece a la pantalla.
   const st = document.createElementNS("http://www.w3.org/2000/svg", "style");
-  st.textContent = `text{font-family:${MONO};}`;
+  // NEGRITA para todo el texto del gráfico. En una imagen que se ve chica dentro de
+  // un mail, los ejes en peso normal se pierden — y a diferencia de la pantalla, acá
+  // no hay zoom. `font-weight` en el CSS del clone alcanza para los `<text>` que no
+  // traen el atributo puesto; los ticks lo traen igual desde recharts.
+  st.textContent = `text{font-family:${MONO};font-weight:700;}`;
   clone.insertBefore(st, clone.firstChild);
 
   const xml = resolverVars(new XMLSerializer().serializeToString(clone), mapa);
@@ -195,7 +199,7 @@ export async function graficoComoImagen(o: Opciones): Promise<Blob | null> {
   if (leyenda.length) {
     y += 14;
     const items = leyenda.map((l) => ({ ...l, color: resolverVars(l.color, mapa) }));
-    ctx.font = `11px ${MONO}`;
+    ctx.font = `bold 11px ${MONO}`;
     const anchos = items.map((l) => 18 + ctx.measureText(l.label).width);
     const total = anchos.reduce((a, w) => a + w, 0) + 22 * (items.length - 1);
     let lx = (W - total) / 2;

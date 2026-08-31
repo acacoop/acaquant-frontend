@@ -230,15 +230,18 @@ export function AltaCuentasView(
             <ResponsiveContainer key={`${vk}-${gran}`} width="100%" height="100%">
               <ComposedChart data={filas} margin={{ top: 20, right: 8, bottom: 4, left: 4 }}>
                 <CartesianGrid stroke="var(--t-border)" vertical={false} />
-                <XAxis dataKey="label" tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
+                {/* fontWeight en el tick y no por CSS: recharts lo escribe como
+                    atributo del <text>, así viaja en el SVG serializado. Una regla
+                    CSS de la app no llega a la imagen. */}
+                <XAxis dataKey="label" tick={{ fill: "var(--t-text-dim)", fontSize: 10, fontWeight: 700 }}
                   axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false}
                   interval="preserveStartEnd" minTickGap={8} />
                 {/* Cada eje con el COLOR de su serie. Con dos escalas distintas es lo
                     único que impide leer un valor contra la que no le corresponde. */}
-                <YAxis yAxisId="altas" tick={{ fill: "var(--t-brand)", fontSize: 9 }} width={40}
+                <YAxis yAxisId="altas" tick={{ fill: "var(--t-brand)", fontSize: 10, fontWeight: 700 }} width={44}
                   axisLine={false} tickLine={false} allowDecimals={false} />
                 <YAxis yAxisId="acum" orientation="right"
-                  tick={{ fill: "var(--t-neg)", fontSize: 9 }} width={52}
+                  tick={{ fill: "var(--t-neg)", fontSize: 10, fontWeight: 700 }} width={56}
                   axisLine={false} tickLine={false} allowDecimals={false} />
                 <Tooltip
                   contentStyle={{ background: "var(--t-surface)", border: "1px solid var(--t-border-2)", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
@@ -261,8 +264,8 @@ export function AltaCuentasView(
                       medirlo contra el eje derecho, que es la parte frágil de tener
                       dos escalas. Con granularidad mensual y muchos años se pisan —
                       ahí conviene TRIM. o AÑO. */}
-                  <LabelList dataKey="acumulado" position="top" offset={8} fontSize={9}
-                    fill="var(--t-neg)" formatter={(v) => fmtInt(Number(v))} />
+                  <LabelList dataKey="acumulado" position="top" offset={8} fontSize={10}
+                    fontWeight={700} fill="var(--t-neg)" formatter={(v) => fmtInt(Number(v))} />
                 </Line>
               </ComposedChart>
             </ResponsiveContainer>
