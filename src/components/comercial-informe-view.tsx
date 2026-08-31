@@ -681,6 +681,9 @@ export function ComercialInforme({
           idCuenta={fichaCuenta}
           moneda={moneda}
           fecha={fecha || undefined}
+          // La MISMA ventana con la que el filtro dejó pasar esa fila: si entró por
+          // "Operaron 2026", el modal no puede abrirse mostrando solo agosto.
+          ventana={opFiltro === "ano" ? "ano" : "mes"}
           onCerrar={() => setFichaCuenta(null)}
         />
       )}

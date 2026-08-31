@@ -12,10 +12,12 @@ import { fmtMoneyFull } from "@/lib/fmt-money";
 // a las 1.000 más recientes, que no contestaban ninguna pregunta concreta. Acá se
 // abre desde la fila de un cliente y muestra lo suyo.
 //
-// La ventana es el MES del corte y entran TODOS los boletos no anulados —no solo los
-// que cobraron arancel—: es la misma definición con la que el filtro SOLO OPERATIVAS
-// dejó pasar esa fila, así que una cuenta marcada como operativa no se puede abrir
-// vacía. Es la regla que rige toda esta vista: la misma pregunta, el mismo predicado.
+// Entran TODOS los boletos no anulados —no solo los que cobraron arancel— y la VENTANA
+// la trae quien abre el modal: tiene que ser la misma con la que el filtro de la tabla
+// dejó pasar esa fila. Nació clavada al mes y por eso está parametrizada: abriendo desde
+// el filtro del AÑO, una cuenta que operó en marzo mostraba "Sin boletos en ago 26" — la
+// pantalla desmintiendo su propio filtro. Igual se puede cambiar acá adentro, para que
+// un modal vacío nunca sea un callejón sin salida.
 //
 // Nada se deriva acá: los tres totales de la cabecera los manda el backend, calculados
 // sobre las mismas filas que devuelve.
@@ -27,9 +29,11 @@ type Op = {
   bruto: number; arancel: number; cantidad: number | null;
   etapa: string | null; es_cierre: boolean; cuenta_volumen: boolean;
 };
+type Ventana = "mes" | "ano";
 type Resp = {
   id_cuenta: string; denominacion: string; operador_nombre: string | null;
-  nivel_1: string | null; mes: string; desde: string; hasta: string;
+  nivel_1: string | null; mes: string; ano: number; ventana: Ventana;
+  desde: string; hasta: string;
   n_boletos: number; volumen: number; arancel: number; operaciones: Op[];
 };
 
@@ -48,11 +52,14 @@ function Dato({ label, valor }: { label: string; valor: string }) {
 }
 
 export function InformeClienteOpsModal(
-  { idCuenta, moneda = "ARS", fecha, onCerrar }:
-  { idCuenta: string; moneda?: string; fecha?: string; onCerrar: () => void },
+  { idCuenta, moneda = "ARS", fecha, ventana = "mes", onCerrar }:
+  { idCuenta: string; moneda?: string; fecha?: string; ventana?: Ventana; onCerrar: () => void },
 ) {
   const [d, setD] = useState<Resp | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // Arranca en la ventana del filtro que abrió la fila; el usuario puede ampliarla.
+  const [win, setWin] = useState<Ventana>(ventana);
+  useEffect(() => { setWin(ventana); }, [ventana]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCerrar(); };
@@ -61,7 +68,7 @@ export function InformeClienteOpsModal(
   }, [onCerrar]);
 
   useEffect(() => {
-    const qs = new URLSearchParams({ id_cuenta: idCuenta, moneda });
+    const qs = new URLSearchParams({ id_cuenta: idCuenta, moneda, ventana: win });
     if (fecha) qs.set("fecha", fecha);
     setD(null); setErr(null);
     // fetchJson (no getJSON): un 403 o un 502 tienen que decirse. Devolver null los
@@ -69,7 +76,7 @@ export function InformeClienteOpsModal(
     fetchJson<Resp>(`/api/operaciones/comercial/informe-cliente-ops?${qs}`)
       .then(setD)
       .catch((e: Error) => setErr(e.message));
-  }, [idCuenta, moneda, fecha]);
+  }, [idCuenta, moneda, fecha, win]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
@@ -84,12 +91,25 @@ export function InformeClienteOpsModal(
           {d?.operador_nombre && (
             <span className="text-[10px] opacity-80 truncate max-w-[220px]">{d.operador_nombre}</span>
           )}
+          <div className="inline-flex items-stretch border border-white/40 divide-x divide-white/40">
+            {(["mes", "ano"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setWin(v)}
+                title={v === "mes" ? "Boletos del mes del corte" : "Boletos de todo el año, hasta el corte"}
+                className={"px-2 py-0.5 text-[10px] uppercase tracking-wider " +
+                  (win === v ? "bg-white text-[#094293]" : "text-white hover:bg-white/20")}
+              >
+                {v === "mes" ? (d ? mesLabel(d.mes) : "mes") : (d ? String(d.ano) : "año")}
+              </button>
+            ))}
+          </div>
           <button onClick={onCerrar} className="text-[12px] px-2 hover:opacity-70"
             aria-label="Cerrar">✕</button>
         </div>
 
         <div className="flex border-b border-[var(--t-border)] shrink-0">
-          <Dato label="Mes" valor={d ? mesLabel(d.mes) : "…"} />
+          <Dato label="Ventana" valor={d ? (d.ventana === "ano" ? String(d.ano) : mesLabel(d.mes)) : "…"} />
           <Dato label="Boletos" valor={d ? String(d.n_boletos) : "…"} />
           <Dato label="Volumen" valor={d ? fmtMoneyFull(d.volumen) : "…"} />
           <Dato label="Arancel" valor={d ? fmtMoneyFull(d.arancel) : "…"} />
@@ -102,7 +122,16 @@ export function InformeClienteOpsModal(
           )}
           {d && d.operaciones.length === 0 && (
             <div className="p-6 text-center text-[11px] text-[var(--t-text-muted)]">
-              Sin boletos en {mesLabel(d.mes)}.
+              Sin boletos en {d.ventana === "ano" ? d.ano : mesLabel(d.mes)}.
+              {d.ventana === "mes" && (
+                <>
+                  {" "}
+                  <button onClick={() => setWin("ano")}
+                    className="underline text-[var(--t-accent)] hover:opacity-80">
+                    Ver todo {d.ano}
+                  </button>
+                </>
+              )}
             </div>
           )}
           {d && d.operaciones.length > 0 && (
