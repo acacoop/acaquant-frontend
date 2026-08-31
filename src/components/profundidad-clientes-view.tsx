@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { MultiSelect } from "@/components/ui/multi-select";
+import { AltaCuentasView } from "./alta-cuentas-view";
 import { CuantitativoView } from "./cuantitativo-view";
 import { fetchJson } from "@/lib/fetch-json";
 import { usePersistedState } from "@/lib/use-persisted-state";
@@ -187,10 +188,17 @@ function filtrosQS(f: Filtros): string {
     + arrQS("referido", f.referido) + arrQS("division", f.division);
 }
 
-// PROFUNDIDAD DE CLIENTES tiene DOS solapas adentro:
+// PROFUNDIDAD DE CLIENTES tiene TRES solapas adentro:
 //
-//   POR MES               la tabla mensual de siempre (default)
+//   POR MES               la tabla del ejercicio en curso (default)
+//   ALTA DE CUENTAS       el histórico COMPLETO de altas (gráfico + tabla)
 //   ANÁLISIS CUANTITATIVO las tres listas de llamadas por cliente
+//
+// ALTA DE CUENTAS va aparte y no como columna de POR MES —que también tiene ALTAS—
+// porque contestan preguntas distintas y con distinto rango: POR MES arranca en el
+// ejercicio en curso ("cómo viene el año") y ésta en la PRIMERA alta que existe
+// ("cómo se construyó la base"). Mezclarlas obligaría a que una de las dos mienta
+// sobre su propio rango.
 //
 // El conmutador es un segmentado FINO —no la sub-nav grande del agente— porque la
 // tabla mensual es la vista principal y no puede pagar dos bandas de navegación.
@@ -199,11 +207,12 @@ function filtrosQS(f: Filtros): string {
 export function ProfundidadClientesView(
   { moneda = "ARS", ...filtros }: { moneda?: "ARS" | "USD" } & Filtros,
 ) {
-  const [vista, setVista] = usePersistedState<"mes" | "cuantitativo">(
+  const [vista, setVista] = usePersistedState<"mes" | "altas" | "cuantitativo">(
     "profundidad.vista", "mes");
   const conmutador = (
     <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)] shrink-0">
-      {([["mes", "Por mes"], ["cuantitativo", "Análisis Cuantitativo"]] as const).map(([v, t]) => (
+      {([["mes", "Por mes"], ["altas", "Alta de Cuentas"],
+         ["cuantitativo", "Análisis Cuantitativo"]] as const).map(([v, t]) => (
         <button key={v} onClick={() => setVista(v)}
           className={"px-3 py-1 text-[11px] font-semibold tracking-wide " +
             (vista === v
@@ -218,6 +227,10 @@ export function ProfundidadClientesView(
   // barra propia sería una banda entera de alto para dos botones.
   if (vista === "cuantitativo") {
     return <CuantitativoView moneda={moneda} conmutador={conmutador} {...filtros} />;
+  }
+  if (vista === "altas") {
+    // No recibe `moneda`: acá no hay plata, se cuentan cuentas.
+    return <AltaCuentasView conmutador={conmutador} {...filtros} />;
   }
   return <PorMes moneda={moneda} conmutador={conmutador} {...filtros} />;
 }
