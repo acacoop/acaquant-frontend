@@ -35,7 +35,10 @@ type ArancelSeg = {
   segmento: string; ar_total: number; ar_mes: number; n_cuentas: number; ticket_promedio: number;
 };
 type InformeResp = { mes_actual: string; comerciales: Comercial[]; aranceles_segmento: ArancelSeg[] };
-type ClienteArancel = { id_cuenta: string; denominacion: string; arancel_total: number; arancel_mes: number };
+type ClienteArancel = {
+  id_cuenta: string; denominacion: string; arancel_total: number; arancel_mes: number;
+  opero_mes?: boolean;  // operó en el mes del corte (mismo criterio que CTAS OPS)
+};
 type OperacionArancel = {
   fecha: string; id_cuenta: string; denominacion: string; comprobante: string;
   ticker: string | null; categoria: string; op: string | null;
@@ -43,16 +46,16 @@ type OperacionArancel = {
 };
 type SegDetalle = {
   segmento: string; n_clientes: number; clientes: ClienteArancel[]; operaciones: OperacionArancel[];
-  n_operaciones?: number;
+  n_operaciones?: number; n_operativas?: number;
 };
 
 const fmtN = (n: number) => Math.round(n).toLocaleString("es-AR");
 // Montos: formato compacto compartido (M/MM/B). fmtAr conserva "—" para 0.
 const fmtAum = (n: number) => fmtMoney(n);
 const fmtAr = (n: number) => (n ? fmtMoney(n) : "—");
-// Q3 (Aranceles por segmento) muestra el número ENTERO, sin sufijo ni decimales:
-// es la tabla donde se comparan segmentos entre sí, y "1,2 MM" contra "1,3 MM"
-// esconde $100 M de diferencia. Conserva el "—" del cero.
+// Q3 (Aranceles por segmento) y Q4 (Detalle) muestran el número ENTERO, sin sufijo
+// ni decimales: son las tablas donde se comparan filas entre sí, y "1,2 MM" contra
+// "1,3 MM" esconde $100 M de diferencia. Conserva el "—" del cero.
 const fmtFull = (n: number) => (n ? fmtMoneyFull(n) : "—");
 
 function DownloadBtn({ onClick }: { onClick: () => void }) {
@@ -174,6 +177,11 @@ export function ComercialInforme({
   const [selSeg, setSelSeg] = useState<string | null>(null);
   const [detalle, setDetalle] = useState<SegDetalle | null>(null);
   const [q4tab, setQ4tab] = useState<"clientes" | "operaciones">("clientes");
+  // Filtro de la tabla Q4: deja solo las cuentas que operaron en el mes del corte.
+  // Vive ACÁ y no en la barra de la vista a propósito: si achicara el universo, el
+  // % del gráfico Q1 (operativas / cuentas del segmento) daría 100% en todos los
+  // segmentos y dejaría de significar nada. El filtro toca la lista, nunca la base.
+  const [soloOperativas, setSoloOperativas] = useState(false);
   const [selComercial, setSelComercial] = useState<string | null>(null);
   const [segScoped, setSegScoped] = useState<ArancelSeg[] | null>(null);
   const [q1mode, setQ1mode] = useState<"cuentas" | "operativas" | "aranceles">("cuentas");
@@ -316,10 +324,16 @@ export function ComercialInforme({
       { header: "# cuentas", key: "n_cuentas", format: "integer" },
     ] }],
   });
+  // La lista de Q4 ya filtrada. El backend manda el flag por fila, así que el filtro
+  // es instantáneo y no puede quedar desfasado de lo que la tabla ya dibujó.
+  const clientesQ4 = soloOperativas
+    ? (detalle?.clientes ?? []).filter((c) => c.opero_mes)
+    : (detalle?.clientes ?? []);
+
   const dlDetalle = () => void exportToXlsx({
     filename: `comercial-detalle-${selSeg ?? "todos"}-${timestampSuffix()}.xlsx`,
     sheets: q4tab === "clientes"
-      ? [{ name: "Clientes", rows: detalle?.clientes ?? [], columns: [
+      ? [{ name: "Clientes", rows: clientesQ4, columns: [
           { header: "Cuenta", key: "id_cuenta", format: "text", width: 10 },
           { header: "Cliente", key: "denominacion", format: "text", width: 32 },
           { header: "Aranc. total", key: "arancel_total", format: "currency" },
@@ -540,6 +554,21 @@ export function ComercialInforme({
                 className="text-[10px] text-[var(--t-accent)] hover:text-[var(--t-accent-hover)]"
               >✕ todos</button>
             )}
+            {q4tab === "clientes" && (
+              <button
+                onClick={() => setSoloOperativas((v) => !v)}
+                title={"Deja solo las cuentas que operaron en el mes del corte — las mismas "
+                  + "que cuenta CTAS OPS en el ranking (≥1 boleto no anulado)."}
+                className={
+                  "px-2 py-0.5 text-[10px] uppercase tracking-wider border border-[var(--t-border-2)] " +
+                  (soloOperativas
+                    ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
+                    : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
+                }
+              >
+                Solo operativas{detalle?.n_operativas != null ? ` · ${fmtN(detalle.n_operativas)}` : ""}
+              </button>
+            )}
             <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
               {(["clientes", "operaciones"] as const).map((t) => (
                 <button
@@ -570,16 +599,18 @@ export function ComercialInforme({
               </tr>
             </thead>
             <tbody>
-              {detalle.clientes.length === 0 && (
-                <tr><td colSpan={3} className="text-center text-[var(--t-text-muted)] py-4">Sin aranceles.</td></tr>
+              {clientesQ4.length === 0 && (
+                <tr><td colSpan={3} className="text-center text-[var(--t-text-muted)] py-4">
+                  {soloOperativas ? "Ninguna de estas cuentas operó en el mes." : "Sin aranceles."}
+                </td></tr>
               )}
-              {detalle.clientes.map((c) => (
+              {clientesQ4.map((c) => (
                 <tr key={c.id_cuenta} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]">
                   <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[200px]" title={c.denominacion}>
                     <span className="text-[var(--t-text-muted)]">[{c.id_cuenta}]</span> {c.denominacion}
                   </td>
-                  <td className="text-right px-2 font-semibold text-[var(--t-data-arancel)]">{fmtAr(c.arancel_total)}</td>
-                  <td className="text-right px-3 text-[var(--t-data-arancel)]">{fmtAr(c.arancel_mes)}</td>
+                  <td className="text-right px-2 font-semibold text-[var(--t-data-arancel)]">{fmtFull(c.arancel_total)}</td>
+                  <td className="text-right px-3 text-[var(--t-data-arancel)]">{fmtFull(c.arancel_mes)}</td>
                 </tr>
               ))}
             </tbody>
@@ -609,8 +640,8 @@ export function ComercialInforme({
                   <td className="px-3 py-1.5 text-[var(--t-text-dim)] whitespace-nowrap">{o.fecha}</td>
                   <td className="px-1 py-1.5 text-[var(--t-text)] truncate max-w-[120px]" title={o.denominacion}>{o.denominacion}</td>
                   <td className="px-1 py-1.5 text-[var(--t-text-dim)]">{o.ticker ?? o.categoria}</td>
-                  <td className="text-right px-2 text-[var(--t-text-dim)]">{fmtAum(o.importe)}</td>
-                  <td className="text-right px-3 font-semibold text-[var(--t-data-arancel)]">{fmtAr(o.arancel)}</td>
+                  <td className="text-right px-2 text-[var(--t-text-dim)]">{fmtFull(o.importe)}</td>
+                  <td className="text-right px-3 font-semibold text-[var(--t-data-arancel)]">{fmtFull(o.arancel)}</td>
                 </tr>
               ))}
             </tbody>
