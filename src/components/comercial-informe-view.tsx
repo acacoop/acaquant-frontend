@@ -110,6 +110,10 @@ function ComoSeCalcula({ onClose }: { onClose: () => void }) {
               <li><b>Volumen</b>: monto bruto operado. Excluye los cierres de caución (evita doble conteo).</li>
               <li><b>Arancel</b>: comisión cobrada. <b>Incluye</b> los cierres (ahí vive el arancel de caución). El detalle solo lista filas con arancel &gt; 0.</li>
               <li>Siempre se excluyen las solicitudes sin liquidar (solo operaciones concretadas).</li>
+              <li><b>Ctas Ops</b> (y el modo <b>Operativas</b>) cuentan la <b>cuenta, no el boleto</b>: vale 1 si tuvo
+                al menos una operación en el mes, opere una vez o mil. Cuentan <b>cualquier boleto no anulado</b>
+                —el mismo criterio que <i>días sin operar</i>—, así que incluyen lo que no suma volumen:
+                cuentas OTC, rescates de FCI, futuros.</li>
             </ul>
           </div>
           <div>
@@ -428,7 +432,7 @@ export function ComercialInforme({
             <tr className="text-[9px] text-[var(--t-text-muted)] tracking-wide">
               <th className="text-left px-2 py-2">#</th>
               <th className="text-left px-1">COMERCIAL</th>
-              <th className="text-right px-2" title="Cuentas distintas que operaron en el mes calendario del HASTA (≥1 op)">CTAS OPS{MesTag}</th>
+              <th className="text-right px-2" title="Cuentas distintas que operaron en el mes calendario del HASTA (≥1 boleto no anulado)">CTAS OPS{MesTag}</th>
               <th className="text-right px-2">TICKET PROM.</th>
               <th className="text-right px-2">VOL. TOTAL</th>
               <th className="text-right px-2">VOL. MES{MesTag}</th>
