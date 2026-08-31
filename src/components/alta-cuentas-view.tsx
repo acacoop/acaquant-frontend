@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Bar, CartesianGrid, ComposedChart, LabelList, Legend, Line, ResponsiveContainer,
   Tooltip, XAxis, YAxis,
@@ -87,6 +87,10 @@ export function AltaCuentasView(
   // alguien cierra una cuenta, y un histórico que cambia hacia atrás no sirve.
   const [soloActivas, setSoloActivas] = usePersistedState<boolean>("altas.solo_activas", false);
   const vk = useViewportKey();
+  // El <svg> que dibuja recharts: la imagen se arma serializando ESE, no
+  // redibujando el gráfico. Dos dibujos del mismo gráfico se separan con el tiempo.
+  const graf = useRef<HTMLDivElement>(null);
+  const [copia, setCopia] = useState<string | null>(null);
 
   const qs = arrQS("operador", f.operador) + arrQS("nivel_1", f.nivel1)
     + arrQS("nivel_2", f.nivel2) + arrQS("nivel_3", f.nivel3)
@@ -116,6 +120,41 @@ export function AltaCuentasView(
   const err = fresco?.err ?? null;
   const cargando = !fresco;
   const filas = d?.filas ?? [];
+
+  const copiarImagen = async () => {
+    // `.recharts-surface` y no un `svg` a secas: la LEYENDA de recharts también
+    // dibuja `<svg>` (los iconitos), y agarrar el primero que aparezca es cómo se
+    // termina copiando un cuadradito de 14px en vez del gráfico.
+    const svg = graf.current?.querySelector("svg.recharts-surface");
+    if (!svg) return;
+    setCopia("…");
+    // Import diferido: el módulo solo hace falta al apretar el botón, y así no
+    // viaja en el bundle de la vista.
+    const { copiarGrafico } = await import("@/lib/grafico-imagen");
+    const r = await copiarGrafico({
+      svg: svg as SVGSVGElement,
+      titulo: "Alta de cuentas",
+      fecha: `${gran === "ano" ? "por año" : gran === "trimestre" ? "por trimestre" : "por mes"}`
+        + `  ·  ${fmtFecha(d?.primera_alta ?? null)} → ${fmtFecha(d?.ultima_alta ?? null)}`,
+      logoUrl: "/logo-login.png",
+      archivo: `alta-de-cuentas-${gran}-${timestampSuffix()}.png`,
+      // La leyenda de recharts es HTML y NO viaja en el SVG: si no se declara acá,
+      // la imagen sale sin leyenda y nadie se entera.
+      leyenda: [
+        { label: "Altas del período", color: "var(--t-brand)", forma: "barra" },
+        { label: "Base acumulada", color: "var(--t-neg)", forma: "linea" },
+      ],
+      // El contexto viaja con la imagen: sin esto, el que la recibe no sabe si son
+      // todas las cuentas o solo las activas, ni cuántas quedaron afuera.
+      pie: [
+        `${fmtInt(d?.total ?? 0)} altas en total`
+        + (soloActivas ? "  ·  SOLO cuentas hoy activas" : "  ·  todas las comitentes"),
+        ...(d?.meta.advertencias ?? []),
+      ],
+    });
+    setCopia(r === "copiado" ? "copiado ✓" : r === "descargado" ? "descargado ✓" : "no se pudo");
+    setTimeout(() => setCopia(null), 2500);
+  };
 
   const exportar = () => void exportToXlsx({
     filename: `alta-de-cuentas-${gran}-${timestampSuffix()}.xlsx`,
@@ -163,6 +202,13 @@ export function AltaCuentasView(
           </button>
           {cargando && <span className="text-[9px] text-[var(--t-text-muted)]">cargando…</span>}
           {err && <span className="text-[9px] text-[#ff7777]">{err}</span>}
+          {panel === "grafico" && (
+            <button onClick={() => void copiarImagen()} disabled={!filas.length}
+              title="Copia el gráfico como imagen (con el logo y el contexto) para pegarlo en un mail. Si el navegador no deja copiar, lo descarga."
+              className="text-[10px] px-2 py-0.5 border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-40">
+              {copia ?? "⧉ Copiar imagen"}
+            </button>
+          )}
           <button onClick={exportar} disabled={!filas.length}
             className="text-[10px] px-2 py-0.5 border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-40">
             ↓ XLSX
@@ -173,14 +219,7 @@ export function AltaCuentasView(
       {/* ── EL GRÁFICO: 100% del alto ─────────────────────────────────────── */}
       {panel === "grafico" && (
       <div className="flex-1 min-h-0 flex flex-col">
-        <div className="px-3 pt-2 text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] shrink-0">
-          Altas por período · base acumulada
-          <span className="ml-2 normal-case tracking-normal text-[var(--t-text-muted)]">
-            {gran === "ano" ? "por año" : gran === "trimestre" ? "por trimestre" : "por mes"}
-            {soloActivas ? " · solo cuentas hoy activas" : " · todas las comitentes"}
-          </span>
-        </div>
-        <div className="flex-1 min-h-0 p-2">
+        <div ref={graf} className="flex-1 min-h-0 p-2">
           {!filas.length ? (
             <div className="h-full flex items-center justify-center text-[11px] text-[var(--t-text-muted)]">
               {cargando ? "cargando…" : err ? "no se pudo leer" : "sin altas para mostrar"}
@@ -208,7 +247,7 @@ export function AltaCuentasView(
                       ? [`${fmtInt(Number(v))} cuentas`, "Base acumulada"]
                       : [`${fmtInt(Number(v))} altas · ${it?.payload?.pct_del_total ?? 0}% del total`,
                          "Altas del período"])} />
-                <Legend verticalAlign="top" align="right" height={18}
+                <Legend verticalAlign="bottom" align="center" height={22}
                   wrapperStyle={{ fontSize: 10, color: "var(--t-text-dim)" }} />
                 {/* Punta redondeada arriba, anclada a la línea de base. */}
                 <Bar yAxisId="altas" dataKey="altas" name="Altas" fill="var(--t-brand)"
