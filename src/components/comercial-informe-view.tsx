@@ -50,6 +50,10 @@ const fmtN = (n: number) => Math.round(n).toLocaleString("es-AR");
 // Montos: formato compacto compartido (M/MM/B). fmtAr conserva "—" para 0.
 const fmtAum = (n: number) => fmtMoney(n);
 const fmtAr = (n: number) => (n ? fmtMoney(n) : "—");
+// Q3 (Aranceles por segmento) muestra el número ENTERO, sin sufijo ni decimales:
+// es la tabla donde se comparan segmentos entre sí, y "1,2 MM" contra "1,3 MM"
+// esconde $100 M de diferencia. Conserva el "—" del cero.
+const fmtFull = (n: number) => (n ? fmtMoneyFull(n) : "—");
 
 function DownloadBtn({ onClick }: { onClick: () => void }) {
   return (
@@ -430,14 +434,14 @@ export function ComercialInforme({
         <table className="w-full text-[11px] tabular-nums">
           <thead className="sticky top-0 bg-[var(--t-panel)]">
             <tr className="text-[9px] text-[var(--t-text-muted)] tracking-wide">
-              <th className="text-left px-2 py-2">#</th>
-              <th className="text-left px-1">COMERCIAL</th>
-              <th className="text-right px-2" title="Cuentas distintas que operaron en el mes calendario del HASTA (≥1 boleto no anulado)">CTAS OPS{MesTag}</th>
-              <th className="text-right px-2">TICKET PROM.</th>
-              <th className="text-right px-2">VOL. TOTAL</th>
-              <th className="text-right px-2">VOL. MES{MesTag}</th>
-              <th className="text-right px-2">ARANC. TOTAL</th>
-              <th className="text-right px-3">ARANC. MES{MesTag}</th>
+              <th className="text-center px-2 py-2">#</th>
+              <th className="text-center px-1">COMERCIAL</th>
+              <th className="text-center px-2" title="Cuentas distintas que operaron en el mes calendario del HASTA (≥1 boleto no anulado)">CTAS OPS{MesTag}</th>
+              <th className="text-center px-2">TICKET PROM.</th>
+              <th className="text-center px-2">VOL. TOTAL</th>
+              <th className="text-center px-2">VOL. MES{MesTag}</th>
+              <th className="text-center px-2">ARANC. TOTAL</th>
+              <th className="text-center px-3">ARANC. MES{MesTag}</th>
             </tr>
           </thead>
           <tbody>
@@ -457,29 +461,29 @@ export function ComercialInforme({
                   (selComercial === c.operador_email ? "bg-[var(--t-accent)]/10" : "hover:bg-[var(--t-surface)]")
                 }
               >
-                <td className="px-2 py-1.5 text-[var(--t-text-muted)]">{c.rank}</td>
-                <td className="px-1 py-1.5 text-[var(--t-text)] truncate max-w-[160px]" title={c.operador_nombre}>
+                <td className="text-center px-2 py-1.5 text-[var(--t-text-muted)]">{c.rank}</td>
+                <td className="text-center px-1 py-1.5 text-[var(--t-text)] truncate max-w-[160px]" title={c.operador_nombre}>
                   {c.operador_nombre}
                 </td>
-                <td className="text-right px-2 tabular-nums text-[var(--t-text)]">{c.ctas_ops}</td>
-                <td className="text-right px-2 text-[var(--t-text)]" title={fmtMoneyFull(c.ticket_promedio)}>{fmtAum(c.ticket_promedio)}</td>
-                <td className="text-right px-2 font-semibold text-[var(--t-accent)]" title={fmtMoneyFull(c.vol_total)}>{fmtAum(c.vol_total)}</td>
-                <td className="text-right px-2 text-[var(--t-text-dim)]" title={fmtMoneyFull(c.vol_mes)}>{fmtAum(c.vol_mes)}</td>
-                <td className="text-right px-2 text-[var(--t-data-arancel)]" title={fmtMoneyFull(c.ar_total)}>{fmtAr(c.ar_total)}</td>
-                <td className="text-right px-3 text-[var(--t-data-arancel)]" title={fmtMoneyFull(c.ar_mes)}>{fmtAr(c.ar_mes)}</td>
+                <td className="text-center px-2 tabular-nums text-[var(--t-text)]">{c.ctas_ops}</td>
+                <td className="text-center px-2 text-[var(--t-text)]" title={fmtMoneyFull(c.ticket_promedio)}>{fmtAum(c.ticket_promedio)}</td>
+                <td className="text-center px-2 font-semibold text-[var(--t-accent)]" title={fmtMoneyFull(c.vol_total)}>{fmtAum(c.vol_total)}</td>
+                <td className="text-center px-2 text-[var(--t-text-dim)]" title={fmtMoneyFull(c.vol_mes)}>{fmtAum(c.vol_mes)}</td>
+                <td className="text-center px-2 text-[var(--t-data-arancel)]" title={fmtMoneyFull(c.ar_total)}>{fmtAr(c.ar_total)}</td>
+                <td className="text-center px-3 text-[var(--t-data-arancel)]" title={fmtMoneyFull(c.ar_mes)}>{fmtAr(c.ar_mes)}</td>
               </tr>
             ))}
           </tbody>
           {informe && informe.comerciales.length > 0 && (
             <tfoot className="sticky bottom-0 bg-[var(--t-surface)]">
               <tr className="border-t-2 border-[var(--t-border-2)] font-semibold text-[var(--t-text)]">
-                <td className="px-2 py-1.5 truncate max-w-[180px]" colSpan={2}>{selRow ? `Σ ${selRow.operador_nombre}` : "TOTAL"}</td>
-                <td className="text-right px-2 tabular-nums text-[var(--t-text)]">{totMostrado.ctas_ops}</td>
-                <td className="text-right px-2 text-[var(--t-text-muted)]">{selRow ? fmtAum(selRow.ticket_promedio) : "—"}</td>
-                <td className="text-right px-2 text-[var(--t-accent)]" title={fmtMoneyFull(totMostrado.vol_total)}>{fmtMoney(totMostrado.vol_total)}</td>
-                <td className="text-right px-2 text-[var(--t-text-dim)]" title={fmtMoneyFull(totMostrado.vol_mes)}>{fmtMoney(totMostrado.vol_mes)}</td>
-                <td className="text-right px-2 text-[var(--t-data-arancel)]" title={fmtMoneyFull(totMostrado.ar_total)}>{fmtMoney(totMostrado.ar_total)}</td>
-                <td className="text-right px-3 text-[var(--t-data-arancel)]" title={fmtMoneyFull(totMostrado.ar_mes)}>{fmtMoney(totMostrado.ar_mes)}</td>
+                <td className="text-center px-2 py-1.5 truncate max-w-[180px]" colSpan={2}>{selRow ? `Σ ${selRow.operador_nombre}` : "TOTAL"}</td>
+                <td className="text-center px-2 tabular-nums text-[var(--t-text)]">{totMostrado.ctas_ops}</td>
+                <td className="text-center px-2 text-[var(--t-text-muted)]">{selRow ? fmtAum(selRow.ticket_promedio) : "—"}</td>
+                <td className="text-center px-2 text-[var(--t-accent)]" title={fmtMoneyFull(totMostrado.vol_total)}>{fmtMoney(totMostrado.vol_total)}</td>
+                <td className="text-center px-2 text-[var(--t-text-dim)]" title={fmtMoneyFull(totMostrado.vol_mes)}>{fmtMoney(totMostrado.vol_mes)}</td>
+                <td className="text-center px-2 text-[var(--t-data-arancel)]" title={fmtMoneyFull(totMostrado.ar_total)}>{fmtMoney(totMostrado.ar_total)}</td>
+                <td className="text-center px-3 text-[var(--t-data-arancel)]" title={fmtMoneyFull(totMostrado.ar_mes)}>{fmtMoney(totMostrado.ar_mes)}</td>
               </tr>
             </tfoot>
           )}
@@ -515,9 +519,9 @@ export function ComercialInforme({
                 }
               >
                 <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[200px]" title={s.segmento}>{s.segmento}</td>
-                <td className="text-right px-2 font-semibold text-[var(--t-data-arancel)]">{fmtAr(s.ar_total)}</td>
-                <td className="text-right px-2 text-[var(--t-data-arancel)]">{fmtAr(s.ar_mes)}</td>
-                <td className="text-right px-3 text-[var(--t-text)]">{fmtAum(s.ticket_promedio)}</td>
+                <td className="text-right px-2 font-semibold text-[var(--t-data-arancel)]">{fmtFull(s.ar_total)}</td>
+                <td className="text-right px-2 text-[var(--t-data-arancel)]">{fmtFull(s.ar_mes)}</td>
+                <td className="text-right px-3 text-[var(--t-text)]">{fmtFull(s.ticket_promedio)}</td>
               </tr>
             ))}
           </tbody>
