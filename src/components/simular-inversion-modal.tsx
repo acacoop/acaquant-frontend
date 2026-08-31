@@ -12,22 +12,22 @@ import {
 import type { BonoCurva, SimulacionInversion } from "@/lib/types";
 import { fmtFechaCorta } from "@/lib/fmt";
 import { NumeroInput } from "@/components/numero-input";
+import { Dato, fmt0, fmt2, Panel } from "@/components/ui/informe";
 
 // Modal SIMULAR INVERSIÓN — se abre desde la barra de tabs de /renta-fija.
 //
-// Tres inputs: BONO (el universo es el MISMO de la tab CURVAS — los tickers del
-// payload de curvas-vista), IMPORTE y PRECIO. El precio arranca en el LAST del
-// snapshot (viene del backend como `precio_referencia`) y es editable: al
-// cambiarlo, la TEA/TIR y todo el cuadro se recalculan EN EL BACKEND con el
+// Tres inputs: BONO (combobox TIPEABLE — el <select> nativo no deja escribir el
+// ticker; el universo es el MISMO de la tab CURVAS), IMPORTE y PRECIO. El precio
+// arranca en el LAST del snapshot (`precio_referencia`) y es editable: al
+// cambiarlo, la TIR/TEA y todo el cuadro se recalculan EN EL BACKEND con el
 // mismo motor que produce la tasa de la tabla (`calcular_campos` con el precio
-// inyectado). El front no deriva un solo número — si acá hubiera otra fórmula,
-// el día que difieran el modal y la tabla mostrarían dos tasas para el mismo
-// bono y nadie se enteraría.
+// inyectado). El front no deriva un solo número.
 //
-// Layout: izquierda = los datos del bono (ficha + tasas al precio simulado),
-// derecha = el mapa del flujo de fondos (cuánto entra y cuándo), escalado al
-// importe. Deuda asumida: el fetch es un GET con debounce de 400 ms — cada
-// tecleo NO pega al backend.
+// El diseño usa las piezas de INFORME (`ui/informe.tsx`: Panel con cabecera
+// azul + Dato) — es la identidad visual de "esto se lee como un informe", la
+// misma de /aca y CARTERAS. Layout: fila de Datos grandes (el resultado),
+// después RESULTADO/FLUJO en dos columnas, y la FICHA al pie ocupando todo el
+// ancho, en filas verticales label→valor.
 
 interface Props {
   bonos: BonoCurva[];         // el payload de curvas-vista (la tab CURVAS)
@@ -36,12 +36,12 @@ interface Props {
 
 const DEBOUNCE_MS = 400;
 
-const fmt2 = (v: number | null | undefined, d = 2) =>
-  v === null || v === undefined ? "--" : v.toLocaleString("es-AR", {
-    minimumFractionDigits: d, maximumFractionDigits: d,
-  });
-const pct = (v: number | null | undefined, d = 2) =>
-  v === null || v === undefined ? "--" : `${(v * 100).toFixed(d)}%`;
+// Colores del flujo (mismos que la FICHA del bono): capital y renta.
+const COLOR_AMORT = "var(--t-accent)";
+const COLOR_INTERES = "#33ccaa";
+
+const pctSigned = (v: number | null | undefined, d = 2) =>
+  v === null || v === undefined ? "—" : `${(v * 100).toFixed(d)}%`;
 
 // Crudo del NumeroInput ("1234567,89") → número. NaN/<=0 → null.
 const num = (raw: string): number | null => {
@@ -60,19 +60,107 @@ const WARNINGS: Record<string, string> = {
   cer_sin_serie: "Sin serie CER cargada: no se pudieron ajustar los flujos.",
 };
 
-function Dato({ label, valor, tip }: { label: string; valor: React.ReactNode; tip?: string }) {
+/** Fila label → valor. Es la unidad de FICHA y RESULTADO: se lee en vertical. */
+function Fila({ label, valor, tip }: { label: string; valor: React.ReactNode; tip?: string }) {
   return (
-    <div className="min-w-0" title={tip}>
-      <div className="text-[9px] tracking-wide text-[var(--t-text-muted)] uppercase">{label}</div>
-      <div className="text-xs text-[var(--t-text-dim)] truncate">{valor}</div>
+    <div
+      className="flex items-baseline justify-between gap-3 px-3 py-1.5 border-b border-[var(--t-border)] last:border-b-0"
+      title={tip}
+    >
+      <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] shrink-0">{label}</span>
+      <span className="text-xs text-[var(--t-text)] tabular-nums text-right truncate">{valor}</span>
+    </div>
+  );
+}
+
+/** Combobox tipeable de bonos (mismo patrón que tenía Comparar Inversión: el
+ *  <select> nativo salta a la primera coincidencia y cierra — acá se filtra
+ *  por texto mientras escribís y Enter elige el primero). */
+function BonoCombo({ bonos, selected, onChange }: {
+  bonos: BonoCurva[]; selected: string; onChange: (ticker: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const sel = bonos.find((b) => b.ticker_corto === selected) ?? null;
+  const display = open
+    ? query
+    : sel
+      ? `${sel.ticker_corto}${sel.vencimiento ? ` · ${fmtFechaCorta(sel.vencimiento)}` : ""}`
+      : "";
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const base = q
+      ? bonos.filter((b) =>
+          `${b.ticker_corto} ${b.emisor ?? ""} ${b.lado} ${b.pill} ${b.vencimiento ?? ""}`
+            .toLowerCase()
+            .includes(q))
+      : bonos;
+    return base.slice(0, 60);
+  }, [bonos, query]);
+
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  const pick = (b: BonoCurva) => {
+    onChange(b.ticker_corto);
+    setQuery("");
+    setOpen(false);
+  };
+
+  return (
+    <div ref={ref} className="relative w-56">
+      <input
+        value={display}
+        placeholder="tipeá un ticker (ej. AL30)"
+        autoFocus
+        onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+        onFocus={() => { setQuery(""); setOpen(true); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && filtered.length > 0) pick(filtered[0]);
+          else if (e.key === "Escape") setOpen(false);
+        }}
+        className="w-full bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-1 text-xs text-[var(--t-text)] focus:border-[var(--t-accent)] outline-none"
+      />
+      {open && (
+        <div className="absolute z-50 top-full left-0 right-0 mt-0.5 max-h-72 overflow-y-auto bg-[var(--t-panel)] border border-[var(--t-border-2)] shadow-lg">
+          {filtered.length === 0 ? (
+            <div className="px-2 py-1 text-[10px] text-[var(--t-text-muted)] italic">sin resultados</div>
+          ) : (
+            filtered.map((b) => (
+              <button
+                key={b.ticker_corto}
+                type="button"
+                onClick={() => pick(b)}
+                className={`flex w-full items-baseline justify-between text-left px-2 py-1 text-[11px] hover:bg-[var(--t-accent)]/10 ${
+                  b.ticker_corto === selected ? "text-[var(--t-accent)]" : "text-[var(--t-text)]"
+                }`}
+              >
+                <span className="font-semibold">{b.ticker_corto}</span>
+                <span className="text-[var(--t-text-muted)] text-[9px] ml-2 shrink-0">
+                  {b.lado}{b.vencimiento ? ` · ${fmtFechaCorta(b.vencimiento)}` : ""}
+                  {b.metrics?.last_price ? "" : " · sin precio"}
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 export function SimularInversionModal({ bonos, onClose }: Props) {
-  // ── el universo del selector: los tickers de la tab CURVAS, DEDUPE por
-  // ticker_corto (un dual llega repetido, una fila por pata) y agrupado por
-  // lado. Los sin precio live entran igual — se puede simular tipeando uno.
+  // El universo del combobox: los tickers de la tab CURVAS, DEDUPE por
+  // ticker_corto (un dual llega repetido, una fila por pata), ARS primero y
+  // cronológico. Los sin precio live entran igual — se simula tipeando uno.
   const universo = useMemo(() => {
     const vistos = new Set<string>();
     const out: BonoCurva[] = [];
@@ -112,16 +200,15 @@ export function SimularInversionModal({ bonos, onClose }: Props) {
     precargar.current = true;
   };
 
-  // ── EL fetch: uno solo, con debounce, cancelable. Sin precio manda solo
-  // ticker+importe y el backend usa el last (que además devuelve como
-  // referencia para precargar el input).
-  // Borrar el importe limpia el cuadro desde el HANDLER (no acá adentro:
+  // Borrar el importe limpia el cuadro desde el HANDLER (no en el effect:
   // setState sincrónico en un effect dispara renders en cascada — regla del lint).
   const cambiarImporte = (raw: string) => {
     setImporte(raw);
     if (!num(raw)) setData(null);
   };
 
+  // EL fetch: uno solo, con debounce, cancelable. Sin precio manda solo
+  // ticker+importe y el backend usa el last (que devuelve como referencia).
   useEffect(() => {
     if (!ticker) return;
     const imp = num(importe);
@@ -171,6 +258,37 @@ export function SimularInversionModal({ bonos, onClose }: Props) {
     "w-28 bg-transparent border border-[var(--t-border-2)] px-2 py-1 text-xs text-right " +
     "text-[var(--t-text)] focus:border-[var(--t-accent)] outline-none";
 
+  // La FICHA al pie, en VERTICAL: filas label→valor repartidas en columnas que
+  // ocupan todo el ancho. El símbolo de mercado NO se muestra (es interno).
+  const filasFicha: { label: string; valor: React.ReactNode; tip?: string }[] = ficha ? [
+    { label: "Emisor", valor: ficha.emisor || "—" },
+    { label: "Tipo emisor", valor: ficha.emisor_tipo || "—" },
+    { label: "Tipo", valor: ficha.tipo || "—" },
+    { label: "Moneda", valor: ficha.moneda || "—" },
+    {
+      label: "Ajuste",
+      valor: ficha.ajuste_alt ? `${ficha.ajuste} + ${ficha.ajuste_alt}` : ficha.ajuste || "—",
+      tip: ficha.ajuste_alt ? "Bono DUAL: tiene dos patas de rendimiento" : undefined,
+    },
+    ...(ficha.ley ? [{ label: "Ley", valor: ficha.ley === "local" ? "Local (Bonar)" : "NY (Global)" }] : []),
+    { label: "Emisión", valor: ficha.fecha_emision ? fmtFechaCorta(ficha.fecha_emision) : "—" },
+    { label: "Vencimiento", valor: ficha.fecha_vencimiento ? fmtFechaCorta(ficha.fecha_vencimiento) : "—" },
+    { label: "Valor nominal", valor: fmt0(ficha.valor_nominal) },
+    { label: "Cupón anual", valor: ficha.cupon_anual == null ? "—" : fmt2(ficha.cupon_anual, 4) },
+    ...(ficha.cer_emision != null ? [{ label: "CER emisión", valor: fmt2(ficha.cer_emision, 4) }] : []),
+    ...(ficha.flujo_vencimiento != null
+      ? [{ label: "Pago final (por 100 VN)", valor: fmt2(ficha.flujo_vencimiento), tip: "Pago al vencimiento por 100 VN (bullet)" }]
+      : []),
+  ] : [];
+  // 3 columnas de filas: se recorre por tercios para que cada columna se lea
+  // de arriba hacia abajo.
+  const tercio = Math.ceil(filasFicha.length / 3);
+  const columnasFicha = [
+    filasFicha.slice(0, tercio),
+    filasFicha.slice(tercio, tercio * 2),
+    filasFicha.slice(tercio * 2),
+  ];
+
   return (
     <div
       onClick={onClose}
@@ -178,34 +296,17 @@ export function SimularInversionModal({ bonos, onClose }: Props) {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] w-full max-w-6xl max-h-[90vh] flex flex-col"
+        className="bg-[var(--t-surface)] border border-[var(--t-border-2)] w-full max-w-6xl max-h-[92vh] flex flex-col"
       >
         {/* ── cabecera: título + los TRES inputs ── */}
-        <div className="flex items-center gap-3 px-3 py-2 border-b border-[var(--t-border-2)] shrink-0 flex-wrap">
-          <span className="text-[var(--t-accent)] font-semibold tracking-wide">
+        <div className="flex items-center gap-3 px-3 py-2 border-b border-[var(--t-border-2)] bg-[var(--t-panel)] shrink-0 flex-wrap">
+          <span className="text-[var(--t-accent)] font-semibold tracking-wide shrink-0">
             SIMULAR INVERSIÓN
           </span>
 
           <label className="flex items-center gap-1.5 text-[10px] text-[var(--t-text-muted)]">
             BONO
-            <select
-              value={ticker}
-              onChange={(e) => elegirBono(e.target.value)}
-              className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-1 text-xs text-[var(--t-text)] focus:border-[var(--t-accent)] outline-none"
-            >
-              <option value="">— elegir —</option>
-              {(["ARS", "USD"] as const).map((lado) => (
-                <optgroup key={lado} label={lado}>
-                  {universo.filter((b) => b.lado === lado).map((b) => (
-                    <option key={b.ticker_corto} value={b.ticker_corto}>
-                      {b.ticker_corto}
-                      {b.vencimiento ? ` · ${fmtFechaCorta(b.vencimiento)}` : ""}
-                      {b.metrics?.last_price ? "" : " · sin precio"}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
+            <BonoCombo bonos={universo} selected={ticker} onChange={elegirBono} />
           </label>
 
           <label className="flex items-center gap-1.5 text-[10px] text-[var(--t-text-muted)]">
@@ -213,7 +314,7 @@ export function SimularInversionModal({ bonos, onClose }: Props) {
             <NumeroInput value={importe} onChange={cambiarImporte} className={inputCls} placeholder="1.000.000" />
             {data?.moneda_precio && (
               <span className="text-[9px]" title="La moneda en que cotiza la pata elegida — el importe se asume en esa moneda.">
-                {data?.moneda_precio}
+                {data.moneda_precio}
               </span>
             )}
           </label>
@@ -233,14 +334,6 @@ export function SimularInversionModal({ bonos, onClose }: Props) {
               LAST {fmt2(data.precio_referencia)}
             </button>
           )}
-          {data?.rama && !data.error && (
-            <span
-              className="text-[9px] text-[var(--t-text-muted)] border border-[var(--t-border-2)] px-1"
-              title="Rama de cálculo del motor: la fórmula con la que se valúa este bono."
-            >
-              {data.rama.toUpperCase()}
-            </span>
-          )}
           {cargando && <span className="text-[9px] text-[var(--t-text-muted)]">calculando…</span>}
 
           <button
@@ -254,7 +347,7 @@ export function SimularInversionModal({ bonos, onClose }: Props) {
         <div className="flex-1 min-h-0 overflow-y-auto p-3">
           {!ticker ? (
             <p className="text-[var(--t-text-muted)] text-xs text-center py-10">
-              Elegí un bono para simular. El universo es el mismo de la tab CURVAS.
+              Tipeá un ticker para simular. El universo es el mismo de la tab CURVAS.
             </p>
           ) : error ? (
             <p className="text-[var(--t-neg)] text-xs text-center py-10">error: {error}</p>
@@ -262,14 +355,14 @@ export function SimularInversionModal({ bonos, onClose }: Props) {
             <p className="text-[var(--t-text-muted)] text-xs text-center py-10">{data.error}</p>
           ) : !sim || !ficha ? (
             <p className="text-[var(--t-text-muted)] text-xs text-center py-10">
-              {num(importe) ? "cargando…" : "Ingresá un importe para simular."}
+              {num(importe) ? "calculando…" : "Ingresá un importe para simular."}
             </p>
           ) : (
-            <>
+            <div className="flex flex-col gap-3">
               {/* Los avisos del backend, arriba de todo: un número calculado con
                   CER proyectado o sin MEP no se puede leer igual que uno firme. */}
               {(data?.warnings ?? []).length > 0 && (
-                <div className="mb-2 space-y-0.5">
+                <div className="space-y-0.5">
                   {(data?.warnings ?? []).map((w) => (
                     <p key={w} className="text-[9px] text-[var(--t-text-muted)] leading-snug">
                       ⚠ {WARNINGS[w] ?? w}
@@ -278,93 +371,122 @@ export function SimularInversionModal({ bonos, onClose }: Props) {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                {/* ══ IZQUIERDA: los datos del bono ══ */}
+              {/* ── EL RESULTADO, en grande: la fila que contesta la pregunta ── */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                <Dato
+                  label="TIR / TEA"
+                  valor={pctSigned(sim.metrics.TEA)}
+                  title="Tasa efectiva anual al precio simulado — el mismo motor que calcula la de la tabla."
+                />
+                <Dato
+                  label={`Invertís (${data?.moneda_precio ?? "—"})`}
+                  valor={fmt0(sim.importe)}
+                  sub={`${fmt0(sim.vn_nominal)} nominales a ${fmt2(sim.precio)}`}
+                />
+                <Dato
+                  label={`Cobrás (${data?.moneda_flujo ?? "—"})`}
+                  valor={fmt0(sim.total_a_cobrar)}
+                  sub={`${sim.n_pagos} pago${sim.n_pagos === 1 ? "" : "s"} · sin descontar`}
+                />
+                <Dato
+                  label="Ganancia"
+                  valor={sim.ganancia == null ? "—" : fmt0(sim.ganancia)}
+                  tono={sim.ganancia == null ? null : sim.ganancia >= 0 ? "pos" : "neg"}
+                  sub={sim.rendimiento_directo == null ? undefined : `${pctSigned(sim.rendimiento_directo)} directo`}
+                  title="Total a cobrar − importe (en la moneda de los flujos)."
+                />
+                <Dato
+                  label="Rend. al vto"
+                  valor={pctSigned(sim.rendimiento_al_vto)}
+                  sub={sim.dias_al_vto != null ? `${sim.dias_al_vto} días` : undefined}
+                  title="La TEA llevada al plazo del bono: (1+TEA)^(días/365) − 1."
+                />
+                <Dato
+                  label="Duration"
+                  valor={fmt2(sim.metrics.duration)}
+                  sub={sim.metrics.mod_duration != null ? `mod ${fmt2(sim.metrics.mod_duration)}` : undefined}
+                />
+              </div>
+
+              {/* ── RESULTADO detallado + FLUJO DE FONDOS ── */}
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-3 items-start">
                 <div className="flex flex-col gap-3 min-w-0">
-                  {/* resultado al precio simulado */}
-                  <div className="border border-[var(--t-accent)]/40 p-2">
-                    <div className="text-[10px] tracking-wide text-[var(--t-accent)] mb-2">
-                      RESULTADO AL PRECIO {fmt2(sim.precio)}
-                    </div>
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-x-3 gap-y-2">
-                      <Dato label="TIR / TEA" valor={<span className="text-[var(--t-accent)] font-semibold">{pct(sim.metrics.TEA)}</span>}
-                        tip="Tasa efectiva anual al precio simulado — el mismo motor que calcula la de la tabla." />
-                      <Dato label="TNA" valor={pct(sim.metrics.TNA, 1)} />
-                      <Dato label="TEM" valor={pct(sim.metrics.TEM)} />
-                      <Dato label="Duration" valor={fmt2(sim.metrics.duration)} />
-                      <Dato label="Mod dur" valor={fmt2(sim.metrics.mod_duration)} />
-                      <Dato label="Paridad" valor={fmt2(sim.metrics.paridad)} />
-                      <Dato label="Días al vto" valor={sim.dias_al_vto ?? "--"} />
-                      <Dato label="Rend. al vto" valor={pct(sim.rendimiento_al_vto)}
-                        tip="La TEA llevada al plazo del bono: (1+TEA)^(días/365) − 1." />
-                    </div>
-                  </div>
+                  <Panel titulo={`TASAS AL PRECIO ${fmt2(sim.precio)}`}>
+                    <Fila label="TIR / TEA" valor={<b className="text-[var(--t-accent)]">{pctSigned(sim.metrics.TEA)}</b>} />
+                    <Fila label="TNA" valor={pctSigned(sim.metrics.TNA, 1)} />
+                    <Fila label="TEM" valor={pctSigned(sim.metrics.TEM)} />
+                    <Fila label="Duration" valor={fmt2(sim.metrics.duration)} />
+                    <Fila label="Mod duration" valor={fmt2(sim.metrics.mod_duration)} />
+                    <Fila label="Paridad" valor={fmt2(sim.metrics.paridad)} />
+                    {data?.moneda_precio !== data?.moneda_flujo && sim.importe_en_moneda_flujo != null && (
+                      <Fila
+                        label={`Importe en ${data?.moneda_flujo}`}
+                        valor={fmt0(sim.importe_en_moneda_flujo)}
+                        tip="El importe pasado a la moneda de los flujos vía MEP live, para poder comparar."
+                      />
+                    )}
+                  </Panel>
 
-                  {/* la compra */}
-                  <div className="border border-[var(--t-border-2)] p-2">
-                    <div className="text-[10px] tracking-wide text-[var(--t-accent)] mb-2">LA COMPRA</div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-2">
-                      <Dato label={`Importe (${data?.moneda_precio ?? "--"})`} valor={fmt2(sim.importe, 0)} />
-                      <Dato label="Nominales (VN)" valor={fmt2(sim.vn_nominal, 0)}
-                        tip="importe × 100 / precio — cuántos nominales compra este importe." />
-                      <Dato label={`Total a cobrar (${data?.moneda_flujo ?? "--"})`}
-                        valor={<span className="font-semibold text-[var(--t-text)]">{fmt2(sim.total_a_cobrar, 0)}</span>}
-                        tip="Suma nominal de todos los pagos futuros, sin descontar. No es valor presente." />
-                      {sim.importe_en_moneda_flujo != null
-                        && data?.moneda_precio !== data?.moneda_flujo && (
-                        <Dato label={`Importe en ${data?.moneda_flujo}`} valor={fmt2(sim.importe_en_moneda_flujo, 0)}
-                          tip="El importe pasado a la moneda de los flujos vía MEP live, para poder comparar." />
-                      )}
-                      <Dato label="Ganancia" valor={
-                        sim.ganancia == null ? "--" : (
-                          <span className={sim.ganancia >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]"}>
-                            {fmt2(sim.ganancia, 0)}
-                          </span>
-                        )}
-                        tip="Total a cobrar − importe (en la moneda de los flujos)." />
-                      <Dato label="Rend. directo" valor={pct(sim.rendimiento_directo)}
-                        tip="Total a cobrar / importe − 1. Sin anualizar." />
-                    </div>
-                  </div>
-
-                  {/* ficha */}
-                  <div className="border border-[var(--t-border-2)] p-2">
-                    <div className="text-[10px] tracking-wide text-[var(--t-accent)] mb-2">FICHA</div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-2">
-                      <Dato label="Símbolo" valor={data?.instrumento || "--"} tip="El símbolo que se le manda a Primary" />
-                      <Dato label="Emisor" valor={ficha.emisor || "--"} />
-                      <Dato label="Tipo emisor" valor={ficha.emisor_tipo || "--"} />
-                      <Dato label="Tipo" valor={ficha.tipo || "--"} />
-                      <Dato label="Moneda" valor={ficha.moneda || "--"} />
-                      <Dato label="Ajuste"
-                        valor={ficha.ajuste_alt ? `${ficha.ajuste} + ${ficha.ajuste_alt}` : ficha.ajuste || "--"}
-                        tip={ficha.ajuste_alt ? "Bono DUAL: tiene dos patas de rendimiento" : undefined} />
-                      {ficha.ley && (
-                        <Dato label="Ley" valor={ficha.ley === "local" ? "Local (Bonar)" : "NY (Global)"} />
-                      )}
-                      <Dato label="Emisión" valor={ficha.fecha_emision ? fmtFechaCorta(ficha.fecha_emision) : "--"} />
-                      <Dato label="Vencimiento" valor={ficha.fecha_vencimiento ? fmtFechaCorta(ficha.fecha_vencimiento) : "--"} />
-                      <Dato label="Valor nominal" valor={fmt2(ficha.valor_nominal, 0)} />
-                      <Dato label="Cupón anual" valor={ficha.cupon_anual == null ? "--" : fmt2(ficha.cupon_anual, 4)} />
-                      {ficha.cer_emision != null && <Dato label="CER emisión" valor={fmt2(ficha.cer_emision, 4)} />}
-                      {ficha.flujo_vencimiento != null && (
-                        <Dato label="Pago final" valor={fmt2(ficha.flujo_vencimiento, 2)}
-                          tip="Pago al vencimiento por 100 VN (bullet)" />
-                      )}
-                    </div>
-                  </div>
+                  {/* CUÁNDO COBRO: el dato duro que respalda el gráfico */}
+                  {sim.flujos.length > 0 && (
+                    <Panel
+                      titulo="CUÁNDO COBRO"
+                      extra={<span className="text-[10px] text-white/80">{sim.n_pagos} pago{sim.n_pagos === 1 ? "" : "s"}</span>}
+                    >
+                      <div className="max-h-[220px] overflow-y-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr>
+                              <th className="!px-3 text-left">Fecha</th>
+                              <th className="!px-2 text-right">Amortización</th>
+                              <th className="!px-2 text-right">Interés</th>
+                              <th className="!px-3 text-right">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {sim.flujos.map((f) => (
+                              <tr key={f.fecha}>
+                                <td className="!px-3 text-left">{fmtFechaCorta(f.fecha)}</td>
+                                <td className="!px-2 text-right">{fmt0(f.amortizacion)}</td>
+                                <td className="!px-2 text-right">{fmt0(f.interes)}</td>
+                                <td className="!px-3 text-right font-medium">{fmt0(f.monto)}</td>
+                              </tr>
+                            ))}
+                            <tr className="border-t border-[var(--t-border-2)]">
+                              <td className="!px-3 text-left font-semibold text-[var(--t-text)]">TOTAL</td>
+                              <td className="!px-2" />
+                              <td className="!px-2" />
+                              <td className="!px-3 text-right font-semibold text-[var(--t-text)]">
+                                {fmt0(sim.total_a_cobrar)}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </Panel>
+                  )}
                 </div>
 
-                {/* ══ DERECHA: el mapa del flujo de fondos ══ */}
-                <div className="flex flex-col gap-3 min-w-0">
-                  <div className="border border-[var(--t-border-2)] p-2">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-[10px] tracking-wide text-[var(--t-accent)]">
-                        FLUJO DE FONDOS
+                {/* El mapa del flujo de fondos, con su LEYENDA: sin ella los dos
+                    colores apilados no se pueden leer. */}
+                <Panel
+                  titulo="FLUJO DE FONDOS"
+                  extra={
+                    <span className="text-[10px] text-white/80">
+                      {data?.moneda_flujo ?? ""} · {fmt0(sim.vn_nominal)} VN
+                      {sim.cer_proyectado ? " · CER proyectado" : ""}
+                    </span>
+                  }
+                >
+                  <div className="p-2">
+                    <div className="flex items-center gap-4 mb-1 px-1">
+                      <span className="flex items-center gap-1.5 text-[10px] text-[var(--t-text-dim)]">
+                        <span className="inline-block w-2.5 h-2.5" style={{ background: COLOR_AMORT }} />
+                        Amortización (te devuelven capital)
                       </span>
-                      <span className="text-[9px] text-[var(--t-text-muted)]">
-                        {data?.moneda_flujo ?? ""} · escalado a {fmt2(sim.vn_nominal, 0)} VN
-                        {sim.cer_proyectado ? " · CER proyectado" : ""}
+                      <span className="flex items-center gap-1.5 text-[10px] text-[var(--t-text-dim)]">
+                        <span className="inline-block w-2.5 h-2.5" style={{ background: COLOR_INTERES }} />
+                        Interés (la renta)
                       </span>
                     </div>
                     {chart.length === 0 ? (
@@ -372,9 +494,9 @@ export function SimularInversionModal({ bonos, onClose }: Props) {
                         No quedan pagos futuros cargados para este bono.
                       </p>
                     ) : (
-                      <div className="h-[260px]">
+                      <div className="h-[300px]">
                         <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={chart} margin={{ top: 8, right: 12, bottom: 28, left: 4 }}>
+                          <BarChart data={chart} margin={{ top: 8, right: 12, bottom: 28, left: 4 }} barCategoryGap="25%">
                             <XAxis
                               dataKey="fecha"
                               tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
@@ -403,63 +525,45 @@ export function SimularInversionModal({ bonos, onClose }: Props) {
                               labelStyle={{ color: "var(--t-text-dim)" }}
                               labelFormatter={(v) => fmtFechaCorta(String(v))}
                               formatter={(v, n) => [
-                                fmt2(Number(v), 0),
+                                fmt0(Number(v)),
                                 n === "amortizacion" ? "Amortización" : "Interés",
                               ]}
                             />
-                            {/* Apiladas, mismo criterio que la FICHA: la altura
-                                total es lo que entra ese día; el desglose
-                                distingue capital de renta. */}
-                            <Bar dataKey="amortizacion" stackId="f" fill="var(--t-accent)" isAnimationActive={false} />
-                            <Bar dataKey="interes" stackId="f" fill="#33ccaa" isAnimationActive={false} />
+                            {/* Apiladas: la altura total es lo que entra ese día;
+                                el desglose separa capital de renta. */}
+                            <Bar dataKey="amortizacion" stackId="f" fill={COLOR_AMORT} isAnimationActive={false} />
+                            <Bar dataKey="interes" stackId="f" fill={COLOR_INTERES} isAnimationActive={false} />
                           </BarChart>
                         </ResponsiveContainer>
                       </div>
                     )}
                   </div>
-
-                  {/* cronograma escalado: el dato duro que respalda el gráfico */}
-                  {sim.flujos.length > 0 && (
-                    <div className="border border-[var(--t-border-2)] p-2 min-h-0">
-                      <div className="text-[10px] tracking-wide text-[var(--t-accent)] mb-2">
-                        CUÁNDO COBRO
-                        <span className="ml-2 text-[var(--t-text-muted)]">{sim.n_pagos} pagos</span>
-                      </div>
-                      <div className="max-h-[280px] overflow-y-auto">
-                        <table className="w-full">
-                          <thead>
-                            <tr>
-                              <th className="!px-1 text-left">Fecha</th>
-                              <th className="!px-1 text-right">Amortización</th>
-                              <th className="!px-1 text-right">Interés</th>
-                              <th className="!px-1 text-right">Total</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {sim.flujos.map((f) => (
-                              <tr key={f.fecha}>
-                                <td className="!px-1 text-left">{fmtFechaCorta(f.fecha)}</td>
-                                <td className="!px-1 text-right">{fmt2(f.amortizacion, 0)}</td>
-                                <td className="!px-1 text-right">{fmt2(f.interes, 0)}</td>
-                                <td className="!px-1 text-right font-medium">{fmt2(f.monto, 0)}</td>
-                              </tr>
-                            ))}
-                            <tr className="border-t border-[var(--t-border-2)]">
-                              <td className="!px-1 text-left font-semibold text-[var(--t-text)]">TOTAL</td>
-                              <td className="!px-1" />
-                              <td className="!px-1" />
-                              <td className="!px-1 text-right font-semibold text-[var(--t-text)]">
-                                {fmt2(sim.total_a_cobrar, 0)}
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                </Panel>
               </div>
-            </>
+
+              {/* ── FICHA: al pie, a todo lo ancho, en filas verticales ── */}
+              <Panel
+                titulo={`FICHA · ${data?.ticker ?? ""}`}
+                extra={data?.rama ? (
+                  <span
+                    className="text-[10px] text-white/80"
+                    title="Rama de cálculo del motor: la fórmula con la que se valúa este bono."
+                  >
+                    {data.rama.replace(/_/g, " ").toUpperCase()}
+                  </span>
+                ) : undefined}
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                  {columnasFicha.map((col, i) => (
+                    <div key={i} className="lg:border-r last:border-r-0 border-[var(--t-border)]">
+                      {col.map((f) => (
+                        <Fila key={f.label} label={f.label} valor={f.valor} tip={f.tip} />
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </Panel>
+            </div>
           )}
         </div>
       </div>
