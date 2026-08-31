@@ -88,12 +88,42 @@ function cargarImagen(src: string): Promise<HTMLImageElement | null> {
   });
 }
 
+/** Parte un texto en líneas que entran en `max`. Sin esto el pie se corta a la
+ *  mitad de una palabra y la advertencia deja de decir lo que decía. */
+function enLineas(ctx: CanvasRenderingContext2D, texto: string, max: number): string[] {
+  const out: string[] = [];
+  let linea = "";
+  for (const palabra of texto.split(/\s+/)) {
+    const prueba = linea ? `${linea} ${palabra}` : palabra;
+    if (linea && ctx.measureText(prueba).width > max) {
+      out.push(linea);
+      linea = palabra;
+    } else {
+      linea = prueba;
+    }
+  }
+  if (linea) out.push(linea);
+  return out;
+}
+
 export async function graficoComoImagen(o: Opciones): Promise<Blob | null> {
   const src = o.svg;
   const box = src.getBoundingClientRect();
-  const W = Math.max(560, Math.round(box.width));
   const HG = Math.max(200, Math.round(box.height));
   const mapa = tokensClaros();
+
+  // El ancho lo decide el MÁS ANCHO entre el gráfico y la barra de título. Sin
+  // esto, un rango de fechas largo se sale del lienzo y se pisa con lo que haya
+  // a la derecha — pasó con "31/08/2026" encima de la firma.
+  const medidor = document.createElement("canvas").getContext("2d");
+  if (!medidor) return null;
+  const tit = o.titulo.toUpperCase();
+  medidor.font = `bold 14px ${MONO}`;
+  const anchoTit = medidor.measureText(tit).width;
+  medidor.font = `11px ${MONO}`;
+  const anchoFecha = medidor.measureText(o.fecha).width;
+  const anchoBarra = PAD + 90 + anchoTit + 14 + anchoFecha + PAD;
+  const W = Math.max(560, Math.round(box.width), Math.ceil(anchoBarra));
 
   const clone = src.cloneNode(true) as SVGSVGElement;
   clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
@@ -113,7 +143,11 @@ export async function graficoComoImagen(o: Opciones): Promise<Blob | null> {
 
   const leyenda = o.leyenda ?? [];
   const H_LEY = leyenda.length ? 26 : 0;
-  const H_PIE = (o.pie?.length ?? 0) * 14;
+  // El pie se mide ANTES de reservar el alto: una advertencia larga ocupa varias
+  // líneas y si el lienzo no las contempla, se dibuja fuera y no se ve.
+  medidor.font = `10px ${MONO}`;
+  const pie = (o.pie ?? []).flatMap((t) => enLineas(medidor, t, W - PAD * 2));
+  const H_PIE = pie.length * 14;
   const H = BARRA_H + PAD + HG + H_LEY + (H_PIE ? H_PIE + 10 : 0) + PAD;
 
   const canvas = document.createElement("canvas");
@@ -145,15 +179,13 @@ export async function graficoComoImagen(o: Opciones): Promise<Blob | null> {
   ctx.textAlign = "left";
   ctx.fillStyle = "#ffffff";
   ctx.font = `bold 14px ${MONO}`;
-  const tit = o.titulo.toUpperCase();
   ctx.fillText(tit, x, BARRA_H / 2);
   x += ctx.measureText(tit).width + 14;
   ctx.fillStyle = "rgba(255,255,255,.85)";
   ctx.font = `11px ${MONO}`;
   ctx.fillText(o.fecha, x, BARRA_H / 2);
-  ctx.textAlign = "right";
-  ctx.fillStyle = "rgba(255,255,255,.7)";
-  ctx.fillText("ACAQUANT", W - PAD, BARRA_H / 2);
+  // NO va una firma a la derecha: el logo de la izquierda ya dice de quién es, y
+  // una firma más en la misma barra es justo lo que se pisó con la fecha.
 
   // ── El gráfico ────────────────────────────────────────────────────────────
   ctx.drawImage(grafico, 0, BARRA_H + PAD, W, HG);
@@ -191,12 +223,12 @@ export async function graficoComoImagen(o: Opciones): Promise<Blob | null> {
   }
 
   // ── El pie ────────────────────────────────────────────────────────────────
-  if (o.pie?.length) {
+  if (pie.length) {
     y += 10;
     ctx.font = `10px ${MONO}`;
     ctx.fillStyle = TENUE;
     ctx.textAlign = "left";
-    for (const linea of o.pie) {
+    for (const linea of pie) {
       ctx.fillText(linea, PAD, y);
       y += 14;
     }

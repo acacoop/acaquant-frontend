@@ -122,10 +122,12 @@ export function AltaCuentasView(
   const filas = d?.filas ?? [];
 
   const copiarImagen = async () => {
-    // `.recharts-surface` y no un `svg` a secas: la LEYENDA de recharts también
-    // dibuja `<svg>` (los iconitos), y agarrar el primero que aparezca es cómo se
-    // termina copiando un cuadradito de 14px en vez del gráfico.
-    const svg = graf.current?.querySelector("svg.recharts-surface");
+    // ⚠️ `.recharts-wrapper > svg` — el hijo DIRECTO del wrapper. Los iconitos de
+    // la leyenda de recharts también son `<svg>` **y también llevan la clase
+    // `recharts-surface`**, así que ni `svg` ni `svg.recharts-surface` alcanzan:
+    // con cualquiera de los dos el primero que matchea puede ser el icono, y la
+    // imagen sale con un cuadradito de 14px estirado a todo el ancho (pasó).
+    const svg = graf.current?.querySelector(".recharts-wrapper > svg");
     if (!svg) return;
     setCopia("…");
     // Import diferido: el módulo solo hace falta al apretar el botón, y así no
