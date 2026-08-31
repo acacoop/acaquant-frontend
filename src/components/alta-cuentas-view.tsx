@@ -122,13 +122,29 @@ export function AltaCuentasView(
   const filas = d?.filas ?? [];
 
   const copiarImagen = async () => {
-    // ⚠️ `.recharts-wrapper > svg` — el hijo DIRECTO del wrapper. Los iconitos de
-    // la leyenda de recharts también son `<svg>` **y también llevan la clase
-    // `recharts-surface`**, así que ni `svg` ni `svg.recharts-surface` alcanzan:
-    // con cualquiera de los dos el primero que matchea puede ser el icono, y la
-    // imagen sale con un cuadradito de 14px estirado a todo el ancho (pasó).
-    const svg = graf.current?.querySelector(".recharts-wrapper > svg");
-    if (!svg) return;
+    // ⚠️ El SVG del gráfico se elige POR TAMAÑO, no por selector. Los dos intentos
+    // anteriores fallaron y por motivos distintos, que es justo el punto:
+    //   · `svg` a secas y `svg.recharts-surface` agarraban el ICONO de la leyenda
+    //     (también es un <svg> y también lleva esa clase) → salió un anillo rojo
+    //     de 14px estirado a todo el ancho;
+    //   · `.recharts-wrapper > svg` no matcheó NADA en recharts 3.x, que cambió su
+    //     estructura → el botón no hacía absolutamente nada.
+    // El área sí es estable entre versiones: el gráfico mide cientos de px y los
+    // iconos 14. Elegir el más grande no depende de cómo recharts arme su DOM.
+    const svgs = Array.from(graf.current?.querySelectorAll("svg") ?? []);
+    const svg = svgs.reduce<SVGSVGElement | null>((mejor, el) => {
+      const r = el.getBoundingClientRect();
+      const area = r.width * r.height;
+      if (area < 2500) return mejor;   // 50×50: un icono de leyenda nunca llega
+      const m = mejor?.getBoundingClientRect();
+      return !m || area > m.width * m.height ? (el as SVGSVGElement) : mejor;
+    }, null);
+    // Nunca salir en silencio: "no pasó nada" es indistinguible de un botón roto.
+    if (!svg) {
+      setCopia("no se pudo");
+      setTimeout(() => setCopia(null), 2500);
+      return;
+    }
     setCopia("…");
     // Import diferido: el módulo solo hace falta al apretar el botón, y así no
     // viaja en el bundle de la vista.

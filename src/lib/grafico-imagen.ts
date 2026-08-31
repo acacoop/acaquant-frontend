@@ -109,6 +109,7 @@ function enLineas(ctx: CanvasRenderingContext2D, texto: string, max: number): st
 export async function graficoComoImagen(o: Opciones): Promise<Blob | null> {
   const src = o.svg;
   const box = src.getBoundingClientRect();
+  const WG = Math.max(320, Math.round(box.width));
   const HG = Math.max(200, Math.round(box.height));
   const mapa = tokensClaros();
 
@@ -123,13 +124,16 @@ export async function graficoComoImagen(o: Opciones): Promise<Blob | null> {
   medidor.font = `11px ${MONO}`;
   const anchoFecha = medidor.measureText(o.fecha).width;
   const anchoBarra = PAD + 90 + anchoTit + 14 + anchoFecha + PAD;
-  const W = Math.max(560, Math.round(box.width), Math.ceil(anchoBarra));
+  const W = Math.max(560, WG, Math.ceil(anchoBarra));
 
+  // El gráfico se dibuja a SU ancho natural y centrado, no estirado hasta `W`:
+  // cuando el header es más largo que el gráfico, `W` crece, y escalar el SVG a ese
+  // ancho deformaría las barras (más anchas y más separadas que en pantalla).
   const clone = src.cloneNode(true) as SVGSVGElement;
   clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-  clone.setAttribute("width", String(W));
+  clone.setAttribute("width", String(WG));
   clone.setAttribute("height", String(HG));
-  if (!clone.getAttribute("viewBox")) clone.setAttribute("viewBox", `0 0 ${W} ${HG}`);
+  if (!clone.getAttribute("viewBox")) clone.setAttribute("viewBox", `0 0 ${WG} ${HG}`);
   // Fuera del documento no hay CSS: sin esto los ticks salen en la serif por
   // default del navegador y la imagen no se parece a la pantalla.
   const st = document.createElementNS("http://www.w3.org/2000/svg", "style");
@@ -192,7 +196,7 @@ export async function graficoComoImagen(o: Opciones): Promise<Blob | null> {
   // una firma más en la misma barra es justo lo que se pisó con la fecha.
 
   // ── El gráfico ────────────────────────────────────────────────────────────
-  ctx.drawImage(grafico, 0, BARRA_H + PAD, W, HG);
+  ctx.drawImage(grafico, Math.round((W - WG) / 2), BARRA_H + PAD, WG, HG);
 
   // ── La leyenda (HTML en recharts → se dibuja acá o no existe) ─────────────
   let y = BARRA_H + PAD + HG;
