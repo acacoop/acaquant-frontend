@@ -21,7 +21,8 @@ type Card = { id: string; ticker: string };
 // 4 cards (refactor 2026-09-01): la mitad superior izquierda es SOLO cards, y
 // con 4 entran las 7 filas de niveles de cada una sin scrollear.
 const SLOTS = 4;
-// Charts de la derecha: dos, y se llenan por ORDEN de elección (ver `elegir`).
+// Charts de la derecha: dos. A cuál va cada activo lo decide el USUARIO con los
+// botones 1 / 2 de la card (ver `mandarAlChart`) — nada se auto-asigna.
 const CHARTS = 2;
 
 const DEFAULT_CARDS: Card[] = [
@@ -147,8 +148,8 @@ function valorNivel(p: number, last: number | null, mode: PivotMode): string {
  * La pantalla se parte 50 / 50:
  *   IZQUIERDA  → arriba las 4 cards de pivots; abajo el RADAR (una sola tabla
  *                con tabs MOVERS ±4% / VOLUMENES ACCIONES / PIVOTES).
- *   DERECHA    → DOS charts LIVE que siguen a las cards, llenándose por ORDEN
- *                de elección (ver `elegir`).
+ *   DERECHA    → DOS charts LIVE. A cuál va cada activo lo elegís vos con los
+ *                botones 1 / 2 de cada card (ver `mandarAlChart`).
  *
  * Se fueron en el mismo refactor: la tab ESTRATEGIA (borrada del backend
  * entero), el LIBRO (order book — vive en OPERAR, acá no aportaba), el chart
@@ -169,9 +170,6 @@ export function TradingView() {
     const conTicker = loadCards().map((c) => c.ticker).filter(Boolean);
     return Array.from({ length: CHARTS }, (_, i) => conTicker[i] ?? "");
   });
-  // Cuando los dos charts están ocupados, el siguiente pisa por turno (round-robin):
-  // así elegir un tercer papel no obliga a decidir cuál de los dos sacar.
-  const [turno, setTurno] = useState(0);
 
   useEffect(() => {
     saveCards(cards);
@@ -191,23 +189,30 @@ export function TradingView() {
   }
 
   /**
-   * Manda un ticker a los charts. Regla pedida: va al PRIMER chart libre; si los
-   * dos están ocupados, pisa por turno. Un ticker que ya está dibujado no se
-   * duplica (y no mueve el turno).
+   * Manda un ticker AL CHART QUE EL USUARIO ELIGIÓ (botones 1 / 2 de la card).
+   *
+   * ⚠️ Esto reemplaza al auto-asignado (primer libre → round-robin) que tenía el
+   * primer refactor, y el motivo es el que reportó la mesa: el click estaba en
+   * la card ENTERA, así que tocar cualquier lado —incluso para leerla— reasignaba
+   * un chart, y con los dos ocupados el round-robin pisaba justo el que estabas
+   * mirando. Una pantalla de trading no puede cambiar sola lo que mostrás.
+   *
+   * Ahora: NADA toca los charts salvo estos dos botones.
+   *   · click en el número → manda ESE activo a ESE chart.
+   *   · click en el número que ya está prendido → lo saca (libera el chart).
+   *   · si el activo ya estaba en el OTRO chart, se lo saca de ahí — el mismo
+   *     papel dos veces al lado sería gastar media pantalla en nada.
    */
-  const elegir = useCallback(
-    (ticker: string) => {
-      const up = (ticker || "").toUpperCase();
-      if (!up || charts.includes(up)) return;
-      const libre = charts.findIndex((t) => !t);
-      const idx = libre >= 0 ? libre : turno;
-      setCharts(charts.map((t, i) => (i === idx ? up : t)));
-      // El turno solo avanza cuando hubo que PISAR: mientras haya un chart
-      // libre, elegir no consume turno.
-      if (libre < 0) setTurno((idx + 1) % CHARTS);
-    },
-    [charts, turno],
-  );
+  const mandarAlChart = useCallback((idx: number, ticker: string) => {
+    const up = (ticker || "").toUpperCase();
+    if (!up) return;
+    setCharts((prev) =>
+      prev.map((t, i) => {
+        if (i === idx) return t === up ? "" : up;   // toggle en el chart elegido
+        return t === up ? "" : t;                   // sin duplicar en el otro
+      }),
+    );
+  }, []);
 
   // catálogo de CEDEARs para el selector (1 vez)
   useEffect(() => {
@@ -264,15 +269,18 @@ export function TradingView() {
     const up = ticker.toUpperCase();
     const previo = cards.find((c) => c.id === id)?.ticker ?? "";
     setCards((cs) => cs.map((c) => (c.id === id ? { ...c, ticker: up } : c)));
+    // Único caso en que cambiar una card toca un chart: la card YA estaba
+    // graficada. El chart sigue a la card (si no, quedaría dibujando un papel
+    // que la pantalla ya no muestra en ningún lado). Si no estaba graficada, no
+    // pasa nada: el chart lo elegís vos con los botones 1 / 2.
     if (previo && charts.includes(previo)) {
       setCharts((prev) => prev.map((t) => (t === previo ? up : t)));
-      return;
     }
-    elegir(up);
   }
 
   // Click en el radar → carga el ticker en una card (la primera vacía, o la
-  // última si están todas ocupadas) y lo manda a los charts.
+  // última si están todas ocupadas). NO toca los charts: el radar es para
+  // traer un papel a la vista, no para reemplazar lo que estás mirando.
   function loadTicker(ticker: string) {
     const up = ticker.toUpperCase();
     setCards((cs) => {
@@ -281,7 +289,6 @@ export function TradingView() {
       const idx = emptyIdx >= 0 ? emptyIdx : cs.length - 1;
       return cs.map((c, i) => (i === idx ? { ...c, ticker: up } : c));
     });
-    elegir(up);
   }
 
   return (
@@ -329,7 +336,7 @@ export function TradingView() {
                 chartIdx={c.ticker ? charts.indexOf(c.ticker) : -1}
                 override={c.ticker ? overrides[c.ticker] : undefined}
                 onPick={(tk) => setTicker(c.id, tk)}
-                onSelect={() => c.ticker && elegir(c.ticker)}
+                onChart={(i) => c.ticker && mandarAlChart(i, c.ticker)}
                 onEdit={(ov) => c.ticker && setOverride(c.ticker, ov)}
                 onResetEdit={() => c.ticker && setOverride(c.ticker, null)}
               />
@@ -413,7 +420,7 @@ function PivotCard({
   chartIdx,
   override,
   onPick,
-  onSelect,
+  onChart,
   onEdit,
   onResetEdit,
 }: {
@@ -425,7 +432,8 @@ function PivotCard({
   chartIdx: number;
   override: Ov | undefined;
   onPick: (ticker: string) => void;
-  onSelect: () => void;
+  /** Mandar esta card al chart `i` (o sacarla, si ya está ahí). */
+  onChart: (i: number) => void;
   onEdit: (ov: Ov) => void;
   onResetEdit: () => void;
 }) {
@@ -450,24 +458,43 @@ function PivotCard({
   const piv =
     Number.isFinite(h) && Number.isFinite(l) && Number.isFinite(c) ? calcPivots(h, l, c) : null;
 
+  // ⚠️ La card NO es clickeable. Antes un onMouseDown en el contenedor mandaba el
+  // activo a un chart, así que cualquier click —leerla, seleccionar un número
+  // para copiarlo, errarle a un input— te cambiaba lo que estabas mirando. Lo
+  // único que toca los charts son los botones 1 / 2 de acá abajo.
   return (
     <div
-      onMouseDown={onSelect}
       className={
-        "bg-[var(--t-panel)] flex flex-col min-w-0 min-h-0 overflow-hidden border cursor-pointer " +
+        "bg-[var(--t-panel)] flex flex-col min-w-0 min-h-0 overflow-hidden border " +
         (enChart ? "border-[var(--t-accent)]" : "border-[var(--t-border)]")
       }
     >
       {/* header: selector + last */}
       <div className="flex items-center gap-1 px-1.5 py-0.5 border-b border-[var(--t-border)] shrink-0">
         <CedearPicker value={ticker} universo={universo} onPick={onPick} />
-        {enChart && (
-          <span
-            className="text-[8px] font-bold text-[var(--t-accent)] border border-[var(--t-accent)] px-1 leading-tight"
-            title={`Se está graficando en el chart ${chartIdx + 1}`}
-          >
-            {chartIdx + 1}
-          </span>
+        {ticker && (
+          <div className="flex items-center gap-[2px]">
+            {Array.from({ length: CHARTS }, (_, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => onChart(i)}
+                title={
+                  chartIdx === i
+                    ? `Está en el chart ${i + 1} — click para sacarlo`
+                    : `Mandar ${ticker} al chart ${i + 1}`
+                }
+                className={
+                  "w-[13px] text-[8px] font-bold leading-[13px] text-center border transition-colors " +
+                  (chartIdx === i
+                    ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+                    : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]")
+                }
+              >
+                {i + 1}
+              </button>
+            ))}
+          </div>
         )}
         {override && (
           <button

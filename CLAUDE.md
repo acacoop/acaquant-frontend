@@ -191,18 +191,28 @@ tiene sub-columnas:
 - **Izquierda**: arriba las **4** cards de pivots (2×2, con máx/mín/cierre
   editables); abajo el **RADAR**, que es UNA sola tabla con tres tabs embebidas en
   su barra de herramientas — **MOVERS ±4% · VOLUMENES ACCIONES · PIVOTES**.
-- **Derecha**: **DOS charts LIVE**. Se llenan **por orden de elección**: el activo
-  que elegís va al primer chart libre y, con los dos ocupados, pisa por turno
-  (round-robin). Cada chart tiene ✕ para liberarlo.
+- **Derecha**: **DOS charts LIVE**. Cada card tiene los botones **1** y **2** en su
+  cabecera: vos decidís a qué chart mandarla. Click en el número prendido = lo
+  saca. Cada chart además tiene ✕ para liberarlo.
 
-Tres cosas que no son obvias y ya costaron un bug cada una en el diseño:
+**⚠️ NADA auto-asigna un chart, y es la corrección de un error real.** La primera
+versión llenaba "por orden de elección" (primer chart libre → round-robin) con el
+click en la card ENTERA. Resultado, en palabras de la mesa: *«cada click que hacés
+hace algo y te rompe todo»* — tocabas una card para leerla y te reemplazaba el
+chart que estabas mirando, porque con los dos ocupados el round-robin pisa a
+alguien sí o sí. **Una pantalla de trading no puede cambiar sola lo que mostrás.**
+Hoy los charts los tocan SOLO esos botones (y el ✕). El click en el radar carga
+el papel en una card y nada más.
+
+Tres cosas más que no son obvias:
 
 1. **El poll de `/pivots` pide las cards Y los tickers de los dos charts.** Un
    chart puede estar dibujando un papel que ya no está en ninguna card; si el poll
    siguiera solo a las cards, ese chart perdería niveles y VWAP en silencio.
-2. **Cambiar el activo de una card que estaba graficada reemplaza EN ESE chart.**
-   Si no, el chart seguiría mostrando algo que la pantalla ya no tiene en ninguna
-   card.
+2. **Cambiar el activo de una card que estaba graficada reemplaza EN ESE chart** —
+   único caso en que una card mueve un chart sola, y no es sorpresa: cambiaste esa
+   card a propósito. Si no, el chart seguiría mostrando algo que la pantalla ya no
+   tiene en ninguna card.
 3. **La key de localStorage subió a `-v3`** al bajar de 6 cards a 4: con la `-v2`
    un usuario viejo se traía 6 y perdía dos sin enterarse.
 
