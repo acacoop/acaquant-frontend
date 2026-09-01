@@ -297,42 +297,6 @@ export function ContabilidadView() {
             </tfoot>
           </table>
         )}
-        {!loading && !error && vigente && vigente.altas.length > 0 && (
-          <div className="mt-6 px-0">
-            <div className="px-3 py-1.5 border-y border-[var(--t-border)] bg-[var(--t-panel)] text-[11px] uppercase tracking-wide text-[var(--t-text-dim)]">
-              Altas del período — comprado para dejar en cartera: su resultado entra al mes que viene (no suma a los totales)
-            </div>
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="text-left">
-                  <th className={TH}>Título</th>
-                  <th className={`${TH} text-right`}>Nominales comprados</th>
-                  <th className={`${TH} text-right`}>Invertido</th>
-                  <th className={`${TH} text-right`}>Valuación al cierre</th>
-                  <th className={TH} />
-                </tr>
-              </thead>
-              <tbody>
-                {vigente.altas.map((t) => (
-                  <tr key={t.key} onClick={() => setDetalleKey(t)}
-                    className="border-t border-[var(--t-border)]/50 hover:bg-[var(--t-accent)]/5 cursor-pointer">
-                    <td className={`${TD} font-medium`}>
-                      {t.titulo}
-                      {!t.cuadra && (
-                        <span className="ml-1 text-[var(--t-text)]"
-                          title={`Nominales sin explicar por boletos: ${fmtNom(t.cuadre_nominales)}`}>⚠</span>
-                      )}
-                    </td>
-                    <td className={`${TD} text-right`}>{fmtNom(t.qty_fin)}</td>
-                    <td className={`${TD} text-right`}>{fmt$(t.compras)}</td>
-                    <td className={`${TD} text-right`}>{fmt$(t.v_fin)}</td>
-                    <td className={`${TD} text-[var(--t-text-dim)]`}>{t.n_boletos} boletos</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
 
       {detalleKey && vigente && (
@@ -368,28 +332,15 @@ function DetalleModal({ cuenta, mes, fila, onClose }: {
   cuenta: string; mes: string; fila: TituloRow; onClose: () => void;
 }) {
   const [boletos, setBoletos] = useState<Boleto[] | null>(null);
-  const [sinCosto, setSinCosto] = useState(0);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    fetchJson<{ boletos: Boleto[]; sin_costo: number }>(
+    fetchJson<{ boletos: Boleto[] }>(
       `/api/back-office/contabilidad/detalle?id_cuenta=${encodeURIComponent(cuenta)}&mes=${mes}&key=${encodeURIComponent(fila.key)}`)
-      .then((r) => { setBoletos(r.boletos); setSinCosto(r.sin_costo ?? 0); })
+      .then((r) => setBoletos(r.boletos))
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, [cuenta, mes, fila.key]);
   return (
-    <Modal onClose={onClose} titulo={`${fila.titulo} · ${mes}`}>
-      <div className="mb-2 text-[var(--t-text-dim)]">
-        {fila.unidades.join(" · ")}
-        <br />
-        Nominales {fmtNom(fila.qty_ini)} → {fmtNom(fila.qty_fin)} · precio implícito{" "}
-        {fila.px_ini != null ? fila.px_ini.toLocaleString("es-AR", { maximumFractionDigits: 4 }) : "—"} →{" "}
-        {fila.px_fin != null ? fila.px_fin.toLocaleString("es-AR", { maximumFractionDigits: 4 }) : "—"}
-        {!fila.cuadra && (
-          <span className="text-[var(--t-text)]">
-            {" "}· ⚠ cuadre de nominales: {fmtNom(fila.cuadre_nominales)} sin explicar por boletos
-          </span>
-        )}
-      </div>
+    <Modal onClose={onClose} titulo={`${fila.titulo} · ${mes}`} ancho="max-w-[1500px]">
       {error && <div className="text-[var(--t-neg,#f87171)]">Error: {error}</div>}
       {!boletos && !error && <div className="text-[var(--t-text-dim)]">Cargando…</div>}
       {boletos && !boletos.length && (
@@ -397,17 +348,6 @@ function DetalleModal({ cuenta, mes, fila, onClose }: {
       )}
       {boletos && boletos.length > 0 && (
         <>
-          <div className="mb-2 text-[var(--t-text-dim)]">
-            Movimientos del mes, arrancando de la POSICIÓN INICIAL (nominales y valuación del
-            cierre anterior, que entra como primer lote). PNL ACUM. = realizado por costeo FIFO
-            + rentas — vender todo muestra venta − valuación inicial, la intermediación de la fila.
-            {sinCosto > 0 && (
-              <span className="text-[var(--t-text)]">
-                {" "}⚠ {sinCosto} venta{sinCosto > 1 ? "s" : ""} sin costo conocido (posición anterior
-                al primer boleto): el acumulado es parcial.
-              </span>
-            )}
-          </div>
           <table className="w-full border-collapse">
             <thead>
               <tr className="text-left">
@@ -513,8 +453,8 @@ function GestionarModal({ cuentas, onClose, onCambio }: {
   );
 }
 
-function Modal({ titulo, children, onClose }: {
-  titulo: string; children: React.ReactNode; onClose: () => void;
+function Modal({ titulo, children, onClose, ancho = "max-w-4xl" }: {
+  titulo: string; children: React.ReactNode; onClose: () => void; ancho?: string;
 }) {
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -523,7 +463,7 @@ function Modal({ titulo, children, onClose }: {
   }, [onClose]);
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-6" onClick={onClose}>
-      <div className="bg-[var(--t-panel)] border border-[var(--t-border)] max-w-4xl w-full max-h-[80vh] overflow-auto p-4 text-xs"
+      <div className={`bg-[var(--t-panel)] border border-[var(--t-border)] ${ancho} w-full max-h-[85vh] overflow-auto p-4 text-xs`}
         onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center mb-2">
           <span className="text-sm font-semibold uppercase tracking-wide">{titulo}</span>
