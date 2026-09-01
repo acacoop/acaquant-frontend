@@ -36,6 +36,10 @@ export interface PivotRadarRow {
   nivel: string; // "PP" | "R1".."R3" | "S1".."S3"
   nivel_precio: number;
   dist_pct: number; // signed: + = last por encima del nivel
+  // Plata operada hoy por el papel (`total_money` del snapshot, NO el nominal).
+  // Es el MISMO campo que ranquea la tab VOLUMENES — lo manda el backend en la
+  // misma fila, acá no se suma ni se cruza nada. null = no operó.
+  cash?: number | null;
 }
 
 export interface UniversoItem {
