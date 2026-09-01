@@ -40,6 +40,13 @@ type TituloRow = {
   // H×(D/C) · J monto fin = H×(F/E) · K rxt = J − I · L variación = K/I.
   no_entran_rxt: number; tenencia_mantenida: number;
   monto_rxt_ini: number; monto_rxt_fin: number; variacion_rxt: number | null;
+  // La tenencia tiene DOS partes: lo mantenido (la cadena de arriba) y —si la
+  // posición creció— lo comprado y retenido, a valor de cierre menos su costo.
+  rxt_mantenida: number; rxt_nueva: number;
+  qty_entraron: number; qty_salieron: number;
+  costo_nuevo: number; costo_salida: number;
+  // Los manda el backend YA calculados: la vista no deriva ni un número.
+  valor_nuevo: number; neto_boletos: number;
   rxt: number; intermediacion: number; total: number;
   estado: "alta" | "baja" | "sin_operar" | "operado";
   n_boletos: number; cuadre_nominales: number; cuadra: boolean;
@@ -313,11 +320,24 @@ export function ContabilidadView() {
                   <td className={TD}>{t.compras ? fmt$(t.compras) : "—"}</td>
                   <td className={`${TD} ${SEP}`}>{t.ventas ? fmt$(t.ventas) : "—"}</td>
                   <td className={`${TD} ${neg(t.rxt)}`}
-                    title={`Misma tenencia mantenida ${fmtNom(t.tenencia_mantenida)} · monto ${mmaaDe(vigente.cierre_ini.fecha_objetivo)} ${fmt$(t.monto_rxt_ini)} → monto ${mmaaDe(vigente.cierre_fin.fecha_objetivo)} ${fmt$(t.monto_rxt_fin)} · RxT = la diferencia`}>
+                    title={[
+                      `MANTENIDO ${fmtNom(t.tenencia_mantenida)}: ${fmt$(t.monto_rxt_ini)} → ${fmt$(t.monto_rxt_fin)} = ${fmt$(t.rxt_mantenida)}`,
+                      t.qty_entraron
+                        ? `NUEVO ${fmtNom(t.qty_entraron)}: vale ${fmt$(t.valor_nuevo)} y costó ${fmt$(t.costo_nuevo)} = ${fmt$(t.rxt_nueva)}`
+                        : "",
+                      `TENENCIA = ${fmt$(t.rxt)}`,
+                    ].filter(Boolean).join(" · ")}>
                     {fmt$(t.rxt)}
                   </td>
                   <td className={`${TD} ${neg(t.variacion_rxt ?? 0)}`}>{fmtPct(t.variacion_rxt)}</td>
-                  <td className={`${TD} ${neg(t.intermediacion)}`}>{fmt$(t.intermediacion)}</td>
+                  <td className={`${TD} ${neg(t.intermediacion)}`}
+                    title={[
+                      `ventas − compras = ${fmt$(t.neto_boletos)}`,
+                      t.costo_salida ? `menos lo que SALIÓ (${fmtNom(t.qty_salieron)} a valor del cierre anterior) = ${fmt$(t.costo_salida)}` : "",
+                      t.costo_nuevo ? `sin el costo de lo que QUEDÓ en cartera (se lo lleva la tenencia) = ${fmt$(t.costo_nuevo)}` : "",
+                    ].filter(Boolean).join(" · ")}>
+                    {fmt$(t.intermediacion)}
+                  </td>
                   <td className={`${TD} font-medium ${neg(t.total)}`}>{fmt$(t.total)}</td>
                   <td className={TD}><Estado t={t} /></td>
                 </tr>
