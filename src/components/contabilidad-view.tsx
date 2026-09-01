@@ -73,9 +73,11 @@ const TD = "px-2 py-1 text-center whitespace-nowrap tabular-nums";
 // TÍTULO: a la izquierda y encogida al contenido (`w-px` en una tabla
 // `w-full`), así el ancho sobrante se lo reparten los números.
 const TH_TIT = "px-2 py-1 text-left w-px text-[10px] uppercase tracking-wide text-[var(--t-text-dim)] font-normal whitespace-nowrap";
-const TD_TIT = "px-2 py-1 text-left w-px whitespace-nowrap";
+const TD_TIT = "px-2 py-1 text-left w-px";
+/** El título largo se corta acá y el completo va al tooltip. */
+const TIT_MAX = "max-w-[13rem] truncate min-w-0";
 /** Cierra un grupo de columnas (nominales · valuación · compras+ventas). */
-const SEP = "border-r border-[var(--t-border)]";
+const SEP = "border-r border-[var(--t-border-2)]";
 const ACUM = "bg-[var(--t-accent)]/10";
 const BTN = "text-[11px] uppercase tracking-wide px-2 py-1 border border-[var(--t-border)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]";
 
@@ -280,7 +282,7 @@ export function ContabilidadView() {
           <table className="w-full border-collapse">
             <thead className="sticky top-0 bg-[var(--t-panel)]">
               <tr>
-                <th className={TH_TIT}>Título</th>
+                <th className={`${TH_TIT} ${SEP}`}>Título</th>
                 <th className={TH}>Nominales {mmaaPrevio(vigente.mes)}</th>
                 <th className={TH}>Nominales {mmaa(vigente.mes)}</th>
                 <th className={TH}>No entran en RxT</th>
@@ -300,12 +302,14 @@ export function ContabilidadView() {
               {vigente.titulos.map((t) => (
                 <tr key={t.key} onClick={() => setDetalleKey(t)}
                   className="border-t border-[var(--t-border)]/50 hover:bg-[var(--t-accent)]/5 cursor-pointer">
-                  <td className={`${TD_TIT} font-medium`}>
-                    {t.titulo}
-                    {!t.cuadra && (
-                      <span className="ml-1 text-[var(--t-text)]"
-                        title={`Nominales sin explicar por boletos: ${fmtNom(t.cuadre_nominales)} (¿falta boleto / amortización / canje?)`}>⚠</span>
-                    )}
+                  <td className={`${TD_TIT} ${SEP} font-medium`}>
+                    <span className="flex items-center gap-1">
+                      <span className={TIT_MAX} title={t.titulo}>{t.titulo}</span>
+                      {!t.cuadra && (
+                        <span className="shrink-0 text-[var(--t-text)]"
+                          title={`Nominales sin explicar por boletos: ${fmtNom(t.cuadre_nominales)} (¿falta boleto / amortización / canje?)`}>⚠</span>
+                      )}
+                    </span>
                   </td>
                   <td className={TD}>{fmtNom(t.qty_ini)}</td>
                   <td className={TD}>{fmtNom(t.qty_fin)}</td>
@@ -333,7 +337,7 @@ export function ContabilidadView() {
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-[var(--t-border)] font-medium bg-[var(--t-accent)]/5">
-                <td className={TD_TIT}>TOTAL</td>
+                <td className={`${TD_TIT} ${SEP}`}>TOTAL</td>
                 <td className={`${TD} ${SEP}`} colSpan={4} />
                 <td className={TD}>{fmt$(tot!.v_ini)}</td>
                 <td className={`${TD} ${SEP}`}>{fmt$(tot!.v_fin)}</td>
