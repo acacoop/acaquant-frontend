@@ -40,6 +40,7 @@ type Resumen = {
   cierre_fin: { fecha_objetivo: string; fecha_usada: string | null };
   titulos: TituloRow[];
   altas: TituloRow[];
+  ignorados: Record<string, number>;
   totales: {
     v_ini: number; v_fin: number; compras: number; ventas: number;
     rentas: number; rxt: number; intermediacion: number; total: number;
@@ -51,7 +52,7 @@ type Boleto = {
   fecha: string; categoria: string; op: string; cantidad: number | null;
   precio: number | null; importe: number | null; moneda: string | null;
   mep: number | null; comprobante: string; importe_ars: number;
-  sin_mep: boolean; direccion: "compra" | "venta" | "renta";
+  sin_mep: boolean; direccion: "compra" | "venta" | "renta" | "otro";
 };
 
 const HDR = "px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2 flex-wrap";
@@ -204,6 +205,12 @@ export function ContabilidadView() {
             cierres {fmtFecha(vigente.cierre_ini.fecha_usada)} → {fmtFecha(vigente.cierre_fin.fecha_usada)}
             {cierreRaro && " ⚠"} · {vigente.n_boletos} boletos
           </span>
+          {Object.keys(vigente.ignorados ?? {}).length > 0 && (
+            <span className="text-[var(--t-text-dim)]"
+              title={Object.entries(vigente.ignorados).map(([k, n]) => `${k}: ${n}`).join(" · ")}>
+              ({Object.values(vigente.ignorados).reduce((a, b) => a + b, 0)} boletos no mueven posición: caución/futuros/otros)
+            </span>
+          )}
           {tot!.descuadres > 0 && (
             <span className="text-[var(--t-text)]">
               ⚠ {tot!.descuadres} título{tot!.descuadres > 1 ? "s" : ""} con nominales sin explicar por boletos
