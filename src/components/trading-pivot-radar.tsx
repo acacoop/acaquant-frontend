@@ -13,11 +13,28 @@ import type { PivotRadarRow } from "@/lib/types-trading";
  *
  * El backend devuelve TODOS ordenados por distancia; el selector de umbral
  * filtra en el cliente (no re-pega al backend). Click en fila → onSelect.
+ *
+ * `headerLeading` (las tabs del radar) comparte la MISMA fila que el selector de
+ * umbral — la caja es una sola desde el refactor 2026-09-01.
+ *
+ * La columna **$ Operado** es el cash del día, y lo manda el backend EN LA MISMA
+ * FILA (`cash` = `total_money` del snapshot). Un papel pegado a un pivote no
+ * sirve si no lo opera nadie, y antes había que cambiar de tab para saberlo.
+ * No se cruza nada en el navegador: si esta tabla y VOLUMENES leyeran fuentes
+ * distintas, el mismo papel podría mostrar dos números.
  */
 const POLL_MS = 2_000;
 const UMBRALES = [0.05, 0.1, 0.2, 0.5]; // %
 
 const fmtPx = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
+
+// Cash operado, MISMO formato que la tab VOLUMENES (número completo, sin abreviar):
+// el mismo papel tiene que verse igual en las dos tabs de la misma tabla.
+// null / 0 → "—", que es "no operó", no "cero pesos".
+const fmtCash = (n: number | null | undefined) =>
+  n == null || n <= 0
+    ? "—"
+    : `$${Math.round(n).toLocaleString("es-AR", { maximumFractionDigits: 0 })}`;
 
 // Color del nivel: R* verde (resistencia), S* rojo (soporte), PP gris.
 function nivelColor(nivel: string): string {
@@ -86,7 +103,13 @@ export function TradingPivotRadar({
                 <th className="!px-1 py-1 text-right">Last</th>
                 <th className="!px-1 py-1 text-center">Nivel</th>
                 <th className="!px-1 py-1 text-right">Precio</th>
-                <th className="!px-1.5 py-1 text-right">Dist</th>
+                <th className="!px-1 py-1 text-right">Dist</th>
+                <th
+                  className="!px-1.5 py-1 text-right"
+                  title="Plata operada hoy por el papel (cash, no nominal) — el mismo dato que ranquea la tab VOLUMENES"
+                >
+                  $ Operado
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -114,9 +137,17 @@ export function TradingPivotRadar({
                     <td className="!px-1 py-[2px] text-right text-[var(--t-text-muted)]">
                       {fmtPx(r.nivel_precio)}
                     </td>
-                    <td className="!px-1.5 py-[2px] text-right text-[var(--t-text-dim)]">
+                    <td className="!px-1 py-[2px] text-right text-[var(--t-text-dim)]">
                       {r.dist_pct >= 0 ? "↑" : "↓"}
                       {Math.abs(r.dist_pct).toFixed(2)}%
+                    </td>
+                    <td
+                      className={
+                        "!px-1.5 py-[2px] text-right font-mono " +
+                        (r.cash ? "text-[var(--t-text)]" : "text-[var(--t-text-muted)]")
+                      }
+                    >
+                      {fmtCash(r.cash)}
                     </td>
                   </tr>
                 );
