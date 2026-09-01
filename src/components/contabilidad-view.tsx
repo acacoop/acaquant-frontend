@@ -39,6 +39,7 @@ type Resumen = {
   cierre_ini: { fecha_objetivo: string; fecha_usada: string | null };
   cierre_fin: { fecha_objetivo: string; fecha_usada: string | null };
   titulos: TituloRow[];
+  altas: TituloRow[];
   totales: {
     v_ini: number; v_fin: number; compras: number; ventas: number;
     rentas: number; rxt: number; intermediacion: number; total: number;
@@ -156,6 +157,16 @@ export function ContabilidadView() {
           { header: "Estado", key: "estado", format: "text" },
           { header: "Cuadre nominales", key: "cuadre_nominales", format: "number" },
         ],
+      }, {
+        name: "Altas del período",
+        title: "Comprado para dejar en cartera — su resultado entra al mes siguiente",
+        rows: vigente.altas,
+        columns: [
+          { header: "Título", key: "titulo", format: "text", width: 16 },
+          { header: "Nominales comprados", key: "qty_fin", format: "number" },
+          { header: "Invertido", key: "compras", format: "number", width: 16 },
+          { header: "Valuación al cierre", key: "v_fin", format: "number", width: 16 },
+        ],
       }],
     });
   };
@@ -194,17 +205,17 @@ export function ContabilidadView() {
             {cierreRaro && " ⚠"} · {vigente.n_boletos} boletos
           </span>
           {tot!.descuadres > 0 && (
-            <span className="text-[var(--t-warn,#facc15)]">
+            <span className="text-[var(--t-text)]">
               ⚠ {tot!.descuadres} título{tot!.descuadres > 1 ? "s" : ""} con nominales sin explicar por boletos
             </span>
           )}
           {tot!.mep_faltantes > 0 && (
-            <span className="text-[var(--t-warn,#facc15)]">⚠ {tot!.mep_faltantes} boletos sin MEP</span>
+            <span className="text-[var(--t-text)]">⚠ {tot!.mep_faltantes} boletos sin MEP</span>
           )}
         </div>
       )}
       {cierreRaro && vigente && (
-        <div className="px-3 py-1 text-[11px] text-[var(--t-warn,#facc15)] border-b border-[var(--t-border)] shrink-0">
+        <div className="px-3 py-1 text-[11px] text-[var(--t-text)] border-b border-[var(--t-border)] shrink-0">
           El cierre usado no es el último hábil del mes (falta el snapshot de ese día en la tenencia):
           objetivo {fmtFecha(vigente.cierre_ini.fecha_objetivo)} → usado {fmtFecha(vigente.cierre_ini.fecha_usada)} ·
           objetivo {fmtFecha(vigente.cierre_fin.fecha_objetivo)} → usado {fmtFecha(vigente.cierre_fin.fecha_usada)}
@@ -242,7 +253,7 @@ export function ContabilidadView() {
                   <td className={`${TD} font-medium`}>
                     {t.titulo}
                     {!t.cuadra && (
-                      <span className="ml-1 text-[var(--t-warn,#facc15)]"
+                      <span className="ml-1 text-[var(--t-text)]"
                         title={`Nominales sin explicar por boletos: ${fmtNom(t.cuadre_nominales)} (¿falta boleto / amortización / canje?)`}>⚠</span>
                     )}
                   </td>
@@ -276,6 +287,42 @@ export function ContabilidadView() {
               </tr>
             </tfoot>
           </table>
+        )}
+        {!loading && !error && vigente && vigente.altas.length > 0 && (
+          <div className="mt-6 px-0">
+            <div className="px-3 py-1.5 border-y border-[var(--t-border)] bg-[var(--t-panel)] text-[11px] uppercase tracking-wide text-[var(--t-text-dim)]">
+              Altas del período — comprado para dejar en cartera: su resultado entra al mes que viene (no suma a los totales)
+            </div>
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="text-left">
+                  <th className={TH}>Título</th>
+                  <th className={`${TH} text-right`}>Nominales comprados</th>
+                  <th className={`${TH} text-right`}>Invertido</th>
+                  <th className={`${TH} text-right`}>Valuación al cierre</th>
+                  <th className={TH} />
+                </tr>
+              </thead>
+              <tbody>
+                {vigente.altas.map((t) => (
+                  <tr key={t.key} onClick={() => setDetalleKey(t)}
+                    className="border-t border-[var(--t-border)]/50 hover:bg-[var(--t-accent)]/5 cursor-pointer">
+                    <td className={`${TD} font-medium`}>
+                      {t.titulo}
+                      {!t.cuadra && (
+                        <span className="ml-1 text-[var(--t-text)]"
+                          title={`Nominales sin explicar por boletos: ${fmtNom(t.cuadre_nominales)}`}>⚠</span>
+                      )}
+                    </td>
+                    <td className={`${TD} text-right`}>{fmtNom(t.qty_fin)}</td>
+                    <td className={`${TD} text-right`}>{fmt$(t.compras)}</td>
+                    <td className={`${TD} text-right`}>{fmt$(t.v_fin)}</td>
+                    <td className={`${TD} text-[var(--t-text-dim)]`}>{t.n_boletos} boletos</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
@@ -328,7 +375,7 @@ function DetalleModal({ cuenta, mes, fila, onClose }: {
         {fila.px_ini != null ? fila.px_ini.toLocaleString("es-AR", { maximumFractionDigits: 4 }) : "—"} →{" "}
         {fila.px_fin != null ? fila.px_fin.toLocaleString("es-AR", { maximumFractionDigits: 4 }) : "—"}
         {!fila.cuadra && (
-          <span className="text-[var(--t-warn,#facc15)]">
+          <span className="text-[var(--t-text)]">
             {" "}· ⚠ cuadre de nominales: {fmtNom(fila.cuadre_nominales)} sin explicar por boletos
           </span>
         )}
@@ -364,7 +411,7 @@ function DetalleModal({ cuenta, mes, fila, onClose }: {
                 <td className={`${TD} text-right`}>{fmtNom(b.cantidad)}</td>
                 <td className={`${TD} text-right`}>{b.precio != null ? b.precio.toLocaleString("es-AR", { maximumFractionDigits: 4 }) : "—"}</td>
                 <td className={`${TD} text-right`}>{fmt$(b.importe)}</td>
-                <td className={TD}>{b.moneda ?? "—"}{b.sin_mep && <span className="text-[var(--t-warn,#facc15)]" title="Boleto en moneda extranjera sin MEP: el importe quedó sin pesificar">⚠</span>}</td>
+                <td className={TD}>{b.moneda ?? "—"}{b.sin_mep && <span className="text-[var(--t-text)]" title="Boleto en moneda extranjera sin MEP: el importe quedó sin pesificar">⚠</span>}</td>
                 <td className={`${TD} text-right`}>{fmt$(b.importe_ars)}</td>
                 <td className={`${TD} text-[var(--t-text-dim)]`}>{b.comprobante}</td>
               </tr>
