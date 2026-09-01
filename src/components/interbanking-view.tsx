@@ -204,6 +204,12 @@ type CuentaConsolidada = Cuenta & {
   //   "manual"   → no está en Interbanking: el saldo ES lo cargado a mano
   fuente: "extracto" | "saldo" | "manual" | null;
   saldo_banco: number | null;
+  // ⚠️ El cierre CRUDO del extracto, sin el ajuste manual. Es lo que nombra el
+  // tooltip del ≠: `saldo_cierre` es NUESTRO saldo (la fuente que manda + lo que
+  // cargó una persona) y la `discrepancia` compara las dos cosas que informa EL
+  // BANCO, así que usar aquél hacía que las tres cifras del mensaje no dieran la
+  // resta.
+  saldo_extracto: number | null;
   // El banco informó las DOS cosas y no coinciden: hallazgo de conciliación.
   discrepancia: number | null;
   // Suma de los gastos que cobró el banco ese día. **null mientras la regla de
@@ -936,9 +942,10 @@ function BloqueBanco({
             {c.discrepancia != null && (
               <span
                 className="ml-1 text-[9px] uppercase text-[var(--t-neg)]"
-                title={`El extracto cierra en ${plata(c.saldo_cierre)} y el saldo `
+                title={`El extracto cierra en ${plata(c.saldo_extracto)} y el saldo `
                   + `informado dice ${plata(c.saldo_banco)} (${plata(c.discrepancia)} de `
-                  + "diferencia). Las dos las informa el banco."}
+                  + "diferencia). Las dos las informa el banco. La columna muestra "
+                  + "el saldo informado."}
               >
                 ≠
               </span>
