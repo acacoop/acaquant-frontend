@@ -35,6 +35,11 @@ type TituloRow = {
   qty_ini: number; qty_fin: number; v_ini: number; v_fin: number;
   px_ini: number | null; px_fin: number | null;
   compras: number; ventas: number; rentas: number;
+  // La cadena del RxT, tal cual la planilla del back office:
+  // G no entran = fin − ini · H mantenida = min(ini, fin) · I monto ini =
+  // H×(D/C) · J monto fin = H×(F/E) · K rxt = J − I · L variación = K/I.
+  no_entran_rxt: number; tenencia_mantenida: number;
+  monto_rxt_ini: number; monto_rxt_fin: number; variacion_rxt: number | null;
   rxt: number; intermediacion: number; total: number;
   estado: "alta" | "baja" | "sin_operar" | "operado";
   n_boletos: number; cuadre_nominales: number; cuadra: boolean;
@@ -78,6 +83,8 @@ const fmt$ = (v: number | null | undefined) =>
   v == null ? "—" : Math.round(v).toLocaleString("es-AR");
 const fmtNom = (v: number | null | undefined) =>
   v == null ? "—" : v.toLocaleString("es-AR", { maximumFractionDigits: 2 });
+const fmtPct = (v: number | null | undefined) =>
+  v == null ? "—" : `${(v * 100).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 const fmtFecha = (s: string | null | undefined) => {
   if (!s) return "—";
   const [y, m, d] = s.split("-");
@@ -174,6 +181,10 @@ export function ContabilidadView() {
           { header: `Valuación ${mmaa(vigente.mes)}`, key: "v_fin", format: "number", width: 18 },
           { header: "Compras", key: "compras", format: "number", width: 16 },
           { header: "Ventas", key: "ventas", format: "number", width: 16 },
+          { header: "No entran en RxT", key: "no_entran_rxt", format: "number", width: 16 },
+          { header: "Misma tenencia mantenida", key: "tenencia_mantenida", format: "number", width: 22 },
+          { header: `Monto RxT ${mmaaPrevio(vigente.mes)}`, key: "monto_rxt_ini", format: "number", width: 18 },
+          { header: `Monto RxT ${mmaa(vigente.mes)}`, key: "monto_rxt_fin", format: "number", width: 18 },
           { header: "Tenencia (RxT)", key: "rxt", format: "number", width: 16 },
           { header: "Intermediación", key: "intermediacion", format: "number", width: 16 },
           { header: "Total", key: "total", format: "number", width: 16 },
@@ -271,12 +282,15 @@ export function ContabilidadView() {
               <tr>
                 <th className={TH_TIT}>Título</th>
                 <th className={TH}>Nominales {mmaaPrevio(vigente.mes)}</th>
-                <th className={`${TH} ${SEP}`}>Nominales {mmaa(vigente.mes)}</th>
+                <th className={TH}>Nominales {mmaa(vigente.mes)}</th>
+                <th className={TH}>No entran en RxT</th>
+                <th className={`${TH} ${SEP}`}>Misma tenencia mantenida</th>
                 <th className={TH}>Valuación {mmaaPrevio(vigente.mes)}</th>
                 <th className={`${TH} ${SEP}`}>Valuación {mmaa(vigente.mes)}</th>
                 <th className={TH}>Compras {mmaa(vigente.mes)}</th>
                 <th className={`${TH} ${SEP}`}>Ventas {mmaa(vigente.mes)}</th>
                 <th className={TH}>Tenencia (RxT)</th>
+                <th className={TH}>Var. período</th>
                 <th className={TH}>Intermediación</th>
                 <th className={TH}>Total {mmaa(vigente.mes)}</th>
                 <th className={TH}>Estado</th>
@@ -294,12 +308,18 @@ export function ContabilidadView() {
                     )}
                   </td>
                   <td className={TD}>{fmtNom(t.qty_ini)}</td>
-                  <td className={`${TD} ${SEP}`}>{fmtNom(t.qty_fin)}</td>
+                  <td className={TD}>{fmtNom(t.qty_fin)}</td>
+                  <td className={`${TD} ${neg(t.no_entran_rxt)}`}>{fmtNom(t.no_entran_rxt)}</td>
+                  <td className={`${TD} ${SEP}`}>{fmtNom(t.tenencia_mantenida)}</td>
                   <td className={TD}>{fmt$(t.v_ini)}</td>
                   <td className={`${TD} ${SEP}`}>{fmt$(t.v_fin)}</td>
                   <td className={TD}>{t.compras ? fmt$(t.compras) : "—"}</td>
                   <td className={`${TD} ${SEP}`}>{t.ventas ? fmt$(t.ventas) : "—"}</td>
-                  <td className={`${TD} ${neg(t.rxt)}`}>{fmt$(t.rxt)}</td>
+                  <td className={`${TD} ${neg(t.rxt)}`}
+                    title={`Misma tenencia mantenida ${fmtNom(t.tenencia_mantenida)} · monto ${mmaaPrevio(vigente.mes)} ${fmt$(t.monto_rxt_ini)} → monto ${mmaa(vigente.mes)} ${fmt$(t.monto_rxt_fin)} · RxT = la diferencia`}>
+                    {fmt$(t.rxt)}
+                  </td>
+                  <td className={`${TD} ${neg(t.variacion_rxt ?? 0)}`}>{fmtPct(t.variacion_rxt)}</td>
                   <td className={`${TD} ${neg(t.intermediacion)}`}>
                     {fmt$(t.intermediacion)}
                     {t.sin_costo > 0 && (
@@ -314,12 +334,13 @@ export function ContabilidadView() {
             <tfoot>
               <tr className="border-t-2 border-[var(--t-border)] font-medium bg-[var(--t-accent)]/5">
                 <td className={TD_TIT}>TOTAL</td>
-                <td className={`${TD} ${SEP}`} colSpan={2} />
+                <td className={`${TD} ${SEP}`} colSpan={4} />
                 <td className={TD}>{fmt$(tot!.v_ini)}</td>
                 <td className={`${TD} ${SEP}`}>{fmt$(tot!.v_fin)}</td>
                 <td className={TD}>{fmt$(tot!.compras)}</td>
                 <td className={`${TD} ${SEP}`}>{fmt$(tot!.ventas)}</td>
                 <td className={`${TD} ${neg(tot!.rxt)}`}>{fmt$(tot!.rxt)}</td>
+                <td className={TD} />
                 <td className={`${TD} ${neg(tot!.intermediacion)}`}>{fmt$(tot!.intermediacion)}</td>
                 <td className={`${TD} ${neg(tot!.total)}`}>{fmt$(tot!.total)}</td>
                 <td className={TD} />
