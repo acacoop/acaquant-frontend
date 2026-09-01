@@ -93,16 +93,15 @@ const fmtFecha = (s: string | null | undefined) => {
   return d ? `${d}/${m}/${y.slice(2)}` : s;
 };
 const neg = (v: number) => (v < 0 ? "text-[var(--t-neg,#f87171)]" : "");
-/** "2026-08" → "08/26". El mes va en el encabezado de cada columna de foto
- *  para que se lea de un vistazo cuál es el cierre inicial y cuál el final. */
-const mmaa = (mes: string) => `${mes.slice(5, 7)}/${mes.slice(2, 4)}`;
-const mmaaPrevio = (mes: string) => {
-  const y = Number(mes.slice(0, 4));
-  const m = Number(mes.slice(5, 7));
-  const py = m === 1 ? y - 1 : y;
-  const pm = m === 1 ? 12 : m - 1;
-  return `${String(pm).padStart(2, "0")}/${String(py).slice(2)}`;
-};
+/** "2026-07-31" → "07/26". Rótulo de las columnas de foto.
+ *
+ * Toma la fecha de cierre QUE MANDA EL BACKEND (`cierre_ini`/`cierre_fin`), no
+ * la calcula: cuál es el mes inicial es una decisión del modelo contable (hoy
+ * el último hábil del mes anterior) y derivarla acá sería una segunda copia de
+ * esa regla, que el día que cambie va a quedar desincronizada en silencio —
+ * REGLA #9. El front rotula lo que el backend dice que usó. */
+const mmaaDe = (fecha: string | null | undefined) =>
+  fecha ? `${fecha.slice(5, 7)}/${fecha.slice(2, 4)}` : "";
 
 function mesPasado(): string {
   const hoy = new Date();
@@ -177,16 +176,16 @@ export function ContabilidadView() {
         rows: vigente.titulos,
         columns: [
           { header: "Título", key: "titulo", format: "text", width: 16 },
-          { header: `Nominales ${mmaaPrevio(vigente.mes)}`, key: "qty_ini", format: "number" },
-          { header: `Nominales ${mmaa(vigente.mes)}`, key: "qty_fin", format: "number" },
-          { header: `Valuación ${mmaaPrevio(vigente.mes)}`, key: "v_ini", format: "number", width: 18 },
-          { header: `Valuación ${mmaa(vigente.mes)}`, key: "v_fin", format: "number", width: 18 },
+          { header: `Nominales ${mmaaDe(vigente.cierre_ini.fecha_objetivo)}`, key: "qty_ini", format: "number" },
+          { header: `Nominales ${mmaaDe(vigente.cierre_fin.fecha_objetivo)}`, key: "qty_fin", format: "number" },
+          { header: `Valuación ${mmaaDe(vigente.cierre_ini.fecha_objetivo)}`, key: "v_ini", format: "number", width: 18 },
+          { header: `Valuación ${mmaaDe(vigente.cierre_fin.fecha_objetivo)}`, key: "v_fin", format: "number", width: 18 },
           { header: "Compras", key: "compras", format: "number", width: 16 },
           { header: "Ventas", key: "ventas", format: "number", width: 16 },
           { header: "No entran en RxT", key: "no_entran_rxt", format: "number", width: 16 },
           { header: "Misma tenencia mantenida", key: "tenencia_mantenida", format: "number", width: 22 },
-          { header: `Monto RxT ${mmaaPrevio(vigente.mes)}`, key: "monto_rxt_ini", format: "number", width: 18 },
-          { header: `Monto RxT ${mmaa(vigente.mes)}`, key: "monto_rxt_fin", format: "number", width: 18 },
+          { header: `Monto RxT ${mmaaDe(vigente.cierre_ini.fecha_objetivo)}`, key: "monto_rxt_ini", format: "number", width: 18 },
+          { header: `Monto RxT ${mmaaDe(vigente.cierre_fin.fecha_objetivo)}`, key: "monto_rxt_fin", format: "number", width: 18 },
           { header: "Tenencia (RxT)", key: "rxt", format: "number", width: 16 },
           { header: "Intermediación", key: "intermediacion", format: "number", width: 16 },
           { header: "Total", key: "total", format: "number", width: 16 },
@@ -277,18 +276,18 @@ export function ContabilidadView() {
             <thead className="sticky top-0 bg-[var(--t-panel)]">
               <tr>
                 <th className={`${TH_TIT} ${SEP}`}>Título</th>
-                <th className={TH}>Nominales {mmaaPrevio(vigente.mes)}</th>
-                <th className={TH}>Nominales {mmaa(vigente.mes)}</th>
+                <th className={TH}>Nominales {mmaaDe(vigente.cierre_ini.fecha_objetivo)}</th>
+                <th className={TH}>Nominales {mmaaDe(vigente.cierre_fin.fecha_objetivo)}</th>
                 <th className={TH}>No entran en RxT</th>
                 <th className={`${TH} ${SEP}`}>Misma tenencia mantenida</th>
-                <th className={TH}>Valuación {mmaaPrevio(vigente.mes)}</th>
-                <th className={`${TH} ${SEP}`}>Valuación {mmaa(vigente.mes)}</th>
-                <th className={TH}>Compras {mmaa(vigente.mes)}</th>
-                <th className={`${TH} ${SEP}`}>Ventas {mmaa(vigente.mes)}</th>
+                <th className={TH}>Valuación {mmaaDe(vigente.cierre_ini.fecha_objetivo)}</th>
+                <th className={`${TH} ${SEP}`}>Valuación {mmaaDe(vigente.cierre_fin.fecha_objetivo)}</th>
+                <th className={TH}>Compras {mmaaDe(vigente.cierre_fin.fecha_objetivo)}</th>
+                <th className={`${TH} ${SEP}`}>Ventas {mmaaDe(vigente.cierre_fin.fecha_objetivo)}</th>
                 <th className={TH}>Tenencia (RxT)</th>
                 <th className={TH}>Var. período</th>
                 <th className={TH}>Intermediación</th>
-                <th className={TH}>Total {mmaa(vigente.mes)}</th>
+                <th className={TH}>Total {mmaaDe(vigente.cierre_fin.fecha_objetivo)}</th>
                 <th className={TH}>Estado</th>
               </tr>
             </thead>
@@ -314,7 +313,7 @@ export function ContabilidadView() {
                   <td className={TD}>{t.compras ? fmt$(t.compras) : "—"}</td>
                   <td className={`${TD} ${SEP}`}>{t.ventas ? fmt$(t.ventas) : "—"}</td>
                   <td className={`${TD} ${neg(t.rxt)}`}
-                    title={`Misma tenencia mantenida ${fmtNom(t.tenencia_mantenida)} · monto ${mmaaPrevio(vigente.mes)} ${fmt$(t.monto_rxt_ini)} → monto ${mmaa(vigente.mes)} ${fmt$(t.monto_rxt_fin)} · RxT = la diferencia`}>
+                    title={`Misma tenencia mantenida ${fmtNom(t.tenencia_mantenida)} · monto ${mmaaDe(vigente.cierre_ini.fecha_objetivo)} ${fmt$(t.monto_rxt_ini)} → monto ${mmaaDe(vigente.cierre_fin.fecha_objetivo)} ${fmt$(t.monto_rxt_fin)} · RxT = la diferencia`}>
                     {fmt$(t.rxt)}
                   </td>
                   <td className={`${TD} ${neg(t.variacion_rxt ?? 0)}`}>{fmtPct(t.variacion_rxt)}</td>
