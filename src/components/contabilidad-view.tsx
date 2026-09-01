@@ -49,15 +49,17 @@ type Resumen = {
   n_boletos: number;
 };
 type Boleto = {
-  fecha: string; categoria: string; op: string; cantidad: number | null;
-  precio: number | null; importe: number | null; moneda: string | null;
+  fecha: string; categoria: string | null; op: string; cantidad: number | null;
+  importe: number | null; moneda: string | null;
   mep: number | null; comprobante: string; importe_ars: number;
   sin_mep: boolean; direccion: "compra" | "venta" | "renta" | "otro";
+  nominales_acum: number; pnl_acum: number; en_mes: boolean; sin_costo?: boolean;
 };
 
 const HDR = "px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2 flex-wrap";
 const TH = "px-2 py-1 text-[10px] uppercase tracking-wide text-[var(--t-text-dim)] font-normal whitespace-nowrap";
 const TD = "px-2 py-1 whitespace-nowrap tabular-nums";
+const ACUM = "bg-[var(--t-accent)]/10";
 const BTN = "text-[11px] uppercase tracking-wide px-2 py-1 border border-[var(--t-border)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]";
 
 const fmt$ = (v: number | null | undefined) =>
@@ -366,11 +368,12 @@ function DetalleModal({ cuenta, mes, fila, onClose }: {
   cuenta: string; mes: string; fila: TituloRow; onClose: () => void;
 }) {
   const [boletos, setBoletos] = useState<Boleto[] | null>(null);
+  const [sinCosto, setSinCosto] = useState(0);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    fetchJson<{ boletos: Boleto[] }>(
+    fetchJson<{ boletos: Boleto[]; sin_costo: number }>(
       `/api/back-office/contabilidad/detalle?id_cuenta=${encodeURIComponent(cuenta)}&mes=${mes}&key=${encodeURIComponent(fila.key)}`)
-      .then((r) => setBoletos(r.boletos))
+      .then((r) => { setBoletos(r.boletos); setSinCosto(r.sin_costo ?? 0); })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, [cuenta, mes, fila.key]);
   return (
@@ -390,41 +393,57 @@ function DetalleModal({ cuenta, mes, fila, onClose }: {
       {error && <div className="text-[var(--t-neg,#f87171)]">Error: {error}</div>}
       {!boletos && !error && <div className="text-[var(--t-text-dim)]">Cargando…</div>}
       {boletos && !boletos.length && (
-        <div className="text-[var(--t-text-dim)]">Sin boletos del mes: todo el resultado es tenencia.</div>
+        <div className="text-[var(--t-text-dim)]">Sin boletos en el libro: todo el resultado es tenencia.</div>
       )}
       {boletos && boletos.length > 0 && (
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="text-left">
-              <th className={TH}>Fecha</th><th className={TH}>Operación</th>
-              <th className={`${TH} text-right`}>Cantidad</th>
-              <th className={`${TH} text-right`}>Precio</th>
-              <th className={`${TH} text-right`}>Importe</th>
-              <th className={TH}>Mon.</th>
-              <th className={`${TH} text-right`}>Importe ARS</th>
-              <th className={TH}>Comprobante</th>
-            </tr>
-          </thead>
-          <tbody>
-            {boletos.map((b, i) => (
-              <tr key={i} className="border-t border-[var(--t-border)]/50">
-                <td className={TD}>{fmtFecha(b.fecha)}</td>
-                <td className={TD}>
-                  <span className={b.direccion === "compra" ? "text-[var(--t-neg,#f87171)]"
-                    : b.direccion === "venta" ? "text-[var(--t-pos,#4ade80)]" : ""}>
-                    {b.op || b.categoria}
-                  </span>
-                </td>
-                <td className={`${TD} text-right`}>{fmtNom(b.cantidad)}</td>
-                <td className={`${TD} text-right`}>{b.precio != null ? b.precio.toLocaleString("es-AR", { maximumFractionDigits: 4 }) : "—"}</td>
-                <td className={`${TD} text-right`}>{fmt$(b.importe)}</td>
-                <td className={TD}>{b.moneda ?? "—"}{b.sin_mep && <span className="text-[var(--t-text)]" title="Boleto en moneda extranjera sin MEP: el importe quedó sin pesificar">⚠</span>}</td>
-                <td className={`${TD} text-right`}>{fmt$(b.importe_ars)}</td>
-                <td className={`${TD} text-[var(--t-text-dim)]`}>{b.comprobante}</td>
+        <>
+          <div className="mb-2 text-[var(--t-text-dim)]">
+            Libro completo del título (todos los movimientos, no solo el mes) — las filas del mes
+            elegido van resaltadas. PNL ACUM. = realizado por costeo FIFO + rentas.
+            {sinCosto > 0 && (
+              <span className="text-[var(--t-text)]">
+                {" "}⚠ {sinCosto} venta{sinCosto > 1 ? "s" : ""} sin costo conocido (posición anterior
+                al primer boleto): el acumulado es parcial.
+              </span>
+            )}
+          </div>
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="text-left">
+                <th className={TH}>Fecha</th><th className={TH}>Operación</th>
+                <th className={`${TH} text-right`}>Cantidad</th>
+                <th className={`${TH} text-right`}>Importe</th>
+                <th className={TH}>Mon.</th>
+                <th className={`${TH} text-right`}>Importe ARS</th>
+                <th className={`${TH} text-right ${ACUM}`}>Nominales acum.</th>
+                <th className={`${TH} text-right ${ACUM}`}>PnL acum.</th>
+                <th className={TH}>Comprobante</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {boletos.map((b, i) => (
+                <tr key={i}
+                  className={`border-t border-[var(--t-border)]/50 ${b.en_mes ? "bg-[var(--t-accent)]/5" : ""}`}>
+                  <td className={TD}>{fmtFecha(b.fecha)}</td>
+                  <td className={TD}>
+                    <span className={b.direccion === "compra" ? "text-[var(--t-neg,#f87171)]"
+                      : b.direccion === "venta" ? "text-[var(--t-pos,#4ade80)]" : ""}>
+                      {b.op || b.categoria}
+                    </span>
+                    {b.sin_costo && <span className="ml-1" title="Venta sin costo conocido: excede lo comprado en el libro">⚠</span>}
+                  </td>
+                  <td className={`${TD} text-right`}>{fmtNom(b.cantidad)}</td>
+                  <td className={`${TD} text-right`}>{fmt$(b.importe)}</td>
+                  <td className={TD}>{b.moneda ?? "—"}{b.sin_mep && <span className="text-[var(--t-text)]" title="Boleto en moneda extranjera sin MEP: el importe quedó sin pesificar">⚠</span>}</td>
+                  <td className={`${TD} text-right`}>{fmt$(b.importe_ars)}</td>
+                  <td className={`${TD} text-right ${ACUM}`}>{fmtNom(b.nominales_acum)}</td>
+                  <td className={`${TD} text-right font-medium ${ACUM} ${signo(b.pnl_acum ?? 0)}`}>{fmt$(b.pnl_acum)}</td>
+                  <td className={`${TD} text-[var(--t-text-dim)]`}>{b.comprobante}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
       )}
     </Modal>
   );
