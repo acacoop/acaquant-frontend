@@ -53,7 +53,7 @@ type Boleto = {
   importe: number | null; moneda: string | null;
   mep: number | null; comprobante: string; importe_ars: number;
   sin_mep: boolean; direccion: "compra" | "venta" | "renta" | "otro";
-  nominales_acum: number; pnl_acum: number; en_mes: boolean; sin_costo?: boolean;
+  nominales_acum: number; pnl_acum: number; sin_costo?: boolean;
 };
 
 const HDR = "px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2 flex-wrap";
@@ -393,13 +393,14 @@ function DetalleModal({ cuenta, mes, fila, onClose }: {
       {error && <div className="text-[var(--t-neg,#f87171)]">Error: {error}</div>}
       {!boletos && !error && <div className="text-[var(--t-text-dim)]">Cargando…</div>}
       {boletos && !boletos.length && (
-        <div className="text-[var(--t-text-dim)]">Sin boletos en el libro: todo el resultado es tenencia.</div>
+        <div className="text-[var(--t-text-dim)]">Sin movimientos en el mes: todo el resultado es tenencia.</div>
       )}
       {boletos && boletos.length > 0 && (
         <>
           <div className="mb-2 text-[var(--t-text-dim)]">
-            Libro completo del título (todos los movimientos, no solo el mes) — las filas del mes
-            elegido van resaltadas. PNL ACUM. = realizado por costeo FIFO + rentas.
+            Movimientos del mes, arrancando de la POSICIÓN INICIAL (nominales y valuación del
+            cierre anterior, que entra como primer lote). PNL ACUM. = realizado por costeo FIFO
+            + rentas — vender todo muestra venta − valuación inicial, la intermediación de la fila.
             {sinCosto > 0 && (
               <span className="text-[var(--t-text)]">
                 {" "}⚠ {sinCosto} venta{sinCosto > 1 ? "s" : ""} sin costo conocido (posición anterior
@@ -423,7 +424,7 @@ function DetalleModal({ cuenta, mes, fila, onClose }: {
             <tbody>
               {boletos.map((b, i) => (
                 <tr key={i}
-                  className={`border-t border-[var(--t-border)]/50 ${b.en_mes ? "bg-[var(--t-accent)]/5" : ""}`}>
+                  className={`border-t border-[var(--t-border)]/50 ${b.categoria === "saldo_inicial" ? "italic text-[var(--t-text-dim)]" : ""}`}>
                   <td className={TD}>{fmtFecha(b.fecha)}</td>
                   <td className={TD}>
                     <span className={b.direccion === "compra" ? "text-[var(--t-neg,#f87171)]"
