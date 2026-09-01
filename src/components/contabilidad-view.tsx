@@ -7,9 +7,9 @@ import { exportToXlsx } from "@/lib/xlsx-export";
 
 /**
  * Back Office → CONTABILIDAD. Resultado MENSUAL por título de las cuentas
- * propias: TENENCIA (lo que rindió lo que ya se tenía) + INTERMEDIACIÓN (lo
- * realizado comprando y vendiendo, por FIFO) + RENTAS. El total es la SUMA de
- * los tres.
+ * propias: TENENCIA (lo que rindió lo que ya se tenía, por la cadena de la
+ * planilla) + INTERMEDIACIÓN (la SUMATORIA de los boletos: compra negativa,
+ * venta positiva → `ventas − compras`) + RENTAS. El total es la SUMA.
  *
  * ⚠️ Lo que se compró y NO se vendió no es resultado del mes: su valuación
  * final no entra en ninguna columna de resultado — es el saldo inicial del mes
@@ -43,7 +43,7 @@ type TituloRow = {
   rxt: number; intermediacion: number; total: number;
   estado: "alta" | "baja" | "sin_operar" | "operado";
   n_boletos: number; cuadre_nominales: number; cuadra: boolean;
-  mep_faltantes: number; sin_costo: number;
+  mep_faltantes: number;
 };
 type Resumen = {
   id_cuenta: string; mes: string;
@@ -55,7 +55,7 @@ type Resumen = {
   totales: {
     v_ini: number; v_fin: number; compras: number; ventas: number;
     rentas: number; rxt: number; intermediacion: number; total: number;
-    descuadres: number; mep_faltantes: number; sin_costo: number;
+    descuadres: number; mep_faltantes: number;
   };
   n_boletos: number;
 };
@@ -64,7 +64,7 @@ type Boleto = {
   importe: number | null; moneda: string | null;
   mep: number | null; comprobante: string; importe_ars: number;
   sin_mep: boolean; direccion: "compra" | "venta" | "renta" | "otro";
-  nominales_acum: number; pnl_acum: number; sin_costo?: boolean;
+  nominales_acum: number; pnl_acum: number;
 };
 
 const HDR = "px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2 flex-wrap";
@@ -256,12 +256,6 @@ export function ContabilidadView() {
           {tot!.mep_faltantes > 0 && (
             <span className="text-[var(--t-text)]">⚠ {tot!.mep_faltantes} boletos sin MEP</span>
           )}
-          {tot!.sin_costo > 0 && (
-            <span className="text-[var(--t-text)]"
-              title="El FIFO no encontró lote que costear para esas ventas (posición vendida sin haberla comprado en el libro): su intermediación está incompleta">
-              ⚠ {tot!.sin_costo} venta{tot!.sin_costo > 1 ? "s" : ""} sin costo
-            </span>
-          )}
         </div>
       )}
       {cierreRaro && vigente && (
@@ -324,12 +318,7 @@ export function ContabilidadView() {
                     {fmt$(t.rxt)}
                   </td>
                   <td className={`${TD} ${neg(t.variacion_rxt ?? 0)}`}>{fmtPct(t.variacion_rxt)}</td>
-                  <td className={`${TD} ${neg(t.intermediacion)}`}>
-                    {fmt$(t.intermediacion)}
-                    {t.sin_costo > 0 && (
-                      <span className="ml-1" title={`${t.sin_costo} venta(s) sin costo en el libro: no había lote que costear, así que la intermediación de esta fila está incompleta`}>⚠</span>
-                    )}
-                  </td>
+                  <td className={`${TD} ${neg(t.intermediacion)}`}>{fmt$(t.intermediacion)}</td>
                   <td className={`${TD} font-medium ${neg(t.total)}`}>{fmt$(t.total)}</td>
                   <td className={TD}><Estado t={t} /></td>
                 </tr>
@@ -426,7 +415,6 @@ function DetalleModal({ cuenta, mes, fila, onClose }: {
                       : b.direccion === "venta" ? "text-[var(--t-pos,#4ade80)]" : ""}>
                       {b.op || b.categoria}
                     </span>
-                    {b.sin_costo && <span className="ml-1" title="Venta sin costo conocido: excede lo comprado en el libro">⚠</span>}
                   </td>
                   <td className={`${TD} text-right`}>{fmtNom(b.cantidad)}</td>
                   <td className={`${TD} text-right`}>{fmt$(b.importe)}</td>
