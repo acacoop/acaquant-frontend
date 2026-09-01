@@ -5,6 +5,7 @@ import { TitulosMercadoView } from "./titulos-mercado-view";
 import { AcreenciasView } from "./acreencias-view";
 import { TenenciaValorizadaView } from "./tenencia-valorizada-view";
 import { TitulosEnAlquilerView } from "./titulos-en-alquiler-view";
+import { ContabilidadView } from "./contabilidad-view";
 import { TesoreriaView } from "./tesoreria-view";
 import { SenebisView } from "./senebis-view";
 import { TitulosNegativosView } from "./titulos-negativos-view";
@@ -17,8 +18,8 @@ import { InterbankingView } from "./interbanking-view";
 // almacenamiento del navegador, así que renombrarlo mandaría a todos los que
 // tenían esta pestaña abierta de vuelta al default. El nombre visible es lo
 // único que cambia.
-type Tab = "titulos_mercado" | "acreencias" | "tenencia" | "alquiler" | "tesoreria"
-  | "senebis" | "negativos" | "interbanking";
+type Tab = "titulos_mercado" | "acreencias" | "tenencia" | "alquiler" | "contabilidad"
+  | "tesoreria" | "senebis" | "negativos" | "interbanking";
 
 export function BackOfficeShell() {
   // Default = Tenencia Valorizada (primera en la barra). Persistido: la
@@ -46,6 +47,12 @@ export function BackOfficeShell() {
           onClick={() => setTab("alquiler")}
         >
           Títulos en Alquiler
+        </TabBtn>
+        <TabBtn
+          active={tab === "contabilidad"}
+          onClick={() => setTab("contabilidad")}
+        >
+          Contabilidad
         </TabBtn>
         <TabBtn
           active={tab === "tesoreria"}
@@ -87,6 +94,7 @@ export function BackOfficeShell() {
         {tab === "acreencias" && <AcreenciasView />}
         {tab === "tenencia" && <TenenciaValorizadaView />}
         {tab === "alquiler" && <TitulosEnAlquilerView />}
+        {tab === "contabilidad" && <ContabilidadView />}
         {tab === "negativos" && <TitulosNegativosView />}
       </div>
     </div>
