@@ -7,8 +7,14 @@ import { exportToXlsx } from "@/lib/xlsx-export";
 
 /**
  * Back Office → CONTABILIDAD. Resultado MENSUAL por título de las cuentas
- * propias, partido en TENENCIA (RxT) / INTERMEDIACIÓN / RENTAS sobre la
- * identidad `total = ΔValuación + ventas − compras + rentas`.
+ * propias: TENENCIA (lo que rindió lo que ya se tenía) + INTERMEDIACIÓN (lo
+ * realizado comprando y vendiendo, por FIFO) + RENTAS. El total es la SUMA de
+ * los tres.
+ *
+ * ⚠️ Lo que se compró y NO se vendió no es resultado del mes: su valuación
+ * final no entra en ninguna columna de resultado — es el saldo inicial del mes
+ * siguiente. Las columnas VALUACIÓN llevan el mes en el encabezado justamente
+ * para que se lea cuál es la foto inicial y cuál la final.
  *
  * TODO lo calcula el backend (`/api/back-office/contabilidad/*`): acá no se
  * deriva ni se suma nada — los totales viajan en la respuesta. La fila marca
@@ -32,7 +38,7 @@ type TituloRow = {
   rxt: number; intermediacion: number; total: number;
   estado: "alta" | "baja" | "sin_operar" | "operado";
   n_boletos: number; cuadre_nominales: number; cuadra: boolean;
-  mep_faltantes: number;
+  mep_faltantes: number; sin_costo: number;
 };
 type Resumen = {
   id_cuenta: string; mes: string;
@@ -44,7 +50,7 @@ type Resumen = {
   totales: {
     v_ini: number; v_fin: number; compras: number; ventas: number;
     rentas: number; rxt: number; intermediacion: number; total: number;
-    descuadres: number; mep_faltantes: number;
+    descuadres: number; mep_faltantes: number; sin_costo: number;
   };
   n_boletos: number;
 };
@@ -57,8 +63,8 @@ type Boleto = {
 };
 
 const HDR = "px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2 flex-wrap";
-const TH = "px-2 py-1 text-[10px] uppercase tracking-wide text-[var(--t-text-dim)] font-normal whitespace-nowrap";
-const TD = "px-2 py-1 whitespace-nowrap tabular-nums";
+const TH = "px-2 py-1 text-center text-[10px] uppercase tracking-wide text-[var(--t-text-dim)] font-normal whitespace-nowrap";
+const TD = "px-2 py-1 text-center whitespace-nowrap tabular-nums";
 const ACUM = "bg-[var(--t-accent)]/10";
 const BTN = "text-[11px] uppercase tracking-wide px-2 py-1 border border-[var(--t-border)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]";
 
@@ -71,8 +77,17 @@ const fmtFecha = (s: string | null | undefined) => {
   const [y, m, d] = s.split("-");
   return d ? `${d}/${m}/${y.slice(2)}` : s;
 };
-const signo = (v: number) =>
-  v > 0 ? "text-[var(--t-pos,#4ade80)]" : v < 0 ? "text-[var(--t-neg,#f87171)]" : "";
+const neg = (v: number) => (v < 0 ? "text-[var(--t-neg,#f87171)]" : "");
+/** "2026-08" → "08/26". El mes va en el encabezado de cada columna de foto
+ *  para que se lea de un vistazo cuál es el cierre inicial y cuál el final. */
+const mmaa = (mes: string) => `${mes.slice(5, 7)}/${mes.slice(2, 4)}`;
+const mmaaPrevio = (mes: string) => {
+  const y = Number(mes.slice(0, 4));
+  const m = Number(mes.slice(5, 7));
+  const py = m === 1 ? y - 1 : y;
+  const pm = m === 1 ? 12 : m - 1;
+  return `${String(pm).padStart(2, "0")}/${String(py).slice(2)}`;
+};
 
 function mesPasado(): string {
   const hoy = new Date();
@@ -147,10 +162,10 @@ export function ContabilidadView() {
         rows: vigente.titulos,
         columns: [
           { header: "Título", key: "titulo", format: "text", width: 16 },
-          { header: "Nominales ini", key: "qty_ini", format: "number" },
-          { header: "Nominales fin", key: "qty_fin", format: "number" },
-          { header: "Valuación ini", key: "v_ini", format: "number", width: 16 },
-          { header: "Valuación fin", key: "v_fin", format: "number", width: 16 },
+          { header: `Nominales ${mmaaPrevio(vigente.mes)}`, key: "qty_ini", format: "number" },
+          { header: `Nominales ${mmaa(vigente.mes)}`, key: "qty_fin", format: "number" },
+          { header: `Valuación ${mmaaPrevio(vigente.mes)}`, key: "v_ini", format: "number", width: 18 },
+          { header: `Valuación ${mmaa(vigente.mes)}`, key: "v_fin", format: "number", width: 18 },
           { header: "Compras", key: "compras", format: "number", width: 16 },
           { header: "Ventas", key: "ventas", format: "number", width: 16 },
           { header: "Rentas", key: "rentas", format: "number", width: 14 },
@@ -221,6 +236,12 @@ export function ContabilidadView() {
           {tot!.mep_faltantes > 0 && (
             <span className="text-[var(--t-text)]">⚠ {tot!.mep_faltantes} boletos sin MEP</span>
           )}
+          {tot!.sin_costo > 0 && (
+            <span className="text-[var(--t-text)]"
+              title="El FIFO no encontró lote que costear para esas ventas (posición vendida sin haberla comprado en el libro): su intermediación está incompleta">
+              ⚠ {tot!.sin_costo} venta{tot!.sin_costo > 1 ? "s" : ""} sin costo
+            </span>
+          )}
         </div>
       )}
       {cierreRaro && vigente && (
@@ -240,18 +261,18 @@ export function ContabilidadView() {
         {!loading && !error && vigente && vigente.titulos.length > 0 && (
           <table className="w-full border-collapse">
             <thead className="sticky top-0 bg-[var(--t-panel)]">
-              <tr className="text-left">
+              <tr>
                 <th className={TH}>Título</th>
-                <th className={`${TH} text-right`}>Nom. ini</th>
-                <th className={`${TH} text-right`}>Nom. fin</th>
-                <th className={`${TH} text-right`}>Valuación ini</th>
-                <th className={`${TH} text-right`}>Valuación fin</th>
-                <th className={`${TH} text-right`}>Compras</th>
-                <th className={`${TH} text-right`}>Ventas</th>
-                <th className={`${TH} text-right`}>Rentas</th>
-                <th className={`${TH} text-right`}>Tenencia (RxT)</th>
-                <th className={`${TH} text-right`}>Intermediación</th>
-                <th className={`${TH} text-right`}>Total</th>
+                <th className={TH}>Nominales {mmaaPrevio(vigente.mes)}</th>
+                <th className={TH}>Nominales {mmaa(vigente.mes)}</th>
+                <th className={TH}>Valuación {mmaaPrevio(vigente.mes)}</th>
+                <th className={TH}>Valuación {mmaa(vigente.mes)}</th>
+                <th className={TH}>Compras {mmaa(vigente.mes)}</th>
+                <th className={TH}>Ventas {mmaa(vigente.mes)}</th>
+                <th className={TH}>Rentas {mmaa(vigente.mes)}</th>
+                <th className={TH}>Tenencia (RxT)</th>
+                <th className={TH}>Intermediación</th>
+                <th className={TH}>Total {mmaa(vigente.mes)}</th>
                 <th className={TH}>Estado</th>
               </tr>
             </thead>
@@ -266,16 +287,21 @@ export function ContabilidadView() {
                         title={`Nominales sin explicar por boletos: ${fmtNom(t.cuadre_nominales)} (¿falta boleto / amortización / canje?)`}>⚠</span>
                     )}
                   </td>
-                  <td className={`${TD} text-right`}>{fmtNom(t.qty_ini)}</td>
-                  <td className={`${TD} text-right`}>{fmtNom(t.qty_fin)}</td>
-                  <td className={`${TD} text-right`}>{fmt$(t.v_ini)}</td>
-                  <td className={`${TD} text-right`}>{fmt$(t.v_fin)}</td>
-                  <td className={`${TD} text-right`}>{t.compras ? fmt$(t.compras) : "—"}</td>
-                  <td className={`${TD} text-right`}>{t.ventas ? fmt$(t.ventas) : "—"}</td>
-                  <td className={`${TD} text-right ${signo(t.rentas)}`}>{t.rentas ? fmt$(t.rentas) : "—"}</td>
-                  <td className={`${TD} text-right ${signo(t.rxt)}`}>{fmt$(t.rxt)}</td>
-                  <td className={`${TD} text-right ${signo(t.intermediacion)}`}>{fmt$(t.intermediacion)}</td>
-                  <td className={`${TD} text-right font-medium ${signo(t.total)}`}>{fmt$(t.total)}</td>
+                  <td className={TD}>{fmtNom(t.qty_ini)}</td>
+                  <td className={TD}>{fmtNom(t.qty_fin)}</td>
+                  <td className={TD}>{fmt$(t.v_ini)}</td>
+                  <td className={TD}>{fmt$(t.v_fin)}</td>
+                  <td className={TD}>{t.compras ? fmt$(t.compras) : "—"}</td>
+                  <td className={TD}>{t.ventas ? fmt$(t.ventas) : "—"}</td>
+                  <td className={`${TD} ${neg(t.rentas)}`}>{t.rentas ? fmt$(t.rentas) : "—"}</td>
+                  <td className={`${TD} ${neg(t.rxt)}`}>{fmt$(t.rxt)}</td>
+                  <td className={`${TD} ${neg(t.intermediacion)}`}>
+                    {fmt$(t.intermediacion)}
+                    {t.sin_costo > 0 && (
+                      <span className="ml-1" title={`${t.sin_costo} venta(s) sin costo en el libro: no había lote que costear, así que la intermediación de esta fila está incompleta`}>⚠</span>
+                    )}
+                  </td>
+                  <td className={`${TD} font-medium ${neg(t.total)}`}>{fmt$(t.total)}</td>
                   <td className={TD}><Estado t={t} /></td>
                 </tr>
               ))}
@@ -284,14 +310,14 @@ export function ContabilidadView() {
               <tr className="border-t-2 border-[var(--t-border)] font-medium bg-[var(--t-accent)]/5">
                 <td className={TD}>TOTAL</td>
                 <td className={TD} colSpan={2} />
-                <td className={`${TD} text-right`}>{fmt$(tot!.v_ini)}</td>
-                <td className={`${TD} text-right`}>{fmt$(tot!.v_fin)}</td>
-                <td className={`${TD} text-right`}>{fmt$(tot!.compras)}</td>
-                <td className={`${TD} text-right`}>{fmt$(tot!.ventas)}</td>
-                <td className={`${TD} text-right ${signo(tot!.rentas)}`}>{fmt$(tot!.rentas)}</td>
-                <td className={`${TD} text-right ${signo(tot!.rxt)}`}>{fmt$(tot!.rxt)}</td>
-                <td className={`${TD} text-right ${signo(tot!.intermediacion)}`}>{fmt$(tot!.intermediacion)}</td>
-                <td className={`${TD} text-right ${signo(tot!.total)}`}>{fmt$(tot!.total)}</td>
+                <td className={TD}>{fmt$(tot!.v_ini)}</td>
+                <td className={TD}>{fmt$(tot!.v_fin)}</td>
+                <td className={TD}>{fmt$(tot!.compras)}</td>
+                <td className={TD}>{fmt$(tot!.ventas)}</td>
+                <td className={`${TD} ${neg(tot!.rentas)}`}>{fmt$(tot!.rentas)}</td>
+                <td className={`${TD} ${neg(tot!.rxt)}`}>{fmt$(tot!.rxt)}</td>
+                <td className={`${TD} ${neg(tot!.intermediacion)}`}>{fmt$(tot!.intermediacion)}</td>
+                <td className={`${TD} ${neg(tot!.total)}`}>{fmt$(tot!.total)}</td>
                 <td className={TD} />
               </tr>
             </tfoot>
@@ -315,14 +341,14 @@ function Kpi({ label, v, grande }: { label: string; v: number; grande?: boolean 
   return (
     <span className="flex flex-col">
       <span className="text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">{label}</span>
-      <span className={`tabular-nums ${grande ? "text-sm font-semibold" : ""} ${signo(v)}`}>{fmt$(v)}</span>
+      <span className={`tabular-nums ${grande ? "text-sm font-semibold" : ""} ${neg(v)}`}>{fmt$(v)}</span>
     </span>
   );
 }
 
 function Estado({ t }: { t: TituloRow }) {
-  if (t.estado === "alta") return <span className="text-[var(--t-pos,#4ade80)]">ALTA</span>;
-  if (t.estado === "baja") return <span className="text-[var(--t-neg,#f87171)]">BAJA</span>;
+  if (t.estado === "alta") return <span>ALTA</span>;
+  if (t.estado === "baja") return <span>BAJA</span>;
   if (t.estado === "sin_operar") return <span className="text-[var(--t-text-dim)]">sin operar</span>;
   return <span>{t.n_boletos} boletos</span>;
 }
@@ -378,7 +404,7 @@ function DetalleModal({ cuenta, mes, fila, onClose }: {
                   <td className={TD}>{b.moneda ?? "—"}{b.sin_mep && <span className="text-[var(--t-text)]" title="Boleto en moneda extranjera sin MEP: el importe quedó sin pesificar">⚠</span>}</td>
                   <td className={`${TD} text-right`}>{fmt$(b.importe_ars)}</td>
                   <td className={`${TD} text-right ${ACUM}`}>{fmtNom(b.nominales_acum)}</td>
-                  <td className={`${TD} text-right font-medium ${ACUM} ${signo(b.pnl_acum ?? 0)}`}>{fmt$(b.pnl_acum)}</td>
+                  <td className={`${TD} text-right font-medium ${ACUM} ${neg(b.pnl_acum ?? 0)}`}>{fmt$(b.pnl_acum)}</td>
                   <td className={`${TD} text-[var(--t-text-dim)]`}>{b.comprobante}</td>
                 </tr>
               ))}
