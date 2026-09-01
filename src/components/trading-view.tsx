@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { AdrZonasChart } from "@/components/adr-zonas-chart";
 import { LiveIntradayChart } from "@/components/live-intraday-chart";
-import { OrderBookPanel } from "@/components/order-book-panel";
 import { TradingRadarPanel } from "@/components/trading-radar-panel";
 import { usePoll } from "@/lib/use-poll";
 import {
@@ -16,19 +14,21 @@ import {
 } from "@/lib/types-trading";
 
 const POLL_MS = 4_000;
-const LS_CARDS = "trd-fx-trading-pivot-cards-v2";
+const LS_CARDS = "trd-fx-trading-pivot-cards-v3";
 
 type Card = { id: string; ticker: string };
 
-const SLOTS = 6; // 2 por fila × 3 filas — algunas pueden quedar vacías
+// 4 cards (refactor 2026-09-01): la mitad superior izquierda es SOLO cards, y
+// con 4 entran las 7 filas de niveles de cada una sin scrollear.
+const SLOTS = 4;
+// Charts de la derecha: dos, y se llenan por ORDEN de elección (ver `elegir`).
+const CHARTS = 2;
 
 const DEFAULT_CARDS: Card[] = [
   { id: "c1", ticker: "RKLB" },
   { id: "c2", ticker: "SNDK" },
   { id: "c3", ticker: "ASTS" },
   { id: "c4", ticker: "" },
-  { id: "c5", ticker: "" },
-  { id: "c6", ticker: "" },
 ];
 
 // Rellena/recorta a SLOTS cards (para que siempre haya la grilla completa, con vacías).
@@ -141,19 +141,37 @@ function valorNivel(p: number, last: number | null, mode: PivotMode): string {
   return last !== 0 ? fmtPct(((p - last) / last) * 100) : "—";
 }
 
-
+/**
+ * Vista TRADING · Pivots — refactor 2026-09-01.
+ *
+ * La pantalla se parte 50 / 50:
+ *   IZQUIERDA  → arriba las 4 cards de pivots; abajo el RADAR (una sola tabla
+ *                con tabs MOVERS ±4% / VOLUMENES ACCIONES / PIVOTES).
+ *   DERECHA    → DOS charts LIVE que siguen a las cards, llenándose por ORDEN
+ *                de elección (ver `elegir`).
+ *
+ * Se fueron en el mismo refactor: la tab ESTRATEGIA (borrada del backend
+ * entero), el LIBRO (order book — vive en OPERAR, acá no aportaba), el chart
+ * ZONAS ADR y la vista ADR de la tabla. Trading es la pantalla del CEDEAR en
+ * ARS; el mundo USD del subyacente se mira en Renta Variable.
+ */
 export function TradingView() {
-  const [mode, setMode] = useState<PivotMode>("precio");
+  // Default DIF %: es la lectura que la mesa mira (cuánto falta hasta el nivel),
+  // no el precio absoluto del nivel.
+  const [mode, setMode] = useState<PivotMode>("pct");
   const [cards, setCards] = useState<Card[]>(loadCards);
   const [universo, setUniverso] = useState<UniversoItem[]>([]);
-  const [selected, setSelected] = useState<string>("");
   const [overrides, setOverrides] = useState<Record<string, Ov>>(loadOverrides);
 
-  // CEDEAR que manda el chart + time sales: la card marcada, o la primera con ticker.
-  const shownTicker =
-    selected && cards.some((c) => c.ticker === selected)
-      ? selected
-      : cards.find((c) => c.ticker)?.ticker || "";
+  // Los DOS charts de la derecha. `charts[i]` = ticker que dibuja el chart i.
+  // Arranca con los primeros dos tickers cargados en las cards.
+  const [charts, setCharts] = useState<string[]>(() => {
+    const conTicker = loadCards().map((c) => c.ticker).filter(Boolean);
+    return Array.from({ length: CHARTS }, (_, i) => conTicker[i] ?? "");
+  });
+  // Cuando los dos charts están ocupados, el siguiente pisa por turno (round-robin):
+  // así elegir un tercer papel no obliga a decidir cuál de los dos sacar.
+  const [turno, setTurno] = useState(0);
 
   useEffect(() => {
     saveCards(cards);
@@ -172,6 +190,25 @@ export function TradingView() {
     });
   }
 
+  /**
+   * Manda un ticker a los charts. Regla pedida: va al PRIMER chart libre; si los
+   * dos están ocupados, pisa por turno. Un ticker que ya está dibujado no se
+   * duplica (y no mueve el turno).
+   */
+  const elegir = useCallback(
+    (ticker: string) => {
+      const up = (ticker || "").toUpperCase();
+      if (!up || charts.includes(up)) return;
+      const libre = charts.findIndex((t) => !t);
+      const idx = libre >= 0 ? libre : turno;
+      setCharts(charts.map((t, i) => (i === idx ? up : t)));
+      // El turno solo avanza cuando hubo que PISAR: mientras haya un chart
+      // libre, elegir no consume turno.
+      if (libre < 0) setTurno((idx + 1) % CHARTS);
+    },
+    [charts, turno],
+  );
+
   // catálogo de CEDEARs para el selector (1 vez)
   useEffect(() => {
     let alive = true;
@@ -186,10 +223,12 @@ export function TradingView() {
     };
   }, []);
 
+  // Un solo poll para TODO lo que se dibuja: las cards y los dos charts (un
+  // chart puede estar mostrando un papel que ya no está en ninguna card).
   const csv = useMemo(() => {
-    const set = new Set(cards.map((c) => c.ticker).filter(Boolean));
+    const set = new Set([...cards.map((c) => c.ticker), ...charts].filter(Boolean));
     return [...set].join(",");
-  }, [cards]);
+  }, [cards, charts]);
   const { data: rows } = usePoll<PivotRow[]>(
     `/api/trading/pivots?tickers=${encodeURIComponent(csv)}`,
     [],
@@ -202,25 +241,38 @@ export function TradingView() {
     return m;
   }, [rows]);
 
-  // Pivots que van al chart: si el CEDEAR mostrado tiene override editado a mano,
-  // se calculan con esos valores → las líneas del gráfico siguen la edición de la card.
-  const shownPivots = useMemo(() => {
-    const ov = overrides[shownTicker];
-    if (ov) {
-      const h = parseFloat(ov.h);
-      const l = parseFloat(ov.l);
-      const c = parseFloat(ov.c);
-      if (Number.isFinite(h) && Number.isFinite(l) && Number.isFinite(c)) return calcPivots(h, l, c);
-    }
-    return byTicker.get(shownTicker)?.pivots ?? null;
-  }, [overrides, shownTicker, byTicker]);
+  // Pivots de un ticker para el chart: si tiene override editado a mano, se
+  // calculan con esos valores → las líneas siguen la edición de la card.
+  const pivotsDe = useCallback(
+    (ticker: string): PivotLevels | null => {
+      const ov = overrides[ticker];
+      if (ov) {
+        const h = parseFloat(ov.h);
+        const l = parseFloat(ov.l);
+        const c = parseFloat(ov.c);
+        if (Number.isFinite(h) && Number.isFinite(l) && Number.isFinite(c)) return calcPivots(h, l, c);
+      }
+      return byTicker.get(ticker)?.pivots ?? null;
+    },
+    [overrides, byTicker],
+  );
 
+  // Cambiar el activo de una card: si el viejo estaba en un chart, el nuevo
+  // ocupa ESE lugar (si no, el chart se quedaría dibujando un papel que la
+  // pantalla ya no muestra en ninguna card).
   function setTicker(id: string, ticker: string) {
-    setCards((cs) => cs.map((c) => (c.id === id ? { ...c, ticker: ticker.toUpperCase() } : c)));
+    const up = ticker.toUpperCase();
+    const previo = cards.find((c) => c.id === id)?.ticker ?? "";
+    setCards((cs) => cs.map((c) => (c.id === id ? { ...c, ticker: up } : c)));
+    if (previo && charts.includes(previo)) {
+      setCharts((prev) => prev.map((t) => (t === previo ? up : t)));
+      return;
+    }
+    elegir(up);
   }
 
-  // Click en el radar hot-movers → carga el ticker en una card (la primera vacía,
-  // o la última si están todas ocupadas) y lo marca como el mostrado (chart/libro/tape).
+  // Click en el radar → carga el ticker en una card (la primera vacía, o la
+  // última si están todas ocupadas) y lo manda a los charts.
   function loadTicker(ticker: string) {
     const up = ticker.toUpperCase();
     setCards((cs) => {
@@ -229,7 +281,7 @@ export function TradingView() {
       const idx = emptyIdx >= 0 ? emptyIdx : cs.length - 1;
       return cs.map((c, i) => (i === idx ? { ...c, ticker: up } : c));
     });
-    setSelected(up);
+    elegir(up);
   }
 
   return (
@@ -239,9 +291,9 @@ export function TradingView() {
         <h1 className="text-sm font-bold tracking-wide">TRADING · Pivots</h1>
         <div className="flex items-center gap-1">
           {([
-            ["precio", "PRECIO"],
-            ["dif", "DIF $"],
             ["pct", "DIF %"],
+            ["dif", "DIF $"],
+            ["precio", "PRECIO"],
           ] as [PivotMode, string][]).map(([m, label]) => (
             <button
               key={m}
@@ -261,15 +313,12 @@ export function TradingView() {
         <MarketKpis />
       </div>
 
-      {/* split 60 (cards + radar + libro) / 40 (2 charts) */}
-      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-2">
-        {/* izquierda: sub-col cards+libro (comprimido) | radar a todo el alto */}
-        <div className="min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-2">
-          {/* cards (2/fila) arriba + order book comprimido abajo — mismo ancho */}
-          <div className="min-h-0 grid grid-rows-[7fr_3fr] gap-2">
-            {/* cards: 2 por fila, cada una a su ALTO natural (entra entera, con
-                todos los niveles R3…S3); si no entran en el alto, scrollea */}
-            <div className="min-h-0 grid grid-cols-2 auto-rows-min content-start gap-1.5 overflow-y-auto">
+      {/* 50 / 50: izquierda cards + radar, derecha los dos charts */}
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-2">
+        {/* izquierda: 50 cards arriba / 50 radar abajo */}
+        <div className="min-h-0 grid grid-rows-2 gap-2">
+          {/* cards: 2 por fila, a su alto natural (entra entera, R3…S3) */}
+          <div className="min-h-0 grid grid-cols-2 auto-rows-min content-start gap-1.5 overflow-y-auto">
             {cards.map((c) => (
               <PivotCard
                 key={c.id}
@@ -277,68 +326,80 @@ export function TradingView() {
                 row={c.ticker ? byTicker.get(c.ticker) : undefined}
                 mode={mode}
                 universo={universo}
-                selected={!!c.ticker && c.ticker === shownTicker}
+                chartIdx={c.ticker ? charts.indexOf(c.ticker) : -1}
                 override={c.ticker ? overrides[c.ticker] : undefined}
                 onPick={(tk) => setTicker(c.id, tk)}
-                onSelect={() => c.ticker && setSelected(c.ticker)}
+                onSelect={() => c.ticker && elegir(c.ticker)}
                 onEdit={(ov) => c.ticker && setOverride(c.ticker, ov)}
                 onResetEdit={() => c.ticker && setOverride(c.ticker, null)}
               />
             ))}
-            </div>
-            {/* order book comprimido: ocupa solo el ancho de las cards */}
-            <OrderBookPanel key={shownTicker} ticker={shownTicker} />
           </div>
-          {/* radar a todo el alto: 50 MOVERS/VOLUMENES (tabs) / 50 PIVOTES —
-              sin RUBRO ni TICKER para entrar en poco ancho */}
+          {/* radar: UNA tabla con tabs MOVERS / VOLUMENES / PIVOTES */}
           <TradingRadarPanel
             onSelect={loadTicker}
-            selectedTicker={shownTicker || null}
+            selectedTicker={charts.find(Boolean) || null}
             hideRubro
             hideTicker
           />
         </div>
 
-        {/* derecha: 50 chart LIVE (CEDEAR intradía ARS) / 50 zonas del ADR (velas diarias USD) */}
+        {/* derecha: los dos charts LIVE (intradía ARS del papel elegido) */}
         <div className="min-h-0 hidden lg:grid grid-rows-2 gap-2">
-          {/* chart live — precio intradía del activo seleccionado */}
-          <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col">
-            <div className="px-2 py-1 border-b border-[var(--t-border)] shrink-0 text-[10px] uppercase tracking-widest text-[var(--t-accent)]">
-              Live <span className="text-[var(--t-text-muted)] font-mono ml-1 normal-case">{shownTicker || "—"}</span>
-            </div>
-            <div className="flex-1 min-h-0">
-              {shownTicker ? (
-                <LiveIntradayChart
-                  ticker={shownTicker}
-                  pivots={shownPivots}
-                  vwap={byTicker.get(shownTicker)?.vwap ?? null}
-                />
-              ) : (
-                <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-muted)]">
-                  elegí una card
-                </div>
-              )}
-            </div>
-          </div>
-          {/* zonas del ADR: velas diarias USD + pivots del timeframe elegido (default SEMANAL) */}
-          <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col">
-            <div className="px-2 py-1 border-b border-[var(--t-border)] shrink-0 text-[10px] uppercase tracking-widest text-[var(--t-accent)]">
-              Zonas ADR{" "}
-              <span className="text-[var(--t-text-muted)] font-mono ml-1 normal-case">
-                {shownTicker || "—"} · USD
-              </span>
-            </div>
-            <div className="flex-1 min-h-0">
-              {shownTicker ? (
-                <AdrZonasChart ticker={shownTicker} />
-              ) : (
-                <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-muted)]">
-                  elegí una card
-                </div>
-              )}
-            </div>
-          </div>
+          {charts.map((tk, i) => (
+            <ChartSlot
+              key={i}
+              idx={i}
+              ticker={tk}
+              pivots={tk ? pivotsDe(tk) : null}
+              vwap={tk ? byTicker.get(tk)?.vwap ?? null : null}
+              onClear={() => setCharts((prev) => prev.map((t, j) => (j === i ? "" : t)))}
+            />
+          ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** Un slot de chart de la derecha: título con el papel + el intradía LIVE. */
+function ChartSlot({
+  idx,
+  ticker,
+  pivots,
+  vwap,
+  onClear,
+}: {
+  idx: number;
+  ticker: string;
+  pivots: PivotLevels | null;
+  vwap: number | null;
+  onClear: () => void;
+}) {
+  return (
+    <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col">
+      <div className="px-2 py-1 border-b border-[var(--t-border)] shrink-0 flex items-center gap-1 text-[10px] uppercase tracking-widest text-[var(--t-accent)]">
+        <span>Live {idx + 1}</span>
+        <span className="text-[var(--t-text-muted)] font-mono normal-case">{ticker || "—"}</span>
+        {ticker && (
+          <button
+            type="button"
+            onClick={onClear}
+            title="Liberar este chart (el próximo activo que elijas entra acá)"
+            className="ml-auto text-[var(--t-text-muted)] hover:text-[var(--t-accent)] normal-case tracking-normal"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+      <div className="flex-1 min-h-0">
+        {ticker ? (
+          <LiveIntradayChart ticker={ticker} pivots={pivots} vwap={vwap} />
+        ) : (
+          <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-muted)]">
+            elegí una card
+          </div>
+        )}
       </div>
     </div>
   );
@@ -349,7 +410,7 @@ function PivotCard({
   row,
   mode,
   universo,
-  selected,
+  chartIdx,
   override,
   onPick,
   onSelect,
@@ -360,7 +421,8 @@ function PivotCard({
   row: PivotRow | undefined;
   mode: PivotMode;
   universo: UniversoItem[];
-  selected: boolean;
+  /** Índice del chart que está dibujando esta card (−1 = ninguno). */
+  chartIdx: number;
   override: Ov | undefined;
   onPick: (ticker: string) => void;
   onSelect: () => void;
@@ -369,6 +431,7 @@ function PivotCard({
 }) {
   const last = row?.last ?? null;
   const vwap = row?.vwap ?? null;
+  const enChart = chartIdx >= 0;
 
   // máx/mín/cierre: el override (editado a mano) lo guarda el padre y persiste en
   // localStorage. Sin override → sigue al server. Editar → llama onEdit (persiste).
@@ -392,12 +455,20 @@ function PivotCard({
       onMouseDown={onSelect}
       className={
         "bg-[var(--t-panel)] flex flex-col min-w-0 min-h-0 overflow-hidden border cursor-pointer " +
-        (selected ? "border-[var(--t-accent)]" : "border-[var(--t-border)]")
+        (enChart ? "border-[var(--t-accent)]" : "border-[var(--t-border)]")
       }
     >
       {/* header: selector + last */}
       <div className="flex items-center gap-1 px-1.5 py-0.5 border-b border-[var(--t-border)] shrink-0">
         <CedearPicker value={ticker} universo={universo} onPick={onPick} />
+        {enChart && (
+          <span
+            className="text-[8px] font-bold text-[var(--t-accent)] border border-[var(--t-accent)] px-1 leading-tight"
+            title={`Se está graficando en el chart ${chartIdx + 1}`}
+          >
+            {chartIdx + 1}
+          </span>
+        )}
         {override && (
           <button
             type="button"
@@ -474,19 +545,14 @@ function PivotCard({
   );
 }
 
-// ── KPIs del toolbar: CCL + SPY/QQQ (CEDEAR en ARS) + sus ADR (USD) ──────────
-// El CEDEAR sale del motor local (mismo feed que el Scanner, tick a tick).
-// El ADR sale del tablero REUTERS (feed real-time de la oficina).
+// ── KPIs del toolbar: CCL + SPY/QQQ (CEDEAR en ARS) ─────────────────────────
+// Salen del motor local (mismo feed que el Scanner, tick a tick). Los ADR (USD,
+// feed Reuters) se sacaron el 2026-09-01: esta pantalla es la del CEDEAR en ARS
+// y el mundo USD del subyacente se mira en Renta Variable / Research.
 interface CedearScannerRow {
   ticker_corto: string;
   last: number | null;
   vs_1d_pct: number | null;
-}
-
-interface ReutersQuote {
-  ticker: string;
-  last: number | null;
-  var_pct: number | null;
 }
 
 function MarketKpis() {
@@ -502,23 +568,13 @@ function MarketKpis() {
     5_000,
     { fetchOnMount: true },
   );
-  const { data: adrs } = usePoll<ReutersQuote[]>(
-    "/api/research1816/reuters",
-    [],
-    5_000,
-    { fetchOnMount: true },
-  );
   const spy = cedears?.find?.((q) => q.ticker_corto === "SPY");
   const qqq = cedears?.find?.((q) => q.ticker_corto === "QQQ");
-  const spyAdr = adrs?.find?.((q) => q.ticker === "SPY");
-  const qqqAdr = adrs?.find?.((q) => q.ticker === "QQQ");
   return (
     <div className="flex items-center gap-3 ml-auto text-[11px]">
       <Kpi label="CCL" value={ccl.value} pct={ccl.vs_1d_pct} />
       <Kpi label="SPY" value={spy?.last ?? null} pct={spy?.vs_1d_pct ?? null} />
-      <Kpi label="SPY ADR" value={spyAdr?.last ?? null} pct={spyAdr?.var_pct ?? null} />
       <Kpi label="QQQ" value={qqq?.last ?? null} pct={qqq?.vs_1d_pct ?? null} />
-      <Kpi label="QQQ ADR" value={qqqAdr?.last ?? null} pct={qqqAdr?.var_pct ?? null} />
     </div>
   );
 }

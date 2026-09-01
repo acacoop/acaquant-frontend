@@ -2,22 +2,26 @@
 
 import { useState } from "react";
 
-import { TradingEstrategiaRadar } from "./trading-estrategia-radar";
 import { TradingMoversScanner } from "./trading-movers-scanner";
 import { TradingPivotRadar } from "./trading-pivot-radar";
 import { TradingVolumenScanner } from "./trading-volumen-scanner";
 
 /**
- * RADAR de TRADING (columna derecha del panel izquierdo) — DOS tablas apiladas
- * 50/50 a todo el alto:
- *   ARRIBA  → tabs MOVERS ±4% / VOLÚMENES ACCIONES (CEDEARs al palo / más operados).
- *   ABAJO   → tabs PIVOTES (last pegado a un pivote) / ESTRATEGIA (señal quant
- *             live del motor — docs/ESTRATEGIA_QUANT.md backend).
- * (RENTA FIJA se removió — no se usa.)
- * Click en una fila → onSelect (carga el ticker en el chart/libro/pivot%).
+ * RADAR de TRADING — UNA sola tabla con tres tabs (refactor 2026-09-01):
+ *   MOVERS ±4%          → CEDEARs al palo (±4% a 1D o intradía).
+ *   VOLUMENES ACCIONES  → los más operados de la rueda, por CASH.
+ *   PIVOTES             → los que tienen el last pegado a un nivel de pivote.
+ *
+ * Antes eran DOS cajas apiladas (movers/volúmenes arriba, pivotes/estrategia
+ * abajo): partir el alto en dos dejaba las dos tablas con 6 filas visibles cada
+ * una. Ahora la que estás mirando usa el alto entero. ESTRATEGIA se fue con el
+ * borrado de la señal quant (motor, resolver, router y tablas incluidos).
+ *
+ * Las tabs viven EMBEBIDAS en la barra de herramientas de cada tabla
+ * (`headerLeading`) para no gastar una fila entera de alto en ellas.
+ * Click en una fila → onSelect (carga el ticker en una card + en un chart).
  */
-type TopTab = "movers" | "volumenes";
-type BottomTab = "pivotes" | "estrategia";
+type Tab = "movers" | "volumenes" | "pivotes";
 
 export function TradingRadarPanel({
   onSelect,
@@ -30,62 +34,48 @@ export function TradingRadarPanel({
   hideRubro?: boolean;
   hideTicker?: boolean;
 }) {
-  const [top, setTop] = useState<TopTab>("movers");
-  const [bottom, setBottom] = useState<BottomTab>("pivotes");
+  const [tab, setTab] = useState<Tab>("movers");
 
-  // Las tabs MOVERS/VOLUMENES viven en la MISMA barra que los controles de cada
-  // tabla (CEDEAR/ADR/CCL o Σ cash) para no gastar una fila extra de alto.
   const tabs = (
     <div className="flex items-center gap-1 mr-1">
-      <TabBtn active={top === "movers"} onClick={() => setTop("movers")}>
+      <TabBtn active={tab === "movers"} onClick={() => setTab("movers")}>
         MOVERS ±4%
       </TabBtn>
-      <TabBtn active={top === "volumenes"} onClick={() => setTop("volumenes")}>
+      <TabBtn active={tab === "volumenes"} onClick={() => setTab("volumenes")}>
         VOLUMENES ACCIONES
+      </TabBtn>
+      <TabBtn active={tab === "pivotes"} onClick={() => setTab("pivotes")}>
+        PIVOTES
       </TabBtn>
     </div>
   );
 
   return (
-    <div className="min-h-0 h-full grid grid-rows-2 gap-2">
-      {/* ARRIBA: MOVERS / VOLÚMENES — tabs embebidas en la barra de la tabla */}
-      <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-        <div className="flex-1 min-h-0">
-          {top === "movers" ? (
-            <TradingMoversScanner
-              onSelect={onSelect}
-              selectedTicker={selectedTicker}
-              hideRubro={hideRubro}
-              hideTicker={hideTicker}
-              headerLeading={tabs}
-            />
-          ) : (
-            <TradingVolumenScanner
-              onSelect={onSelect}
-              selectedTicker={selectedTicker}
-              headerLeading={tabs}
-            />
-          )}
-        </div>
-      </div>
-
-      {/* ABAJO: PIVOTES / ESTRATEGIA (tabs) */}
-      <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-        <div className="flex items-center gap-1 px-1.5 py-1 border-b border-[var(--t-border)] shrink-0">
-          <TabBtn active={bottom === "pivotes"} onClick={() => setBottom("pivotes")}>
-            PIVOTES
-          </TabBtn>
-          <TabBtn active={bottom === "estrategia"} onClick={() => setBottom("estrategia")}>
-            ESTRATEGIA
-          </TabBtn>
-        </div>
-        <div className="flex-1 min-h-0">
-          {bottom === "pivotes" ? (
-            <TradingPivotRadar onSelect={onSelect} selectedTicker={selectedTicker} />
-          ) : (
-            <TradingEstrategiaRadar onSelect={onSelect} selectedTicker={selectedTicker} />
-          )}
-        </div>
+    <div className="min-h-0 h-full border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0">
+        {tab === "movers" && (
+          <TradingMoversScanner
+            onSelect={onSelect}
+            selectedTicker={selectedTicker}
+            hideRubro={hideRubro}
+            hideTicker={hideTicker}
+            headerLeading={tabs}
+          />
+        )}
+        {tab === "volumenes" && (
+          <TradingVolumenScanner
+            onSelect={onSelect}
+            selectedTicker={selectedTicker}
+            headerLeading={tabs}
+          />
+        )}
+        {tab === "pivotes" && (
+          <TradingPivotRadar
+            onSelect={onSelect}
+            selectedTicker={selectedTicker}
+            headerLeading={tabs}
+          />
+        )}
       </div>
     </div>
   );

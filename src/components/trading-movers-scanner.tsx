@@ -85,6 +85,7 @@ export function TradingMoversScanner({
         hideRubro={hideRubro}
         hideTicker={hideTicker}
         compact
+        soloCedear
         headerLeading={headerLeading}
       />
     </div>

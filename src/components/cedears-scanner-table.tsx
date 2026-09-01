@@ -12,6 +12,11 @@ import { fmtPrice, fmtVol } from "./ui";
  *
  * Click en cualquier header invierte el orden (asc/desc). Default:
  * INTRA descendente (CEDEAR) / vs_1d (ADR) — top movers arriba.
+ *
+ * ⚠️ El switch ADR es del SCANNER de Renta Variable, que es donde se compara el
+ * papel contra su subyacente en USD. En el radar de TRADING se apaga con
+ * `soloCedear` (refactor 2026-09-01): esa pantalla opera el CEDEAR en ARS y los
+ * retornos 7D/15R/MTD/YTD en dólares no se usaban para nada ahí.
  */
 
 type View = "cedear" | "adr";
@@ -39,6 +44,7 @@ export function CedearsScannerTable({
   hideRubro = false,
   hideTicker = false,
   compact = false,
+  soloCedear = false,
   headerLeading,
 }: {
   data: CedearScannerRow[];
@@ -56,11 +62,15 @@ export function CedearsScannerTable({
   // TRADING radar: layout compacto — saca la columna USD y el buscador, y mueve
   // VOL al lado de 1D. El Scanner de Renta Variable (sin compact) queda igual.
   compact?: boolean;
+  // TRADING radar: sin vista ADR — ni el switch ni sus columnas. El Scanner de
+  // Renta Variable (sin `soloCedear`) conserva las dos vistas.
+  soloCedear?: boolean;
   // Nodo opcional (ej. las tabs MOVERS/VOLUMENES) que se renderiza al inicio de
   // la barra de herramientas para compartir la MISMA fila y ahorrar alto.
   headerLeading?: React.ReactNode;
 }) {
-  const [view, setView] = useState<View>("cedear");
+  const [viewRaw, setView] = useState<View>("cedear");
+  const view: View = soloCedear ? "cedear" : viewRaw;
   const [sortKey, setSortKey] = useState<SortKey>("intraday_pct");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [query, setQuery] = useState("");
@@ -114,12 +124,16 @@ export function CedearsScannerTable({
     <div className="h-full flex flex-col min-h-0">
       <div className="flex flex-wrap items-center gap-1 mb-1 shrink-0 px-1 py-1 border-b border-[var(--t-border)]">
         {headerLeading}
-        <ViewBtn active={view === "cedear"} onClick={() => changeView("cedear")} tone="orange">
-          CEDEAR
-        </ViewBtn>
-        <ViewBtn active={view === "adr"} onClick={() => changeView("adr")} tone="cyan">
-          ADR
-        </ViewBtn>
+        {!soloCedear && (
+          <>
+            <ViewBtn active={view === "cedear"} onClick={() => changeView("cedear")} tone="orange">
+              CEDEAR
+            </ViewBtn>
+            <ViewBtn active={view === "adr"} onClick={() => changeView("adr")} tone="cyan">
+              ADR
+            </ViewBtn>
+          </>
+        )}
         {!compact && (
           <>
             <input

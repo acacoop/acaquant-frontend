@@ -29,9 +29,11 @@ function nivelColor(nivel: string): string {
 export function TradingPivotRadar({
   onSelect,
   selectedTicker,
+  headerLeading,
 }: {
   onSelect?: (ticker: string) => void;
   selectedTicker?: string | null;
+  headerLeading?: React.ReactNode;
 }) {
   const [umbral, setUmbral] = useState(0.2);
   const { data: rows } = usePoll<PivotRadarRow[]>(
@@ -48,8 +50,9 @@ export function TradingPivotRadar({
 
   return (
     <div className="h-full min-h-0 flex flex-col">
-      {/* selector de umbral + conteo */}
-      <div className="flex items-center gap-1 px-1.5 py-1 border-b border-[var(--t-border)] shrink-0">
+      {/* tabs del radar + selector de umbral + conteo, todo en UNA fila */}
+      <div className="flex flex-wrap items-center gap-1 px-1.5 py-1 border-b border-[var(--t-border)] shrink-0">
+        {headerLeading}
         <span className="text-[9px] text-[var(--t-text-muted)]">a ≤</span>
         {UMBRALES.map((u) => (
           <button

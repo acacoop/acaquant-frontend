@@ -45,7 +45,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **No tiene base de datos ni lógica de negocio propia.** Es una terminal que renderiza
 lo que sirve el backend FastAPI (`api.acaquant.com`, repo hermano
-`acaquant-backend`). Las **73** route handlers de `src/app/api/**` son **proxies**
+`acaquant-backend`). Las **72** route handlers de `src/app/api/**` son **proxies**
 hacia ese backend — inyectan auth y reenvían. Todo cálculo de negocio vive del otro
 lado; si algo hay que derivar, se deriva allá.
 
@@ -182,6 +182,37 @@ que había en vez de dibujar vacío). Resetea al cambiar de `endpoint`, no de `i
   recharts a veces mide 0 y no se recupera solo.
 - Export a Excel: `lib/xlsx-export.ts` (SheetJS con lazy import, tipos nativos para
   que Excel pueda sumar).
+
+### La vista TRADING (`/trading` → tab PIVOTS)
+
+Refactor 2026-09-01. La pantalla se parte **50 / 50** y ninguna de las dos mitades
+tiene sub-columnas:
+
+- **Izquierda**: arriba las **4** cards de pivots (2×2, con máx/mín/cierre
+  editables); abajo el **RADAR**, que es UNA sola tabla con tres tabs embebidas en
+  su barra de herramientas — **MOVERS ±4% · VOLUMENES ACCIONES · PIVOTES**.
+- **Derecha**: **DOS charts LIVE**. Se llenan **por orden de elección**: el activo
+  que elegís va al primer chart libre y, con los dos ocupados, pisa por turno
+  (round-robin). Cada chart tiene ✕ para liberarlo.
+
+Tres cosas que no son obvias y ya costaron un bug cada una en el diseño:
+
+1. **El poll de `/pivots` pide las cards Y los tickers de los dos charts.** Un
+   chart puede estar dibujando un papel que ya no está en ninguna card; si el poll
+   siguiera solo a las cards, ese chart perdería niveles y VWAP en silencio.
+2. **Cambiar el activo de una card que estaba graficada reemplaza EN ESE chart.**
+   Si no, el chart seguiría mostrando algo que la pantalla ya no tiene en ninguna
+   card.
+3. **La key de localStorage subió a `-v3`** al bajar de 6 cards a 4: con la `-v2`
+   un usuario viejo se traía 6 y perdía dos sin enterarse.
+
+El modo de los niveles arranca en **DIF %** (cuánto falta hasta el nivel), no en
+PRECIO. Y se fueron en el mismo cambio: la tab **ESTRATEGIA** (borrada del backend
+entero), el **LIBRO** (order book — vive en OPERAR), el chart **ZONAS ADR** y toda
+la data de **ADR** (la vista ADR de la tabla se apaga con el prop `soloCedear` de
+`cedears-scanner-table.tsx`, que el Scanner de Renta Variable NO usa, y los KPIs
+`SPY ADR` / `QQQ ADR` del toolbar). Criterio: `/trading` es la pantalla del CEDEAR
+en ARS; el mundo USD del subyacente se mira en `/renta-variable` y `/research`.
 
 ### Temas
 
