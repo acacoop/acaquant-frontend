@@ -65,6 +65,12 @@ type Boleto = {
 const HDR = "px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2 flex-wrap";
 const TH = "px-2 py-1 text-center text-[10px] uppercase tracking-wide text-[var(--t-text-dim)] font-normal whitespace-nowrap";
 const TD = "px-2 py-1 text-center whitespace-nowrap tabular-nums";
+// TÍTULO: a la izquierda y encogida al contenido (`w-px` en una tabla
+// `w-full`), así el ancho sobrante se lo reparten los números.
+const TH_TIT = "px-2 py-1 text-left w-px text-[10px] uppercase tracking-wide text-[var(--t-text-dim)] font-normal whitespace-nowrap";
+const TD_TIT = "px-2 py-1 text-left w-px whitespace-nowrap";
+/** Cierra un grupo de columnas (nominales · valuación · compras+ventas). */
+const SEP = "border-r border-[var(--t-border)]";
 const ACUM = "bg-[var(--t-accent)]/10";
 const BTN = "text-[11px] uppercase tracking-wide px-2 py-1 border border-[var(--t-border)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]";
 
@@ -168,7 +174,6 @@ export function ContabilidadView() {
           { header: `Valuación ${mmaa(vigente.mes)}`, key: "v_fin", format: "number", width: 18 },
           { header: "Compras", key: "compras", format: "number", width: 16 },
           { header: "Ventas", key: "ventas", format: "number", width: 16 },
-          { header: "Rentas", key: "rentas", format: "number", width: 14 },
           { header: "Tenencia (RxT)", key: "rxt", format: "number", width: 16 },
           { header: "Intermediación", key: "intermediacion", format: "number", width: 16 },
           { header: "Total", key: "total", format: "number", width: 16 },
@@ -216,7 +221,6 @@ export function ContabilidadView() {
         <div className="px-3 py-2 flex items-center gap-5 flex-wrap border-b border-[var(--t-border)] shrink-0">
           <Kpi label="Tenencia (RxT)" v={tot!.rxt} />
           <Kpi label="Intermediación" v={tot!.intermediacion} />
-          <Kpi label="Rentas" v={tot!.rentas} />
           <Kpi label="Total del mes" v={tot!.total} grande />
           <span className="text-[var(--t-text-dim)]">
             cierres {fmtFecha(vigente.cierre_ini.fecha_usada)} → {fmtFecha(vigente.cierre_fin.fecha_usada)}
@@ -227,6 +231,9 @@ export function ContabilidadView() {
               title={Object.entries(vigente.ignorados).map(([k, n]) => `${k}: ${n}`).join(" · ")}>
               ({Object.values(vigente.ignorados).reduce((a, b) => a + b, 0)} boletos no mueven posición: caución/futuros/otros)
             </span>
+          )}
+          {tot!.rentas !== 0 && (
+            <Kpi label="Rentas (suman al total)" v={tot!.rentas} />
           )}
           {tot!.descuadres > 0 && (
             <span className="text-[var(--t-text)]">
@@ -262,14 +269,13 @@ export function ContabilidadView() {
           <table className="w-full border-collapse">
             <thead className="sticky top-0 bg-[var(--t-panel)]">
               <tr>
-                <th className={TH}>Título</th>
+                <th className={TH_TIT}>Título</th>
                 <th className={TH}>Nominales {mmaaPrevio(vigente.mes)}</th>
-                <th className={TH}>Nominales {mmaa(vigente.mes)}</th>
+                <th className={`${TH} ${SEP}`}>Nominales {mmaa(vigente.mes)}</th>
                 <th className={TH}>Valuación {mmaaPrevio(vigente.mes)}</th>
-                <th className={TH}>Valuación {mmaa(vigente.mes)}</th>
+                <th className={`${TH} ${SEP}`}>Valuación {mmaa(vigente.mes)}</th>
                 <th className={TH}>Compras {mmaa(vigente.mes)}</th>
-                <th className={TH}>Ventas {mmaa(vigente.mes)}</th>
-                <th className={TH}>Rentas {mmaa(vigente.mes)}</th>
+                <th className={`${TH} ${SEP}`}>Ventas {mmaa(vigente.mes)}</th>
                 <th className={TH}>Tenencia (RxT)</th>
                 <th className={TH}>Intermediación</th>
                 <th className={TH}>Total {mmaa(vigente.mes)}</th>
@@ -280,7 +286,7 @@ export function ContabilidadView() {
               {vigente.titulos.map((t) => (
                 <tr key={t.key} onClick={() => setDetalleKey(t)}
                   className="border-t border-[var(--t-border)]/50 hover:bg-[var(--t-accent)]/5 cursor-pointer">
-                  <td className={`${TD} font-medium`}>
+                  <td className={`${TD_TIT} font-medium`}>
                     {t.titulo}
                     {!t.cuadra && (
                       <span className="ml-1 text-[var(--t-text)]"
@@ -288,12 +294,11 @@ export function ContabilidadView() {
                     )}
                   </td>
                   <td className={TD}>{fmtNom(t.qty_ini)}</td>
-                  <td className={TD}>{fmtNom(t.qty_fin)}</td>
+                  <td className={`${TD} ${SEP}`}>{fmtNom(t.qty_fin)}</td>
                   <td className={TD}>{fmt$(t.v_ini)}</td>
-                  <td className={TD}>{fmt$(t.v_fin)}</td>
+                  <td className={`${TD} ${SEP}`}>{fmt$(t.v_fin)}</td>
                   <td className={TD}>{t.compras ? fmt$(t.compras) : "—"}</td>
-                  <td className={TD}>{t.ventas ? fmt$(t.ventas) : "—"}</td>
-                  <td className={`${TD} ${neg(t.rentas)}`}>{t.rentas ? fmt$(t.rentas) : "—"}</td>
+                  <td className={`${TD} ${SEP}`}>{t.ventas ? fmt$(t.ventas) : "—"}</td>
                   <td className={`${TD} ${neg(t.rxt)}`}>{fmt$(t.rxt)}</td>
                   <td className={`${TD} ${neg(t.intermediacion)}`}>
                     {fmt$(t.intermediacion)}
@@ -308,13 +313,12 @@ export function ContabilidadView() {
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-[var(--t-border)] font-medium bg-[var(--t-accent)]/5">
-                <td className={TD}>TOTAL</td>
-                <td className={TD} colSpan={2} />
+                <td className={TD_TIT}>TOTAL</td>
+                <td className={`${TD} ${SEP}`} colSpan={2} />
                 <td className={TD}>{fmt$(tot!.v_ini)}</td>
-                <td className={TD}>{fmt$(tot!.v_fin)}</td>
+                <td className={`${TD} ${SEP}`}>{fmt$(tot!.v_fin)}</td>
                 <td className={TD}>{fmt$(tot!.compras)}</td>
-                <td className={TD}>{fmt$(tot!.ventas)}</td>
-                <td className={`${TD} ${neg(tot!.rentas)}`}>{fmt$(tot!.rentas)}</td>
+                <td className={`${TD} ${SEP}`}>{fmt$(tot!.ventas)}</td>
                 <td className={`${TD} ${neg(tot!.rxt)}`}>{fmt$(tot!.rxt)}</td>
                 <td className={`${TD} ${neg(tot!.intermediacion)}`}>{fmt$(tot!.intermediacion)}</td>
                 <td className={`${TD} ${neg(tot!.total)}`}>{fmt$(tot!.total)}</td>
