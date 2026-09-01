@@ -153,6 +153,11 @@ export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: 
                         aplicado · esperando que el detector confirme
                       </span>
                     )}
+                    {f.estado === "reincidio" && (
+                      <span className="text-[8px] uppercase tracking-widest text-[var(--t-neg)]">
+                        ⚠ volvió después de un arreglo
+                      </span>
+                    )}
                   </div>
                   <p className="text-[10px] text-[var(--t-text-muted)] mt-0.5">
                     {f.problema}
