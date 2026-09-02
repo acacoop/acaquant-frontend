@@ -9,7 +9,9 @@ import { exportToXlsx } from "@/lib/xlsx-export";
  * Back Office → CONTABILIDAD. Resultado MENSUAL por título de las cuentas
  * propias: TENENCIA (lo que rindió lo que ya se tenía, por la cadena de la
  * planilla) + INTERMEDIACIÓN (la SUMATORIA de los boletos: compra negativa,
- * venta positiva → `ventas − compras`) + RENTAS. El total es la SUMA.
+ * venta positiva) — y nada más. NO HAY RENTAS: cupones, dividendos y
+ * amortizaciones no entran al informe (regla del back office, 2026-09-02); el
+ * canal se sacó entero del backend, no es que esté escondido acá.
  *
  * ⚠️ Lo que se compró y NO se vendió no es resultado del mes: su valuación
  * final no entra en ninguna columna de resultado — es el saldo inicial del mes
@@ -34,7 +36,7 @@ type TituloRow = {
   titulo: string; key: string; unidades: string[];
   qty_ini: number; qty_fin: number; v_ini: number; v_fin: number;
   px_ini: number | null; px_fin: number | null;
-  compras: number; ventas: number; rentas: number;
+  compras: number; ventas: number;
   // La cadena del RxT, tal cual la planilla del back office:
   // G no entran = fin − ini · H mantenida = min(ini, fin) · I monto ini =
   // H×(D/C) · J monto fin = H×(F/E) · K rxt = J − I · L variación = K/I.
@@ -61,7 +63,7 @@ type Resumen = {
   ignorados: Record<string, number>;
   totales: {
     v_ini: number; v_fin: number; compras: number; ventas: number;
-    rentas: number; rxt: number; intermediacion: number; total: number;
+    rxt: number; intermediacion: number; total: number;
     descuadres: number; mep_faltantes: number;
   };
   n_boletos: number;
@@ -70,7 +72,7 @@ type Boleto = {
   fecha: string; categoria: string | null; op: string; cantidad: number | null;
   importe: number | null; moneda: string | null;
   mep: number | null; comprobante: string; importe_ars: number;
-  sin_mep: boolean; direccion: "compra" | "venta" | "renta" | "otro";
+  sin_mep: boolean; direccion: "compra" | "venta" | "otro";
   nominales_acum: number; pnl_acum: number;
 };
 
@@ -250,9 +252,6 @@ export function ContabilidadView() {
               title={Object.entries(vigente.ignorados).map(([k, n]) => `${k}: ${n}`).join(" · ")}>
               ({Object.values(vigente.ignorados).reduce((a, b) => a + b, 0)} boletos no mueven posición: caución/futuros/otros)
             </span>
-          )}
-          {tot!.rentas !== 0 && (
-            <Kpi label="Rentas (suman al total)" v={tot!.rentas} />
           )}
           {tot!.descuadres > 0 && (
             <span className="text-[var(--t-text)]">
