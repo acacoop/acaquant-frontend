@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { fetchJson } from "@/lib/fetch-json";
 import { exportToXlsx } from "@/lib/xlsx-export";
@@ -102,6 +102,13 @@ const fmtFecha = (s: string | null | undefined) => {
   return d ? `${d}/${m}/${y.slice(2)}` : s;
 };
 const neg = (v: number) => (v < 0 ? "text-[var(--t-neg,#f87171)]" : "");
+
+type EstadoTitulo = TituloRow["estado"];
+type Orden = { col: keyof TituloRow; dir: "asc" | "desc" } | null;
+const ESTADOS: { v: EstadoTitulo; label: string }[] = [
+  { v: "operado", label: "Operado" }, { v: "sin_operar", label: "Sin operar" },
+  { v: "alta", label: "Alta" }, { v: "baja", label: "Baja" },
+];
 /** "2026-07-31" → "07/26". Rótulo de las columnas de foto.
  *
  * Toma la fecha de cierre QUE MANDA EL BACKEND (`cierre_ini`/`cierre_fin`), no
@@ -128,6 +135,12 @@ export function ContabilidadView() {
   const [error, setError] = useState<string | null>(null);
   const [detalleKey, setDetalleKey] = useState<TituloRow | null>(null);
   const [gestionar, setGestionar] = useState(false);
+  // ESTADO dejó de ser columna (repetía el mismo valor en decenas de filas) y
+  // pasó a ser FILTRO. `null` = todos.
+  const [filtroEstado, setFiltroEstado] = usePersistedState<EstadoTitulo | "">("contabilidad.estado", "");
+  // Orden por columna: desc → asc → sin orden (vuelve al del backend, por
+  // impacto). Es estado de PANTALLA: no recalcula ni deriva ningún número.
+  const [orden, setOrden] = useState<Orden>(null);
 
   const cargarCuentas = useCallback(async () => {
     try {
@@ -175,6 +188,26 @@ export function ContabilidadView() {
     vigente.cierre_ini.fecha_usada !== vigente.cierre_ini.fecha_objetivo ||
     vigente.cierre_fin.fecha_usada !== vigente.cierre_fin.fecha_objetivo);
 
+  // Filtrar y ordenar es PRESENTACIÓN: no se calcula ni se suma nada — los
+  // totales del pie siguen siendo los que manda el backend, y por eso cuando
+  // hay un filtro activo la fila se rotula «TOTAL DE LA CUENTA»: mostrar el
+  // total de todo debajo de un subconjunto, sin decirlo, sería mentir.
+  const filas = useMemo(() => {
+    let f = vigente?.titulos ?? [];
+    if (filtroEstado) f = f.filter((t) => t.estado === filtroEstado);
+    if (orden) {
+      const { col, dir } = orden;
+      f = [...f].sort((a, b) => {
+        const va = a[col], vb = b[col];
+        const cmp = typeof va === "string" && typeof vb === "string"
+          ? va.localeCompare(vb, "es")
+          : Number(va ?? 0) - Number(vb ?? 0);
+        return dir === "asc" ? cmp : -cmp;
+      });
+    }
+    return f;
+  }, [vigente, filtroEstado, orden]);
+
   const exportar = () => {
     if (!vigente) return;
     void exportToXlsx({
@@ -182,7 +215,7 @@ export function ContabilidadView() {
       sheets: [{
         name: "Resultado",
         title: `Cuenta ${vigente.id_cuenta} · ${vigente.mes} · cierres ${vigente.cierre_ini.fecha_usada ?? "—"} → ${vigente.cierre_fin.fecha_usada ?? "—"}`,
-        rows: vigente.titulos,
+        rows: filas,
         columns: [
           { header: "Título", key: "titulo", format: "text", width: 16 },
           { header: `Nominales ${mmaaDe(vigente.cierre_ini.fecha_objetivo)}`, key: "qty_ini", format: "number" },
@@ -234,6 +267,12 @@ export function ContabilidadView() {
           className="w-[6.75rem] bg-[var(--t-panel)] border border-[var(--t-border)] px-1.5 py-0.5 text-xs" />
         {vigente && (
           <>
+            <span className="ml-2 text-[11px] uppercase tracking-wide text-[var(--t-text-dim)]">Estado</span>
+            <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value as EstadoTitulo | "")}
+              className="bg-[var(--t-panel)] border border-[var(--t-border)] px-1.5 py-0.5 text-xs">
+              <option value="">Todos</option>
+              {ESTADOS.map((e) => <option key={e.v} value={e.v}>{e.label}</option>)}
+            </select>
             <span className="w-px self-stretch bg-[var(--t-border)] mx-1" />
             <Kpi label="Tenencia (RxT)" v={tot!.rxt} />
             <Kpi label="Intermediación" v={tot!.intermediacion} />
@@ -259,31 +298,30 @@ export function ContabilidadView() {
       <div className="flex-1 min-h-0 overflow-auto bg-[var(--t-panel)]">
         {loading && <div className="p-4 text-[var(--t-text-dim)]">Calculando…</div>}
         {error && <div className="p-4 text-[var(--t-neg,#f87171)]">Error: {error}</div>}
-        {!loading && !error && vigente && !vigente.titulos.length && (
-          <div className="p-4 text-[var(--t-text-dim)]">Sin títulos ni boletos en el período.</div>
+        {!loading && !error && vigente && !filas.length && (
+          <div className="p-4 text-[var(--t-text-dim)]">
+            {filtroEstado ? "Ningún título con ese estado en el período."
+                          : "Sin títulos ni boletos en el período."}
+          </div>
         )}
-        {!loading && !error && vigente && vigente.titulos.length > 0 && (
+        {!loading && !error && vigente && filas.length > 0 && (
           <table className="w-full border-collapse">
             <thead className="sticky top-0 bg-[var(--t-panel)] shadow-[0_1px_0_var(--t-border)]">
               <tr>
-                <th className={`${TH_TIT} ${SEP}`}>Título</th>
-                <th className={TH}>Nominales {mmaaDe(vigente.cierre_ini.fecha_objetivo)}</th>
-                <th className={TH}>Nominales {mmaaDe(vigente.cierre_fin.fecha_objetivo)}</th>
-                <th className={TH}>No entran en RxT</th>
-                <th className={`${TH} ${SEP}`}>Misma tenencia mantenida</th>
-                <th className={TH}>Valuación {mmaaDe(vigente.cierre_ini.fecha_objetivo)}</th>
-                <th className={`${TH} ${SEP}`}>Valuación {mmaaDe(vigente.cierre_fin.fecha_objetivo)}</th>
-                <th className={TH}>Compras {mmaaDe(vigente.cierre_fin.fecha_objetivo)}</th>
-                <th className={`${TH} ${SEP}`}>Ventas {mmaaDe(vigente.cierre_fin.fecha_objetivo)}</th>
-                <th className={TH}>Tenencia (RxT)</th>
-                <th className={TH}>Var. período</th>
-                <th className={TH}>Intermediación</th>
-                <th className={TH}>Total {mmaaDe(vigente.cierre_fin.fecha_objetivo)}</th>
-                <th className={TH}>Estado</th>
+                <Th col="titulo" orden={orden} set={setOrden} tit sep>Título</Th>
+                <Th col="qty_ini" orden={orden} set={setOrden}>Nominales {mmaaDe(vigente.cierre_ini.fecha_objetivo)}</Th>
+                <Th col="qty_fin" orden={orden} set={setOrden}>Nominales {mmaaDe(vigente.cierre_fin.fecha_objetivo)}</Th>
+                <Th col="no_entran_rxt" orden={orden} set={setOrden}>No entran en RxT</Th>
+                <Th col="tenencia_mantenida" orden={orden} set={setOrden} sep>Misma tenencia mantenida</Th>
+                <Th col="v_ini" orden={orden} set={setOrden}>Valuación {mmaaDe(vigente.cierre_ini.fecha_objetivo)}</Th>
+                <Th col="v_fin" orden={orden} set={setOrden} sep>Valuación {mmaaDe(vigente.cierre_fin.fecha_objetivo)}</Th>
+                <Th col="rxt" orden={orden} set={setOrden}>Tenencia (RxT)</Th>
+                <Th col="intermediacion" orden={orden} set={setOrden}>Intermediación</Th>
+                <Th col="total" orden={orden} set={setOrden}>Total {mmaaDe(vigente.cierre_fin.fecha_objetivo)}</Th>
               </tr>
             </thead>
             <tbody>
-              {vigente.titulos.map((t) => (
+              {filas.map((t) => (
                 <tr key={t.key} onClick={() => setDetalleKey(t)}
                   className="hover:bg-[var(--t-accent)]/10 cursor-pointer">
                   <td className={`${TD_TIT} ${SEP} font-medium`}>
@@ -301,45 +339,21 @@ export function ContabilidadView() {
                   <td className={`${TD} ${SEP}`}>{fmtNom(t.tenencia_mantenida)}</td>
                   <td className={TD}>{fmt$(t.v_ini)}</td>
                   <td className={`${TD} ${SEP}`}>{fmt$(t.v_fin)}</td>
-                  <td className={TD}>{t.compras ? fmt$(t.compras) : "—"}</td>
-                  <td className={`${TD} ${SEP}`}>{t.ventas ? fmt$(t.ventas) : "—"}</td>
-                  <td className={`${TD} ${neg(t.rxt)}`}
-                    title={[
-                      `MANTENIDO ${fmtNom(t.tenencia_mantenida)}: ${fmt$(t.monto_rxt_ini)} → ${fmt$(t.monto_rxt_fin)} = ${fmt$(t.rxt_mantenida)}`,
-                      t.qty_entraron
-                        ? `NUEVO ${fmtNom(t.qty_entraron)}: vale ${fmt$(t.valor_nuevo)} y costó ${fmt$(t.costo_nuevo)} = ${fmt$(t.rxt_nueva)}`
-                        : "",
-                      `TENENCIA = ${fmt$(t.rxt)}`,
-                    ].filter(Boolean).join(" · ")}>
-                    {fmt$(t.rxt)}
-                  </td>
-                  <td className={`${TD} ${neg(t.variacion_rxt ?? 0)}`}>{fmtPct(t.variacion_rxt)}</td>
-                  <td className={`${TD} ${neg(t.intermediacion)}`}
-                    title={[
-                      `ventas − compras = ${fmt$(t.neto_boletos)}`,
-                      t.costo_salida ? `menos lo que SALIÓ (${fmtNom(t.qty_salieron)} a valor del cierre anterior) = ${fmt$(t.costo_salida)}` : "",
-                      t.costo_nuevo ? `sin el costo de lo que QUEDÓ en cartera (se lo lleva la tenencia) = ${fmt$(t.costo_nuevo)}` : "",
-                    ].filter(Boolean).join(" · ")}>
-                    {fmt$(t.intermediacion)}
-                  </td>
+                  <td className={`${TD} ${neg(t.rxt)}`}>{fmt$(t.rxt)}</td>
+                  <td className={`${TD} ${neg(t.intermediacion)}`}>{fmt$(t.intermediacion)}</td>
                   <td className={`${TD} font-medium ${neg(t.total)}`}>{fmt$(t.total)}</td>
-                  <td className={TD}><Estado t={t} /></td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-[var(--t-border)] font-medium bg-[var(--t-accent)]/5">
-                <td className={`${TD_TIT} ${SEP}`}>TOTAL</td>
+                <td className={`${TD_TIT} ${SEP}`}>{filtroEstado ? "TOTAL DE LA CUENTA" : "TOTAL"}</td>
                 <td className={`${TD} ${SEP}`} colSpan={4} />
                 <td className={TD}>{fmt$(tot!.v_ini)}</td>
                 <td className={`${TD} ${SEP}`}>{fmt$(tot!.v_fin)}</td>
-                <td className={TD}>{fmt$(tot!.compras)}</td>
-                <td className={`${TD} ${SEP}`}>{fmt$(tot!.ventas)}</td>
                 <td className={`${TD} ${neg(tot!.rxt)}`}>{fmt$(tot!.rxt)}</td>
-                <td className={TD} />
                 <td className={`${TD} ${neg(tot!.intermediacion)}`}>{fmt$(tot!.intermediacion)}</td>
                 <td className={`${TD} ${neg(tot!.total)}`}>{fmt$(tot!.total)}</td>
-                <td className={TD} />
               </tr>
             </tfoot>
           </table>
@@ -358,6 +372,89 @@ export function ContabilidadView() {
   );
 }
 
+/** El DESGLOSE del título: todo lo que dejó de ser columna. La tabla muestra
+ *  el resultado; acá está de dónde sale, paso por paso. Sacar `Compras`,
+ *  `Ventas`, `Var. período` y `Estado` de la grilla no puede significar
+ *  perderlos — significa que viven donde se los va a buscar. */
+function Desglose({ t }: { t: TituloRow }) {
+  const bloques: { titulo: string; datos: [string, string, string?][] }[] = [
+    { titulo: "Posición", datos: [
+      ["Nominales al inicio", fmtNom(t.qty_ini)],
+      ["Nominales al cierre", fmtNom(t.qty_fin)],
+      ["No entran en RxT", fmtNom(t.no_entran_rxt)],
+      ["Misma tenencia mantenida", fmtNom(t.tenencia_mantenida)],
+      ["Estado", ESTADOS.find((e) => e.v === t.estado)?.label ?? t.estado],
+      ...(t.cuadra ? [] : [["Nominales sin explicar", fmtNom(t.cuadre_nominales), "alerta"] as [string, string, string]]),
+    ] },
+    { titulo: "Operado en el mes", datos: [
+      ["Compras", t.compras ? fmt$(t.compras) : "—"],
+      ["Ventas", t.ventas ? fmt$(t.ventas) : "—"],
+      ["Boletos", String(t.n_boletos)],
+      ["Ventas − compras", fmt$(t.neto_boletos)],
+    ] },
+    { titulo: "Tenencia (RxT)", datos: [
+      ["Monto al inicio", fmt$(t.monto_rxt_ini)],
+      ["Monto al cierre", fmt$(t.monto_rxt_fin)],
+      ["Resultado de lo mantenido", fmt$(t.rxt_mantenida)],
+      ["Variación del período", fmtPct(t.variacion_rxt)],
+      ...(t.qty_entraron ? [
+        ["Nominales nuevos retenidos", fmtNom(t.qty_entraron)],
+        ["Valen al cierre", fmt$(t.valor_nuevo)],
+        ["Costaron", fmt$(t.costo_nuevo)],
+        ["Resultado de lo nuevo", fmt$(t.rxt_nueva)],
+      ] as [string, string][] : []),
+      ["TENENCIA", fmt$(t.rxt), "fuerte"],
+    ] },
+    { titulo: "Intermediación", datos: [
+      ["Ventas − compras", fmt$(t.neto_boletos)],
+      ...(t.costo_salida ? [
+        [`Menos lo que salió (${fmtNom(t.qty_salieron)} al precio del cierre anterior)`, fmt$(-t.costo_salida)],
+      ] as [string, string][] : []),
+      ...(t.costo_nuevo ? [
+        ["Sin el costo de lo que quedó en cartera (se lo lleva la tenencia)", fmt$(t.costo_nuevo)],
+      ] as [string, string][] : []),
+      ["INTERMEDIACIÓN", fmt$(t.intermediacion), "fuerte"],
+    ] },
+  ];
+  return (
+    <div className="mb-3 grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-1 pb-3 border-b border-[var(--t-border)]">
+      {bloques.map((b) => (
+        <div key={b.titulo}>
+          <div className="text-[10px] uppercase tracking-wide text-[var(--t-accent)] mb-0.5">{b.titulo}</div>
+          {b.datos.map(([k, v, estilo]) => (
+            <div key={k} className="flex justify-between gap-3">
+              <span className="text-[var(--t-text-dim)]">{k}</span>
+              <span className={`tabular-nums whitespace-nowrap ${estilo === "fuerte" ? "font-semibold" : ""} ${estilo === "alerta" ? "text-[var(--t-text)]" : ""}`}>{v}</span>
+            </div>
+          ))}
+        </div>
+      ))}
+      <div className="col-span-2 lg:col-span-4 flex justify-end gap-3 pt-1">
+        <span className="text-[10px] uppercase tracking-wide text-[var(--t-text-dim)] self-center">Total del mes</span>
+        <span className={`tabular-nums text-sm font-semibold ${neg(t.total)}`}>{fmt$(t.total)}</span>
+      </div>
+    </div>
+  );
+}
+
+/** Encabezado que ordena. Click cicla desc → asc → sin orden, y «sin orden»
+ *  devuelve el que manda el backend (por impacto). La flecha dice cuál rige. */
+function Th({ col, orden, set, sep, tit, children }: {
+  col: keyof TituloRow; orden: Orden; set: (o: Orden) => void;
+  sep?: boolean; tit?: boolean; children: React.ReactNode;
+}) {
+  const activo = orden?.col === col;
+  return (
+    <th
+      className={`${tit ? TH_TIT : TH} ${sep ? SEP : ""} cursor-pointer select-none hover:text-[var(--t-accent)] ${activo ? "text-[var(--t-accent)]" : ""}`}
+      onClick={() => set(!activo ? { col, dir: "desc" }
+                        : orden!.dir === "desc" ? { col, dir: "asc" } : null)}
+      title="Ordenar por esta columna">
+      {children}{activo && (orden!.dir === "desc" ? " ↓" : " ↑")}
+    </th>
+  );
+}
+
 /** Etiqueta y número EN LA MISMA LÍNEA: apilados hacían que los totales
  *  costaran una franja entera de pantalla arriba de la tabla. */
 function Kpi({ label, v, fuerte }: { label: string; v: number; fuerte?: boolean }) {
@@ -367,13 +464,6 @@ function Kpi({ label, v, fuerte }: { label: string; v: number; fuerte?: boolean 
       <span className={`tabular-nums ${fuerte ? "font-semibold" : ""} ${neg(v)}`}>{fmt$(v)}</span>
     </span>
   );
-}
-
-function Estado({ t }: { t: TituloRow }) {
-  if (t.estado === "alta") return <span>ALTA</span>;
-  if (t.estado === "baja") return <span>BAJA</span>;
-  if (t.estado === "sin_operar") return <span className="text-[var(--t-text-dim)]">sin operar</span>;
-  return <span>{t.n_boletos} boletos</span>;
 }
 
 /** Drill-down auditable: los boletos del mes que componen la fila. */
@@ -390,6 +480,7 @@ function DetalleModal({ cuenta, mes, fila, onClose }: {
   }, [cuenta, mes, fila.key]);
   return (
     <Modal onClose={onClose} titulo={`${fila.titulo} · ${mes}`} ancho="max-w-[1500px]">
+      <Desglose t={fila} />
       {error && <div className="text-[var(--t-neg,#f87171)]">Error: {error}</div>}
       {!boletos && !error && <div className="text-[var(--t-text-dim)]">Cargando…</div>}
       {boletos && !boletos.length && (
