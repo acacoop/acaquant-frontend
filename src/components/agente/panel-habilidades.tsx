@@ -22,7 +22,7 @@
 // no significa nada.
 import { useState } from "react";
 
-import { fechaHora, type Habilidad } from "@/components/agente/tipos";
+import { fechaHora, type Explicacion, type Habilidad } from "@/components/agente/tipos";
 
 // CUATRO estados, no dos. La distinción que el agente viejo no hacía.
 const ESTADO: Record<string, { color: string; txt: string }> = {
@@ -32,9 +32,16 @@ const ESTADO: Record<string, { color: string; txt: string }> = {
 };
 const NUNCA = { color: "var(--t-text-dim)", txt: "todavía no le tocó" };
 
-export function PanelHabilidades({ habilidades, correr }: {
+const DE_QUIEN: Record<string, string> = {
+  nuestro: "es nuestro código", dato: "es un dato roto en origen",
+  proveedor: "es del proveedor", no_se: "no se pudo determinar",
+};
+
+export function PanelHabilidades({ habilidades, correr, explicar }: {
   habilidades: Habilidad[];
   correr: (nombre: string) => Promise<unknown>;
+  // «Explicámelo» (AGENT.md §0.dh): CALCULA, no muta — va por `calcular`.
+  explicar: (nombre: string) => Promise<Explicacion>;
 }) {
   const [corriendo, setCorriendo] = useState("");
   const orden = [...habilidades].sort((a, b) => {
@@ -48,6 +55,19 @@ export function PanelHabilidades({ habilidades, correr }: {
   });
   const ciegas = orden.filter((h) =>
     h.ultimo_resultado === "error" || h.ultimo_resultado === "sin_datos").length;
+
+  const [explicaciones, setExplicaciones] = useState<Record<string, Explicacion>>({});
+  const [explicando, setExplicando] = useState("");
+  async function explicala(nombre: string) {
+    if (explicando) return;
+    setExplicando(nombre);
+    try {
+      const r = await explicar(nombre);
+      setExplicaciones((e) => ({ ...e, [nombre]: r }));
+    } catch (e) {
+      setExplicaciones((x) => ({ ...x, [nombre]: { ok: false, error: String(e) } }));
+    } finally { setExplicando(""); }
+  }
 
   async function correrla(nombre: string) {
     if (corriendo) return;
@@ -132,9 +152,59 @@ export function PanelHabilidades({ habilidades, correr }: {
                 </button>
               </div>
               {h.ultimo_error && (
-                <p className="text-[9px] text-[var(--t-neg)] pl-3.5 mt-0.5">
-                  {h.ultimo_error}
-                </p>
+                <div className="pl-3.5 mt-0.5">
+                  <p className="text-[9px] text-[var(--t-neg)]">
+                    {h.ultimo_error}
+                    {h.ultimo_resultado === "error" && (
+                      <button
+                        disabled={explicando === h.nombre}
+                        onClick={() => void explicala(h.nombre)}
+                        title="La IA lee el traceback, el código y el diario, y lo cuenta. A pedido, cacheado por error."
+                        className="ml-2 text-[8px] uppercase tracking-widest px-1.5 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-40"
+                      >
+                        {explicando === h.nombre ? "…" : "explicámelo"}
+                      </button>
+                    )}
+                  </p>
+                  {(() => {
+                    const x = explicaciones[h.nombre];
+                    if (!x) return null;
+                    if (!x.ok) {
+                      return <p className="text-[9px] text-[var(--t-text-dim)] mt-0.5">{x.error}</p>;
+                    }
+                    const r = x.respuesta!;
+                    return (
+                      <div className="mt-1 px-1.5 py-1 border-l-2 border-[var(--t-accent)] bg-[var(--t-surface)] text-[9px] flex flex-col gap-0.5">
+                        <span className="text-[8px] uppercase tracking-widest text-[var(--t-accent)]">
+                          {DE_QUIEN[r.de_quien] ?? r.de_quien}
+                          {x.cacheada && x.at ? ` · explicado ${fechaHora(x.at)}` : ""}
+                        </span>
+                        <span className="text-[var(--t-text)]">{r.explicacion}</span>
+                        {r.afecta && <span className="text-[var(--t-text-muted)]">afecta: {r.afecta}</span>}
+                        {r.que_hacer && <span className="text-[var(--t-text)]">qué hacer: {r.que_hacer}</span>}
+                        {r.test && (
+                          <details>
+                            <summary className="cursor-pointer text-[8px] uppercase tracking-widest text-[var(--t-text-dim)]">test propuesto</summary>
+                            <pre className="whitespace-pre-wrap break-all font-mono text-[8px] mt-0.5">{r.test}</pre>
+                          </details>
+                        )}
+                        {r.tarea?.prompt && (
+                          <details>
+                            <summary className="cursor-pointer text-[8px] uppercase tracking-widest text-[var(--t-text-dim)]">
+                              tarea: {r.tarea.titulo || "para Claude Code"}
+                            </summary>
+                            <pre className="whitespace-pre-wrap break-all font-mono text-[8px] mt-0.5">{r.tarea.prompt}</pre>
+                          </details>
+                        )}
+                        {x.fuentes && x.fuentes.length > 0 && (
+                          <span className="text-[8px] text-[var(--t-text-dim)]">
+                            leyó: {x.fuentes.join(" · ")}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
               )}
             </div>
           );
