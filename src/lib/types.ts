@@ -177,6 +177,15 @@ export interface BonoCurva {
   // una tasa nunca obligue a adivinar su procedencia.
   tea_fuente?:       string | null;
   tea_fecha?:        string | null;   // la rueda a la que corresponde (YYYY-MM-DD)
+  // En QUÉ convención está `metrics.TNA` de esta fila (2026-09-02):
+  //   · "plazo-rem" → lineal base 365 sobre el plazo remanente, la de 1816. La
+  //     calcula el BACKEND y viene en `metrics.TNA`.
+  //   · "1816"      → la TNA que publica el proveedor (patas TAMAR), tal cual.
+  //   · "mensual"   → no vino TNA y esta tabla la deriva con TEM×12, como siempre.
+  // Existe porque mientras convivan dos convenciones en la misma pantalla, la
+  // única forma de que la diferencia no sea SILENCIOSA es que cada fila lo diga:
+  // medido contra 1816, entre una y otra hay hasta 2,59 pp en el tramo largo.
+  tna_convencion?:   string | null;
   // El MARGEN sobre la TAMAR: lo que la mesa realmente mira de un bono TAMAR
   // (cuánto paga por encima de la tasa de referencia del BCRA). En FRACCIÓN
   // (0.0973 = 9,73%), la misma escala que la TEA. `null` = no lo tenemos.
