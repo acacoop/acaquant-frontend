@@ -3,6 +3,7 @@ import { JetBrains_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { BriefingModal } from "@/components/briefing-modal";
 import { MisAvisos } from "@/components/mis-avisos";
+import { Pulso } from "@/components/pulso";
 import AgenteModal from "@/components/agente/modal";
 import { Header } from "@/components/header";
 import { PerfBoot } from "@/components/perf-boot";
@@ -117,6 +118,10 @@ export default async function RootLayout({
                 mandar una notificación a otro user que no sea admin»* (user).
                 Es chico y no interrumpe: si no hay nada, no se dibuja. */}
             <MisAvisos />
+            {/* SIN ACTUALIZAR — la marca de una pantalla ciega, para cualquier
+                rol y cualquier vista (AGENT.md §0.dg). Sale del registro de
+                `usePoll`; si todo refresca, no se dibuja. */}
+            <Pulso />
             {/* SALUD ya no tiene botón propio: sus chequeos y su interrupción
                 viven adentro del AV AGENT (2026-08-19, ver AV_AGENT.md §0.l). */}
             {/* AV AGENT (docs/AV_AGENT.md): el primer agente del sistema. Vive

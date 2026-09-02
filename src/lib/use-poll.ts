@@ -35,6 +35,43 @@ import { contar, midiendo, registrarMs } from "./perf";
 // su propio estado y su propio manejo de error.
 const _enVuelo = new Map<string, Promise<string>>();
 
+// ── LO QUE ESTÁ CIEGO, compartido por toda la app (AGENT.md §0.dg) ─────────
+//
+// Cada poll que falla se anota acá con su endpoint y desde cuándo; cuando
+// vuelve a andar, se borra. `<Pulso />` (components/pulso.tsx) lo lee para
+// dibujar «sin actualizar hace N min» en la barra y para mandarle al backend
+// un pulso por minuto mientras dure. Es UN registro para las 37 pantallas:
+// hasta ahora 3 mostraban el fallo y 34 no, cada una a su manera.
+type Ciego = { endpoint: string; desde: number; motivo: string; vista: string };
+const _ciegos = new Map<string, Ciego>();
+const _oyentes = new Set<() => void>();
+let _foto: Ciego[] = [];
+
+function _avisar() {
+  _foto = Array.from(_ciegos.values());
+  _oyentes.forEach((f) => f());
+}
+
+function _marcarCiego(endpoint: string, motivo: string) {
+  const prev = _ciegos.get(endpoint);
+  const vista = typeof window !== "undefined" ? window.location.pathname : "";
+  _ciegos.set(endpoint, { endpoint, desde: prev?.desde ?? Date.now(), motivo, vista });
+  _avisar();
+}
+
+function _marcarVivo(endpoint: string) {
+  if (_ciegos.delete(endpoint)) _avisar();
+}
+
+/** Para `useSyncExternalStore`: suscribirse y leer la foto actual. */
+export function suscribirCiegos(f: () => void): () => void {
+  _oyentes.add(f);
+  return () => { _oyentes.delete(f); };
+}
+export function fotoCiegos(): Ciego[] {
+  return _foto;
+}
+
 async function _traerCrudo(endpoint: string): Promise<string> {
   const yaEnCurso = _enVuelo.get(endpoint);
   if (yaEnCurso) return yaEnCurso;
@@ -101,9 +138,12 @@ export function usePoll<T>(
         }
         setLastAt(Date.now());
         setError(null);
+        _marcarVivo(endpoint);
       } catch (e) {
         // mantener data vieja si falló un poll puntual
-        if (alive) setError(e instanceof Error ? e.message : "error de red");
+        const motivo = e instanceof Error ? e.message : "error de red";
+        if (alive) setError(motivo);
+        _marcarCiego(endpoint, motivo);
       }
     }
 
@@ -117,6 +157,8 @@ export function usePoll<T>(
     return () => {
       alive = false;
       clearInterval(id);
+      // Al desmontar, ese endpoint deja de ser responsabilidad de esta pantalla.
+      _marcarVivo(endpoint);
     };
   }, [endpoint, intervalMs, fetchOnMount]);
 
