@@ -179,7 +179,9 @@ export default function AgenteModal() {
                 <PanelHabilidades habilidades={v.habilidades}
                                   correr={(n) => d.escribir(
                                     "/api/agente/correr", { habilidad: n },
-                                    ["vista"])} />
+                                    ["vista"])}
+                                  explicar={(n) => d.calcular(
+                                    "/api/agente/explicar", { habilidad: n })} />
               )}
             </div>
           </div>

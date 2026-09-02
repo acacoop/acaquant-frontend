@@ -42,6 +42,7 @@ export type Habilidad = {
   ultima_corrida_at: string | null;
   ultimo_resultado: "ok" | "sin_datos" | "error" | null;
   ultimo_error: string;
+  tiene_traceback?: boolean;
   ultima_duracion_ms: number | null;
   corridas_hoy: number;
   hallazgos_total: number;
@@ -118,4 +119,23 @@ export const COLOR: Record<Severidad, string> = {
   alta: "var(--t-neg)",
   media: "var(--t-accent)",
   baja: "var(--t-text-muted)",
+};
+
+// «Explicámelo» (AGENT.md §0.dh): lo que contesta POST /api/agente/explicar.
+export type Explicacion = {
+  ok: boolean;
+  error?: string;
+  cacheada?: boolean;
+  respuesta?: {
+    de_quien: "nuestro" | "dato" | "proveedor" | "no_se";
+    explicacion: string;
+    afecta?: string;
+    que_hacer?: string;
+    test?: string;
+    tarea?: { titulo?: string; prompt?: string };
+  };
+  fuentes?: string[];
+  modelo?: string;
+  por?: string;
+  at?: string | null;
 };
