@@ -232,37 +232,27 @@ export function ContabilidadView() {
         <span className="ml-2 text-[11px] uppercase tracking-wide text-[var(--t-text-dim)]">Mes</span>
         <input type="month" value={mes} onChange={(e) => setMes(e.target.value)}
           className="bg-transparent border border-[var(--t-border)] px-2 py-0.5 text-xs" />
+        {vigente && (
+          <>
+            <span className="w-px self-stretch bg-[var(--t-border)] mx-1" />
+            <Kpi label="Tenencia (RxT)" v={tot!.rxt} />
+            <Kpi label="Intermediación" v={tot!.intermediacion} />
+            <Kpi label="Total del mes" v={tot!.total} fuerte />
+            <span className="text-[var(--t-text-dim)] whitespace-nowrap"
+              title={Object.entries(vigente.ignorados ?? {}).map(([k, n]) => `${k}: ${n}`).join(" · ") || undefined}>
+              {fmtFecha(vigente.cierre_ini.fecha_usada)} → {fmtFecha(vigente.cierre_fin.fecha_usada)}
+              {cierreRaro && " ⚠"} · {vigente.n_boletos} boletos
+            </span>
+            {tot!.mep_faltantes > 0 && (
+              <span className="text-[var(--t-text)]">⚠ {tot!.mep_faltantes} sin MEP</span>
+            )}
+          </>
+        )}
         <div className="ml-auto flex items-center gap-2">
           {vigente && <button className={BTN} onClick={exportar}>Descargar</button>}
           <button className={BTN} onClick={() => setGestionar(true)}>Gestionar cuentas</button>
         </div>
       </div>
-
-      {vigente && (
-        <div className="px-3 py-2 flex items-center gap-5 flex-wrap border-b border-[var(--t-border)] shrink-0">
-          <Kpi label="Tenencia (RxT)" v={tot!.rxt} />
-          <Kpi label="Intermediación" v={tot!.intermediacion} />
-          <Kpi label="Total del mes" v={tot!.total} grande />
-          <span className="text-[var(--t-text-dim)]">
-            cierres {fmtFecha(vigente.cierre_ini.fecha_usada)} → {fmtFecha(vigente.cierre_fin.fecha_usada)}
-            {cierreRaro && " ⚠"} · {vigente.n_boletos} boletos
-          </span>
-          {Object.keys(vigente.ignorados ?? {}).length > 0 && (
-            <span className="text-[var(--t-text-dim)]"
-              title={Object.entries(vigente.ignorados).map(([k, n]) => `${k}: ${n}`).join(" · ")}>
-              ({Object.values(vigente.ignorados).reduce((a, b) => a + b, 0)} boletos no mueven posición: caución/futuros/otros)
-            </span>
-          )}
-          {tot!.descuadres > 0 && (
-            <span className="text-[var(--t-text)]">
-              ⚠ {tot!.descuadres} título{tot!.descuadres > 1 ? "s" : ""} con nominales sin explicar por boletos
-            </span>
-          )}
-          {tot!.mep_faltantes > 0 && (
-            <span className="text-[var(--t-text)]">⚠ {tot!.mep_faltantes} boletos sin MEP</span>
-          )}
-        </div>
-      )}
       {cierreRaro && vigente && (
         <div className="px-3 py-1 text-[11px] text-[var(--t-text)] border-b border-[var(--t-border)] shrink-0">
           El cierre usado no es el último hábil del mes (falta el snapshot de ese día en la tenencia):
@@ -271,7 +261,7 @@ export function ContabilidadView() {
         </div>
       )}
 
-      <div className="flex-1 min-h-0 overflow-auto">
+      <div className="flex-1 min-h-0 overflow-auto bg-[var(--t-panel)]">
         {loading && <div className="p-4 text-[var(--t-text-dim)]">Calculando…</div>}
         {error && <div className="p-4 text-[var(--t-neg,#f87171)]">Error: {error}</div>}
         {!loading && !error && vigente && !vigente.titulos.length && (
@@ -279,7 +269,7 @@ export function ContabilidadView() {
         )}
         {!loading && !error && vigente && vigente.titulos.length > 0 && (
           <table className="w-full border-collapse">
-            <thead className="sticky top-0 bg-[var(--t-panel)]">
+            <thead className="sticky top-0 bg-[var(--t-panel)] shadow-[0_1px_0_var(--t-border)]">
               <tr>
                 <th className={`${TH_TIT} ${SEP}`}>Título</th>
                 <th className={TH}>Nominales {mmaaDe(vigente.cierre_ini.fecha_objetivo)}</th>
@@ -300,7 +290,7 @@ export function ContabilidadView() {
             <tbody>
               {vigente.titulos.map((t) => (
                 <tr key={t.key} onClick={() => setDetalleKey(t)}
-                  className="border-t border-[var(--t-border)]/50 hover:bg-[var(--t-accent)]/5 cursor-pointer">
+                  className="hover:bg-[var(--t-accent)]/10 cursor-pointer">
                   <td className={`${TD_TIT} ${SEP} font-medium`}>
                     <span className="flex items-center gap-1">
                       <span className={TIT_MAX} title={t.titulo}>{t.titulo}</span>
@@ -373,11 +363,13 @@ export function ContabilidadView() {
   );
 }
 
-function Kpi({ label, v, grande }: { label: string; v: number; grande?: boolean }) {
+/** Etiqueta y número EN LA MISMA LÍNEA: apilados hacían que los totales
+ *  costaran una franja entera de pantalla arriba de la tabla. */
+function Kpi({ label, v, fuerte }: { label: string; v: number; fuerte?: boolean }) {
   return (
-    <span className="flex flex-col">
+    <span className="flex items-baseline gap-1.5 whitespace-nowrap">
       <span className="text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">{label}</span>
-      <span className={`tabular-nums ${grande ? "text-sm font-semibold" : ""} ${neg(v)}`}>{fmt$(v)}</span>
+      <span className={`tabular-nums ${fuerte ? "font-semibold" : ""} ${neg(v)}`}>{fmt$(v)}</span>
     </span>
   );
 }
