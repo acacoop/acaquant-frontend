@@ -38,7 +38,7 @@ import { carteraColor, carteraShort } from "@/lib/carteras";
 import { fetchJson } from "@/lib/fetch-json";
 import { fmtFechaCorta } from "@/lib/fmt";
 import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
-import { fmt0, fmt2, fmtPct, Panel } from "./ui/informe";
+import { enMoneda, fmt0, fmt2, fmtPct, Panel } from "./ui/informe";
 
 // El reporte se baja recién al abrirlo: son cuatro hojas de maquetado que la
 // mayoría de las veces nadie mira, y pagarlas en cada carga de la vista sería
@@ -155,11 +155,6 @@ function Celda({ label, valor, sub, ancho = false }: {
   );
 }
 
-/** El monto de un agregado en la moneda elegida. Sin MEP el USD es null, y el
- *  toggle está deshabilitado, así que nunca se muestra un 0 falso. */
-const enMoneda = (m: { monto: number; monto_usd: number | null }, usd: boolean) =>
-  usd ? m.monto_usd : m.monto;
-
 // ── Vista ──────────────────────────────────────────────────────────────────
 
 export function CarterasInformeView({ idCuenta, nombreCuenta, tab }: {
@@ -271,8 +266,8 @@ export function CarterasInformeView({ idCuenta, nombreCuenta, tab }: {
         <div className="ml-auto flex items-center gap-2">
           {cargando && <span className="text-[10px] text-[var(--t-text-muted)]">actualizando…</span>}
           <button className={BTN} onClick={() => setReporte(true)}
-                  title="El informe como documento, hoja por hoja — se imprime o se guarda como PDF">
-            REPORTE
+                  title={`El informe como documento, hoja por hoja, en ${usd ? "DÓLARES" : "PESOS"} — se imprime o se guarda como PDF`}>
+            REPORTE {usd ? "USD" : "ARS"}
           </button>
           <button className={BTN}
                   onClick={() => void exportarInforme(data, idCuenta, nombreCuenta)}>
@@ -309,6 +304,11 @@ export function CarterasInformeView({ idCuenta, nombreCuenta, tab }: {
       {reporte && (
         <CarterasReporteModal datos={data} idCuenta={idCuenta}
                               nombreCuenta={nombreCuenta}
+                              // El reporte SALE en la moneda que está mirando la
+                              // pantalla. Es la moneda EFECTIVA (`usd`), no la
+                              // pedida: sin MEP para esa fecha no hay espejo en
+                              // dólares y el documento tiene que decir pesos.
+                              moneda={usd ? "USD" : "ARS"}
                               onCerrar={() => setReporte(false)} />
       )}
     </div>
