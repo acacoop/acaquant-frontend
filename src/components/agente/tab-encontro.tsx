@@ -16,6 +16,7 @@ import { useState } from "react";
 
 import { ListadoFicha, type FilaFicha } from "@/components/agente/listado-ficha";
 import { COLOR, fechaHora, type Hallazgo } from "@/components/agente/tipos";
+import { Confirmado, Evidencia } from "./evidencia";
 
 type Paso = { titulo?: string; estado?: string; detalle?: string;
               tabla?: string; aviso?: string };
@@ -148,6 +149,7 @@ export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: 
                     <span className="text-[9px] tabular-nums text-[var(--t-text-dim)]">
                       desde {fechaHora(f.detectado_at)}
                     </span>
+                    <Confirmado desde={f.detectado_at} ultima={f.visto_ultima_vez} />
                     {f.estado === "en_curso" && (
                       <span className="text-[8px] uppercase tracking-widest text-[var(--t-accent)]">
                         aplicado · esperando que el detector confirme
@@ -170,6 +172,7 @@ export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: 
                   <p className="text-[9px] text-[var(--t-text-dim)] mt-0.5">
                     {f.que_hacer}
                   </p>
+                  <Evidencia ev={f.evidencia} />
                 </div>
               </div>
 
