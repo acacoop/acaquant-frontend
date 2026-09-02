@@ -18,6 +18,7 @@
 import { useState } from "react";
 
 import { COLOR, fechaHora, type Hallazgo } from "@/components/agente/tipos";
+import { Confirmado, Evidencia } from "./evidencia";
 
 export function TabAhora({ filas, marcarLeidos }: {
   filas: Hallazgo[];
@@ -72,6 +73,7 @@ export function TabAhora({ filas, marcarLeidos }: {
                 <span className="text-[9px] tabular-nums text-[var(--t-text-dim)] whitespace-nowrap">
                   {fechaHora(f.detectado_at)}
                 </span>
+                <Confirmado desde={f.detectado_at} ultima={f.visto_ultima_vez} />
                 <span className="text-[11px] font-bold text-[var(--t-text)] truncate">
                   {f.nombre || f.sujeto}
                 </span>
@@ -107,6 +109,7 @@ export function TabAhora({ filas, marcarLeidos }: {
               <p className="text-[9px] text-[var(--t-text-dim)] mt-0.5">
                 {f.que_hacer}
               </p>
+              <Evidencia ev={f.evidencia} />
             </div>
             <button
               disabled={enviando}
