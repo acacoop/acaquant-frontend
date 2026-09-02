@@ -101,6 +101,8 @@ const fmtFecha = (s: string | null | undefined) => {
   const [y, m, d] = s.split("-");
   return d ? `${d}/${m}/${y.slice(2)}` : s;
 };
+const fmtDia = (s: string | null | undefined) =>
+  s ? `${s.slice(8, 10)}/${s.slice(5, 7)}` : "—";
 const neg = (v: number) => (v < 0 ? "text-[var(--t-neg,#f87171)]" : "");
 /** "2026-07-31" → "07/26". Rótulo de las columnas de foto.
  *
@@ -231,17 +233,20 @@ export function ContabilidadView() {
         )}
         <span className="ml-2 text-[11px] uppercase tracking-wide text-[var(--t-text-dim)]">Mes</span>
         <input type="month" value={mes} onChange={(e) => setMes(e.target.value)}
-          className="bg-transparent border border-[var(--t-border)] px-2 py-0.5 text-xs" />
+          className="w-[6.75rem] bg-[var(--t-panel)] border border-[var(--t-border)] px-1.5 py-0.5 text-xs" />
         {vigente && (
           <>
             <span className="w-px self-stretch bg-[var(--t-border)] mx-1" />
             <Kpi label="Tenencia (RxT)" v={tot!.rxt} />
             <Kpi label="Intermediación" v={tot!.intermediacion} />
             <Kpi label="Total del mes" v={tot!.total} fuerte />
-            <span className="text-[var(--t-text-dim)] whitespace-nowrap"
-              title={Object.entries(vigente.ignorados ?? {}).map(([k, n]) => `${k}: ${n}`).join(" · ") || undefined}>
-              {fmtFecha(vigente.cierre_ini.fecha_usada)} → {fmtFecha(vigente.cierre_fin.fecha_usada)}
-              {cierreRaro && " ⚠"} · {vigente.n_boletos} boletos
+            <span className="text-[10px] uppercase tracking-wide text-[var(--t-text-dim)] whitespace-nowrap"
+              title={[
+                `Cierres: ${fmtFecha(vigente.cierre_ini.fecha_usada)} → ${fmtFecha(vigente.cierre_fin.fecha_usada)}`,
+                ...Object.entries(vigente.ignorados ?? {}).map(([k, n]) => `${k}: ${n}`),
+              ].join(" · ")}>
+              {fmtDia(vigente.cierre_ini.fecha_usada)}→{fmtDia(vigente.cierre_fin.fecha_usada)}
+              {cierreRaro && " ⚠"} · {vigente.n_boletos} bol.
             </span>
             {tot!.mep_faltantes > 0 && (
               <span className="text-[var(--t-text)]">⚠ {tot!.mep_faltantes} sin MEP</span>
