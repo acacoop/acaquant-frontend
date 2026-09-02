@@ -167,7 +167,14 @@ const CAPACIDAD = 48;
 /** Lo que cuesta abrir una cartera DENTRO de la hoja: su renglón gris de título
  *  (más el aire que lo separa de la cartera anterior). Bajó de 3 a 2 el
  *  2026-08-22, cuando el encabezado de columnas dejó de repetirse por cartera y
- *  pasó a ir UNA vez por hoja — ver `FILA_ENCABEZADO`. */
+ *  pasó a ir UNA vez por hoja — ver `FILA_ENCABEZADO`.
+ *
+ *  ⚠️ Ese "aire" era presupuesto sin gastar hasta el 2026-09-02, cuando el
+ *  rótulo pasó a llevar un `pt-3` de verdad (las carteras se leían pegadas). El
+ *  2 SIGUE alcanzando —renglón gris + separación entran en dos renglones de
+ *  tabla— y por eso no se toca: subirlo sacaría filas de cada hoja sin
+ *  necesidad. Si algún día se agranda esa separación, este número sube con
+ *  ella o el PDF empieza a paginar una hoja de más. */
 const ALTO_CABECERA = 2;
 /** Lo que cuesta el encabezado de columnas de la hoja: va una sola vez arriba. */
 const FILA_ENCABEZADO = 1;
@@ -463,19 +470,32 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta,
                   ))}
                 </tr>
               </thead>
-              {hoja.partes.map((parte) => (
+              {hoja.partes.map((parte, iParte) => (
                 <tbody key={`${parte.bloque.cartera}-${parte.desde}`} className="tabular-nums">
                   {/* La fila de la cartera es SOLO el rótulo del grupo: ni el
                       total en plata ni el peso de la cartera, porque los dos
                       caían en columnas que ya tienen otro significado. Eso se
-                      lee en la hoja 1 y en la de MÉTRICAS. */}
+                      lee en la hoja 1 y en la de MÉTRICAS.
+
+                      ⚠️ **El aire va en el `td` y el fondo gris en un `div`
+                      adentro.** Puesto el `padding-top` sobre el `td` que YA
+                      tiene el fondo, el gris crece con él: en vez de separar
+                      las carteras, engorda la barra y quedan igual de pegadas.
+                      Separado, el aire es BLANCO —el espacio es lo único que
+                      dice «esto termina acá»— y la barra conserva su alto.
+
+                      No lo lleva la PRIMERA cartera de cada hoja: arranca
+                      pegada a la cabecera de columnas, que es donde
+                      corresponde. Un hueco ahí se lee como una fila faltante. */}
                   <tr style={{ printColorAdjust: "exact",
                                WebkitPrintColorAdjust: "exact" } as React.CSSProperties}>
-                    <td colSpan={9} className="px-1.5 py-1 bg-neutral-100 border-y border-neutral-300">
-                      <span className="text-[10px] font-semibold" style={{ color: AZUL }}>
-                        {parte.bloque.label}
-                        {parte.cont && <span className="font-normal text-neutral-500"> (cont.)</span>}
-                      </span>
+                    <td colSpan={9} className={iParte > 0 ? "pt-3" : ""}>
+                      <div className="px-1.5 py-1 bg-neutral-100 border-y border-neutral-300">
+                        <span className="text-[10px] font-semibold" style={{ color: AZUL }}>
+                          {parte.bloque.label}
+                          {parte.cont && <span className="font-normal text-neutral-500"> (cont.)</span>}
+                        </span>
+                      </div>
                     </td>
                   </tr>
                   {parte.filas.map((f) => (
