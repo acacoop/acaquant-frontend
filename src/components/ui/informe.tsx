@@ -26,6 +26,23 @@ export const fmt2 = (n: number | null | undefined, dec = 2) =>
 export const fmtPct = (n: number | null | undefined, dec = 1) =>
   n == null ? "—" : (n * 100).toLocaleString("es-AR", { minimumFractionDigits: dec, maximumFractionDigits: dec }) + "%";
 
+/**
+ * El monto de un agregado en la moneda elegida (toggle ARS/USD).
+ *
+ * **Elige un CAMPO, no calcula.** Los espejos en dólares vienen resueltos del
+ * backend al MEP del día del snapshot — dividir en la pantalla sería el mismo
+ * número calculado en dos lugares, que es como un día terminan diciendo cosas
+ * distintas. Sin MEP el campo viene `null` y sale «—»: nunca un 0 que parece
+ * un dato.
+ *
+ * Vive acá, con los formateadores, porque la usan las TRES superficies del
+ * mismo informe —la pantalla, el reporte imprimible y lo que salga después— y
+ * una copia por superficie es exactamente lo que hace que el PDF y la pantalla
+ * puedan contradecirse.
+ */
+export const enMoneda = (m: { monto: number; monto_usd: number | null }, usd: boolean) =>
+  usd ? m.monto_usd : m.monto;
+
 export function Pill({ label, active, onClick, title }: {
   label: string; active: boolean; onClick: () => void; title?: string;
 }) {

@@ -32,7 +32,7 @@ import { Cell, Pie, PieChart } from "recharts";
 import { fetchJson } from "@/lib/fetch-json";
 import { fmtFechaCorta, MESES_CORTOS } from "@/lib/fmt";
 import { carteraColor } from "@/lib/carteras";
-import { fmt0, fmt2, fmtPct } from "./ui/informe";
+import { enMoneda, fmt0, fmt2, fmtPct } from "./ui/informe";
 
 // El azul de la casa. Va literal y no como variable de tema: el reporte se
 // imprime y se manda hacia afuera, así que no puede cambiar de color según cómo
@@ -42,6 +42,10 @@ const FIRMA = "Hecho en ACAQuant";
 
 type Monto = { monto: number; monto_usd: number | null; ponderacion: number | null };
 type Fila = { clave: string; monto: number; monto_usd: number | null; n: number; share: number | null };
+
+/** La moneda del DOCUMENTO. Llega elegida desde la barra del informe (el
+ *  toggle ARS/USD de la pantalla) y se puede cambiar sin cerrar el modal. */
+export type MonedaReporte = "ARS" | "USD";
 
 /** Lo que el reporte necesita de la vista. Es un subconjunto del contrato de
  *  `/vista`: se declara acá para que el modal no dependa de campos que no usa. */
@@ -61,6 +65,10 @@ export type DatosReporte = {
       n_activos: number;
     };
     anterior: { fecha: string | null; valuacion_ars: number;
+                // El comparativo se cuenta al MEP de SU día, no al de hoy: si no,
+                // la variación en dólares sería en parte el movimiento del TC.
+                // `null` cuando no hay MEP para esa fecha.
+                valuacion_usd: number | null;
                 carteras: (Monto & { cartera: string; label: string })[] } | null;
   };
   detalle: {
@@ -70,23 +78,30 @@ export type DatosReporte = {
       filas: {
         unidad: string; ticker: string; emisor: string; calificacion: string;
         clase_activo: string; vencimiento: string | null;
-        cantidad: number; precio: number; valuacion: number;
+        cantidad: number; precio: number;
+        valuacion: number; valuacion_usd: number | null;
         share: number | null;
       }[];
     }[];
   };
   metricas: {
-    total: number;
-    por_clase: { cartera: string; label: string; total: number;
+    total: number; total_usd: number | null;
+    por_clase: { cartera: string; label: string; total: number; total_usd: number | null;
                  ponderacion: number | null; filas: Fila[] }[];
     por_emisor: Fila[]; por_calificacion: Fila[];
   };
 };
 
+// `/{id}/mensual` devuelve las métricas ARS y USD EN PARALELO (mismo cálculo,
+// cashflow pesificado al MEP de cada fecha) — la hoja elige la mitad que
+// corresponde a la moneda del documento, no convierte la otra.
 type MesResumen = {
-  mes: string; ultimo_dia: string; valuacion_cierre: number;
-  flujo_neto: number; delta_real: number | null;
-  tem_periodo: number | null; twr_base100: number;
+  mes: string; ultimo_dia: string;
+  valuacion_cierre: number; valuacion_cierre_usd: number | null;
+  flujo_neto: number; flujo_neto_usd: number | null;
+  delta_real: number | null; delta_real_usd: number | null;
+  tem_periodo: number | null; tem_periodo_usd: number | null;
+  twr_base100: number; twr_base100_usd: number | null;
 };
 
 /**
@@ -199,10 +214,29 @@ export function paginarActivos(bloques: BloqueActivos[]): HojaActivos[] {
 
 // ── El modal ───────────────────────────────────────────────────────────────
 
-export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }: {
-  datos: DatosReporte; idCuenta: string; nombreCuenta?: string; onCerrar: () => void;
+export function CarterasReporteModal({ datos, idCuenta, nombreCuenta,
+                                      moneda: monedaInicial = "ARS", onCerrar }: {
+  datos: DatosReporte; idCuenta: string; nombreCuenta?: string;
+  /** La que el usuario eligió en la barra del informe. */
+  moneda?: MonedaReporte;
+  onCerrar: () => void;
 }) {
   const [meses, setMeses] = useState<MesResumen[] | null>(null);
+  // La moneda ARRANCA en la que está mirando la pantalla —el reporte no puede
+  // salir en pesos cuando el informe está en dólares— y además se puede cambiar
+  // acá adentro: sin eso, ver la otra versión obligaba a cerrar el modal,
+  // tocar el switch de atrás y volver a abrirlo.
+  const [monedaPedida, setMoneda] = useState<MonedaReporte>(monedaInicial);
+  // Sin MEP para esa fecha no hay espejo en dólares. El toggle queda apagado y
+  // la moneda EFECTIVA se deriva, igual que en la barra del informe: la
+  // preferencia del usuario no se pisa, vuelve a valer sola.
+  //
+  // ⚠️ Rótulos y montos salen los DOS de `moneda`/`usd`, nunca de lo pedido: un
+  // encabezado que diga USD arriba de cifras en pesos es el peor error que puede
+  // tener un documento que se manda hacia afuera, y no falla nada al hacerlo.
+  const hayUsd = !!datos.mep;
+  const moneda: MonedaReporte = monedaPedida === "USD" && hayUsd ? "USD" : "ARS";
+  const usd = moneda === "USD";
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCerrar(); };
@@ -226,6 +260,11 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
   const a = datos.resumen.actual;
   const titulo = tituloCuenta(idCuenta, nombreCuenta);
   const fecha = fmtFechaCorta(datos.fecha);
+  // Va en la barra azul de CADA hoja. El PDF se manda hacia afuera y se lee sin
+  // la pantalla al lado: si no dice la moneda, un cuadro en dólares y otro en
+  // pesos son indistinguibles. Con el MEP a la vista, además, el número es
+  // reproducible por quien lo recibe.
+  const sello = usd ? `USD · MEP ${fmt2(datos.mep)}` : "ARS";
 
   const hojas = useMemo(() => paginarActivos(datos.detalle.bloques), [datos]);
 
@@ -248,6 +287,20 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
              style={{ background: AZUL }}>
           <span className="text-[12px] font-semibold tracking-wide uppercase">Reporte de cartera</span>
           <span className="text-[12px] text-white/80">{titulo} · {fecha}</span>
+          {/* NO se imprime: es el control, no el documento. La hoja dice la
+              moneda en su propia cabecera. */}
+          <div className="flex gap-1 ml-2" title={hayUsd ? "Moneda del reporte" : "Sin MEP para esa fecha"}>
+            {(["ARS", "USD"] as const).map((m) => (
+              <button key={m} onClick={() => setMoneda(m)}
+                      disabled={m === "USD" && !hayUsd}
+                      className={`px-2 py-0.5 text-[10px] tracking-wide border disabled:opacity-40 disabled:cursor-not-allowed ${
+                        m === moneda
+                          ? "bg-white text-[#094293] border-white font-semibold"
+                          : "border-white/40 text-white/80 hover:bg-white/10"}`}>
+                {m}
+              </button>
+            ))}
+          </div>
           <button onClick={() => window.print()}
                   className="ml-auto px-2 py-0.5 text-[11px] uppercase tracking-wide border border-white/40 hover:bg-white/10"
                   title="Abre el diálogo de impresión — elegí «Guardar como PDF», orientación VERTICAL y márgenes «Ninguno»">
@@ -257,7 +310,7 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
                   title="Cerrar (Esc)">✕</button>
         </div>
 
-        <Hoja n={1} titulo="Resumen ejecutivo" cuenta={titulo} fecha={fecha}>
+        <Hoja n={1} titulo="Resumen ejecutivo" cuenta={titulo} fecha={fecha} moneda={sello}>
           <div className="grid grid-cols-4 border border-neutral-300 divide-x divide-neutral-300 mb-4">
             <DatoHoja label="Posición al" valor={fmtFechaCorta(a.fecha)} sub={`${a.n_activos} títulos`} />
             <DatoHoja label="Valuación ARS" valor={fmt0(a.valuacion_ars)} />
@@ -273,7 +326,7 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
               además cómo se leen (el mes contra el mes anterior, en paralelo). */}
           <div className="mb-5">
             <TituloBloque>Composición al {fmtFechaCorta(a.fecha)}</TituloBloque>
-            <TortaCarteras carteras={a.carteras} />
+            <TortaCarteras carteras={a.carteras} usd={usd} />
           </div>
 
           <div className="grid grid-cols-2 gap-6">
@@ -283,7 +336,7 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
                 <thead>
                   <tr className="text-[8px] uppercase text-neutral-500 border-b border-neutral-300">
                     <th className="text-left py-1">Cartera</th>
-                    <th className="text-right py-1">Monto ARS</th>
+                    <th className="text-right py-1">Monto {moneda}</th>
                     <th className="text-right py-1 w-16">Ponder.</th>
                   </tr>
                 </thead>
@@ -295,31 +348,31 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
                               style={{ background: carteraColor(c.cartera, i) }} />
                         {c.label}
                       </td>
-                      <td className="text-right py-1">{fmt0(c.monto)}</td>
+                      <td className="text-right py-1">{fmt0(enMoneda(c, usd))}</td>
                       <td className="text-right py-1 text-neutral-500">{fmtPct(c.ponderacion)}</td>
                     </tr>
                   ))}
                   {a.otras_carteras && (
                     <tr className="border-b border-neutral-200">
                       <td className="py-1">Otras</td>
-                      <td className="text-right py-1">{fmt0(a.otras_carteras.monto)}</td>
+                      <td className="text-right py-1">{fmt0(enMoneda(a.otras_carteras, usd))}</td>
                       <td className="text-right py-1 text-neutral-500">{fmtPct(a.otras_carteras.ponderacion)}</td>
                     </tr>
                   )}
                   <tr className="border-t-2 border-neutral-400 font-semibold">
                     <td className="py-1">Total Dolarizado</td>
-                    <td className="text-right py-1">{fmt0(a.total_dolarizado.monto)}</td>
+                    <td className="text-right py-1">{fmt0(enMoneda(a.total_dolarizado, usd))}</td>
                     <td className="text-right py-1">{fmtPct(a.total_dolarizado.ponderacion)}</td>
                   </tr>
                   <tr className="font-semibold border-b border-neutral-200">
                     <td className="py-1">Total Pesos</td>
-                    <td className="text-right py-1">{fmt0(a.total_pesos.monto)}</td>
+                    <td className="text-right py-1">{fmt0(enMoneda(a.total_pesos, usd))}</td>
                     <td className="text-right py-1">{fmtPct(a.total_pesos.ponderacion)}</td>
                   </tr>
                   {a.sin_clasificar.monto !== 0 && (
                     <tr>
                       <td className="py-1 text-amber-700">Sin clasificar</td>
-                      <td className="text-right py-1 text-amber-700">{fmt0(a.sin_clasificar.monto)}</td>
+                      <td className="text-right py-1 text-amber-700">{fmt0(enMoneda(a.sin_clasificar, usd))}</td>
                       <td className="text-right py-1 text-amber-700">{fmtPct(a.sin_clasificar.ponderacion)}</td>
                     </tr>
                   )}
@@ -338,7 +391,7 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
                   <thead>
                     <tr className="text-[8px] uppercase text-neutral-500 border-b border-neutral-300">
                       <th className="text-left py-1">Cartera</th>
-                      <th className="text-right py-1">Monto ARS</th>
+                      <th className="text-right py-1">Monto {moneda}</th>
                       <th className="text-right py-1 w-16">Ponder.</th>
                     </tr>
                   </thead>
@@ -346,13 +399,20 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
                     {datos.resumen.anterior.carteras.map((c) => (
                       <tr key={c.cartera} className="border-b border-neutral-200">
                         <td className="py-1">{c.label}</td>
-                        <td className="text-right py-1">{fmt0(c.monto)}</td>
+                        <td className="text-right py-1">{fmt0(enMoneda(c, usd))}</td>
                         <td className="text-right py-1 text-neutral-500">{fmtPct(c.ponderacion)}</td>
                       </tr>
                     ))}
+                    {/* El cierre anterior se cuenta al MEP de SU día. Si esa
+                        fecha no tiene MEP el espejo viene `null` y sale «—»:
+                        convertirlo al de hoy mezclaría el movimiento del tipo
+                        de cambio adentro de la variación de la cartera. */}
                     <tr className="border-t-2 border-neutral-400 font-semibold">
                       <td className="py-1">Total</td>
-                      <td className="text-right py-1">{fmt0(datos.resumen.anterior.valuacion_ars)}</td>
+                      <td className="text-right py-1">
+                        {fmt0(usd ? datos.resumen.anterior.valuacion_usd
+                                  : datos.resumen.anterior.valuacion_ars)}
+                      </td>
                       <td className="text-right py-1">100,0%</td>
                     </tr>
                   </tbody>
@@ -369,7 +429,7 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
         {hojas.map((hoja, i) => (
           <Hoja key={i} n={2 + i}
                 titulo={`Activos${hojas.length > 1 ? ` (${i + 1}/${hojas.length})` : ""}`}
-                cuenta={titulo} fecha={fecha}>
+                cuenta={titulo} fecha={fecha} moneda={sello}>
             {/* UNA tabla por hoja: los nombres de columna van una sola vez
                 arriba y cada cartera es un renglón gris a todo el ancho. Antes
                 cada cartera repetía su propio encabezado — con seis carteras eso
@@ -384,8 +444,15 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
                   con el texto en azul en vez del azul de la casa en blanco. */}
               <thead>
                 <tr className="text-[8px] uppercase tracking-wide">
+                  {/* ⚠️ PRECIO no cambia con la moneda del reporte, y no es un
+                      olvido: es el precio de MERCADO del título (paridad en la
+                      renta fija, ARS en la acción), o sea el dato con el que se
+                      opera — no un monto de la cartera. El backend no publica un
+                      `precio_usd` y dividirlo acá sería inventar un número que
+                      no existe del otro lado. Lo que sí se rotula es la columna
+                      que SÍ cambia: VALUACIÓN lleva la moneda encima. */}
                   {["Ticker", "Emisor", "Calif.", "Clase", "Venc.",
-                    "Cantidad", "Precio", "Valuación", "% Total"].map((c, k) => (
+                    "Cantidad", "Precio", `Valuación ${moneda}`, "% Total"].map((c, k) => (
                     <th key={c}
                         className={`px-1.5 py-1 ${k <= 1 ? "text-left" : k <= 4 ? "text-center" : "text-right"}`}
                         style={{ background: AZUL, color: "#fff",
@@ -422,7 +489,9 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
                       </td>
                       <td className="px-1.5 py-0.5 text-right">{fmt2(f.cantidad, 2)}</td>
                       <td className="px-1.5 py-0.5 text-right">{fmt2(f.precio, 2)}</td>
-                      <td className="px-1.5 py-0.5 text-right">{fmt0(f.valuacion)}</td>
+                      <td className="px-1.5 py-0.5 text-right">
+                        {fmt0(usd ? f.valuacion_usd : f.valuacion)}
+                      </td>
                       <td className="px-1.5 py-0.5 text-right text-neutral-500">{fmtPct(f.share)}</td>
                     </tr>
                   ))}
@@ -438,7 +507,7 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
             ancho en tres columnas y la serie mensual son 14 renglones— y de paso
             el informe queda en una página menos. */}
         <Hoja n={2 + hojas.length} titulo="Métricas y evolución"
-              cuenta={titulo} fecha={fecha}>
+              cuenta={titulo} fecha={fecha} moneda={sello}>
           <div className="grid grid-cols-3 gap-6">
             <div>
               <TituloBloque>Por clase de activo</TituloBloque>
@@ -458,23 +527,23 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
                           · {etiquetaHoja(unica.clave, "Sin clase")}
                         </span>
                       )}
-                      <span className="ml-auto tabular-nums">{fmt0(b.total)}</span>
+                      <span className="ml-auto tabular-nums">{fmt0(usd ? b.total_usd : b.total)}</span>
                       <span className="w-10 text-right tabular-nums text-neutral-500">
                         {fmtPct(b.ponderacion)}
                       </span>
                     </div>
-                    {!unica && <TablaHoja filas={b.filas} vacio="Sin clase" sangria />}
+                    {!unica && <TablaHoja filas={b.filas} usd={usd} vacio="Sin clase" sangria />}
                   </div>
                 );
               })}
             </div>
             <div>
               <TituloBloque>Por emisor</TituloBloque>
-              <TablaHoja filas={datos.metricas.por_emisor} vacio="Sin emisor" />
+              <TablaHoja filas={datos.metricas.por_emisor} usd={usd} vacio="Sin emisor" />
             </div>
             <div>
               <TituloBloque>Por calificación</TituloBloque>
-              <TablaHoja filas={datos.metricas.por_calificacion} vacio="Sin calificación" />
+              <TablaHoja filas={datos.metricas.por_calificacion} usd={usd} vacio="Sin calificación" />
             </div>
           </div>
 
@@ -491,7 +560,7 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
                 <thead>
                   <tr className="text-[8px] uppercase text-neutral-500 border-b border-neutral-300">
                     <th className="text-left py-1">Mes</th>
-                    <th className="text-right py-1">Cierre</th>
+                    <th className="text-right py-1">Cierre {moneda}</th>
                     <th className="text-right py-1">Flujo neto</th>
                     <th className="text-right py-1">Δ real</th>
                     <th className="text-right py-1">TEM</th>
@@ -501,12 +570,20 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
                 <tbody className="tabular-nums">
                   {meses.slice(0, 14).map((m) => (
                     <tr key={m.mes} className="border-b border-neutral-200">
+                      {/* La serie viene con las métricas ARS y USD en
+                          paralelo: en dólares el rendimiento se calcula sobre
+                          un cashflow pesificado al MEP de CADA fecha, no
+                          convirtiendo el resultado en pesos al cambio de hoy.
+                          Por eso la TEM y el base 100 también cambian de
+                          columna — no son el mismo número en otra unidad. */}
                       <td className="py-1">{mesLargo(m.mes)}</td>
-                      <td className="text-right py-1">{fmt0(m.valuacion_cierre)}</td>
-                      <td className="text-right py-1">{fmt0(m.flujo_neto)}</td>
-                      <td className="text-right py-1">{fmt0(m.delta_real)}</td>
-                      <td className="text-right py-1">{fmtPct(m.tem_periodo, 2)}</td>
-                      <td className="text-right py-1">{fmt2(m.twr_base100, 1)}</td>
+                      <td className="text-right py-1">
+                        {fmt0(usd ? m.valuacion_cierre_usd : m.valuacion_cierre)}
+                      </td>
+                      <td className="text-right py-1">{fmt0(usd ? m.flujo_neto_usd : m.flujo_neto)}</td>
+                      <td className="text-right py-1">{fmt0(usd ? m.delta_real_usd : m.delta_real)}</td>
+                      <td className="text-right py-1">{fmtPct(usd ? m.tem_periodo_usd : m.tem_periodo, 2)}</td>
+                      <td className="text-right py-1">{fmt2(usd ? m.twr_base100_usd : m.twr_base100, 1)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -539,8 +616,9 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
  * navegador lo pagina (`break-inside: auto` en el CSS de impresión). Perder
  * datos en silencio es peor que una página de más.
  */
-function Hoja({ n, titulo, cuenta, fecha, children }: {
-  n: number; titulo: string; cuenta: string; fecha: string; children: React.ReactNode;
+function Hoja({ n, titulo, cuenta, fecha, moneda, children }: {
+  n: number; titulo: string; cuenta: string; fecha: string; moneda: string;
+  children: React.ReactNode;
 }) {
   return (
     // 290mm y no 297: el alto de un A4 vertical es 297mm justos, así que pedir
@@ -567,6 +645,11 @@ function Hoja({ n, titulo, cuenta, fecha, children }: {
         <span className="text-[13px] font-semibold tracking-wide uppercase">{titulo}</span>
         <span className="ml-auto text-[11px] text-white/85">{cuenta}</span>
         <span className="text-[11px] text-white/85">{fecha}</span>
+        {/* La MONEDA va en cada hoja, no solo en la primera: las hojas se
+            separan (se manda una, se imprime de a una) y un cuadro de montos
+            sin moneda no se puede leer solo. Con el MEP al lado, además, quien
+            lo recibe puede reproducir el número. */}
+        <span className="text-[11px] font-semibold text-white/85">{moneda}</span>
       </header>
       <div className="px-6 py-4">{children}</div>
       <footer className="mt-auto shrink-0 px-6 pb-3 pt-1 flex items-baseline text-[8px] text-neutral-400">
@@ -591,14 +674,17 @@ function Hoja({ n, titulo, cuenta, fecha, children }: {
  * Solo se dibujan las carteras con monto POSITIVO: una cartera en negativo
  * (efectivo en descubierto) no es una porción de nada. El porcentaje es la
  * `ponderacion` que ya viene del backend, la misma que imprime el cuadro de al
- * lado — calcularlo acá sería tener el mismo número en dos lugares.
+ * lado — calcularlo acá sería tener el mismo número en dos lugares. Y por eso
+ * mismo la leyenda NO cambia al pasar a dólares: la ponderación es la misma en
+ * las dos monedas (mismo divisor) y el toggle nunca toca un porcentaje.
  */
-function TortaCarteras({ carteras }: {
-  carteras: (Monto & { cartera: string; label: string })[];
+function TortaCarteras({ carteras, usd }: {
+  carteras: (Monto & { cartera: string; label: string })[]; usd: boolean;
 }) {
   const datos = carteras
-    .filter((c) => c.monto > 0)
-    .map((c) => ({ name: c.label, value: c.monto, cartera: c.cartera, pond: c.ponderacion }));
+    .map((c) => ({ name: c.label, value: enMoneda(c, usd), cartera: c.cartera, pond: c.ponderacion }))
+    .filter((d): d is { name: string; value: number; cartera: string; pond: number | null } =>
+      d.value != null && d.value > 0);
 
   if (!datos.length) {
     return <p className="text-[10px] text-neutral-500">Sin carteras con monto positivo.</p>;
@@ -661,8 +747,8 @@ function etiquetaHoja(clave: string, vacio: string): string {
   return c === "" || c === "-" || c === "—" ? vacio : c;
 }
 
-function TablaHoja({ filas, vacio, sangria = false }: {
-  filas: Fila[]; vacio: string; sangria?: boolean;
+function TablaHoja({ filas, usd, vacio, sangria = false }: {
+  filas: Fila[]; usd: boolean; vacio: string; sangria?: boolean;
 }) {
   if (!filas.length) return <p className="text-[9px] text-neutral-500">Sin filas.</p>;
   return (
@@ -671,7 +757,7 @@ function TablaHoja({ filas, vacio, sangria = false }: {
         {filas.map((f) => (
           <tr key={f.clave} className="border-b border-neutral-200">
             <td className={`py-0.5 ${sangria ? "pl-3" : ""}`}>{etiquetaHoja(f.clave, vacio)}</td>
-            <td className="py-0.5 text-right">{fmt0(f.monto)}</td>
+            <td className="py-0.5 text-right">{fmt0(enMoneda(f, usd))}</td>
             <td className="py-0.5 text-right w-12 text-neutral-500">{fmtPct(f.share)}</td>
           </tr>
         ))}
