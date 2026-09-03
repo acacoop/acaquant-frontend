@@ -139,3 +139,68 @@ export type Explicacion = {
   por?: string;
   at?: string | null;
 };
+
+// ── EL LAB (el INVESTIGADOR) ───────────────────────────────────────────────
+//
+// El agente detecta y frena: 16 de sus 24 habilidades son avisos sin botón.
+// El investigador averigua POR QUÉ y propone qué hacer.
+//
+// ⚠️ **No se pide y se espera: se pide y se pregunta.** Una investigación son
+// uno o dos minutos y el proxy corta a los 30 s — ese corte se ve idéntico a
+// un backend caído. Por eso hay un PEDIDO con estado, y los pasos van
+// apareciendo mientras corre.
+
+export type PasoClase =
+  | "pide" | "trajo" | "repetido" | "freno" | "corte" | "antecedentes" | "error";
+
+export type Paso = { clase: PasoClase; que: string; detalle: string };
+
+export type EstadoPedido = "pendiente" | "corriendo" | "listo" | "error";
+
+export type Pedido = {
+  id: number;
+  at: string;
+  tipo: string;
+  caso: string;
+  por: string;
+  estado: EstadoPedido;
+  arrancado_at: string | null;
+  terminado_at: string | null;
+  pasos: Paso[];
+  investigacion_id: number | null;
+  error: string;
+  // El veredicto, cuando ya terminó. Viene del JOIN con el diario.
+  de_quien_es?: "nuestro" | "dato" | "proveedor" | "no_se" | null;
+  que_paso?: string | null;
+  por_que?: string | null;
+  que_haria?: string | null;
+  lo_que_no_se?: string | null;
+  de_donde?: string[] | null;
+};
+
+export type TipoInvestigacion = {
+  nombre: string;
+  que_es: string;
+  // Lo que hay que haber mirado antes de poder concluir. Se muestra porque es
+  // lo que distingue «se le ocurrió mirar eso» de «tuvo que mirarlo».
+  piso: string[];
+};
+
+export type Lab = {
+  ok: boolean;
+  // ⚠️ `error` viaja aparte de la lista: una lista vacía y una lectura fallida
+  // NO se pueden dibujar iguales.
+  error: string;
+  pedidos: Pedido[];
+  // Los tipos vienen del backend, NO escritos acá: si estuvieran en el
+  // navegador, una investigación nueva no aparecería y una dada de baja
+  // dejaría un botón que falla.
+  tipos: TipoInvestigacion[];
+};
+
+// El ícono de cada paso. La CLASE la decide el backend (`servicio.pasos_de`),
+// que es la misma que alimenta la terminal: acá sólo se elige el dibujo.
+export const ICONO_PASO: Record<PasoClase, string> = {
+  pide: "🔧", trajo: "📄", repetido: "♻", freno: "⛔",
+  corte: "⏳", antecedentes: "📚", error: "⚠",
+};

@@ -23,13 +23,41 @@ import { TabAhora } from "@/components/agente/tab-ahora";
 import { TabEncontro } from "@/components/agente/tab-encontro";
 import { TabHistorial } from "@/components/agente/tab-historial";
 import { PanelHabilidades } from "@/components/agente/panel-habilidades";
+import { TabLab } from "@/components/agente/tab-lab";
 import { fechaHora, hace } from "@/components/agente/tipos";
 
-type Tab = "ahora" | "encontro" | "historial" | "habilidades";
+type Tab = "ahora" | "encontro" | "historial" | "habilidades" | "lab";
+
+// De qué habilidad sale qué tipo de investigación. **Vive acá porque es
+// una decisión de PANTALLA** —qué ofrecer al apretar el botón de una fila—
+// y no una regla del agente. Lo que no está acá simplemente no muestra el
+// botón: mejor sin botón que con uno que abra la investigación equivocada.
+const INVESTIGACION_DE: Record<string, string> = {
+  soberanos_faltantes: "reincidencia",
+  bono_sin_precio: "bono_sin_precio",
+  precio_moneda: "bono_sin_precio",
+  bono_sin_tasa: "bono_sin_precio",
+  tabla_quieta: "job",
+  motor_caido: "job",
+  salud: "job",
+  job_reporto: "job",
+  trajo_poco: "job",
+  proveedor_caido: "job",
+};
 
 export default function AgenteModal() {
   const [abierto, setAbierto] = useState(false);
   const [tab, setTab] = useState<Tab>("ahora");
+  // Lo que el botón «investigar» de una fila le pasa a la tab LAB.
+  const [aInvestigar, setAInvestigar] =
+    useState<{ tipo: string; caso: string } | null>(null);
+
+  function investigarFila(habilidad: string, sujeto: string) {
+    const tipo = INVESTIGACION_DE[habilidad];
+    if (!tipo) return;
+    setAInvestigar({ tipo, caso: sujeto });
+    setTab("lab");
+  }
   const d = useAgente(abierto);
   const v = d.vista;
 
@@ -130,6 +158,8 @@ export default function AgenteModal() {
                 // cosa no es un accesorio de la lista de hoy.
                 ["habilidades", "HABILIDADES", v?.habilidades.length ?? null,
                  "qué sabe hacer y cuándo miró"],
+                // LAB: donde el agente frena, esto sigue.
+                ["lab", "LAB", null, "investigá por qué pasó"],
               ] as [Tab, string, number | null, string][]).map(([k, label, n, pie]) => (
                 <button key={k} onClick={() => setTab(k)}
                         className={`px-3 py-1.5 text-[10px] font-semibold tracking-widest border-b-2 -mb-px transition-colors ${
@@ -157,6 +187,8 @@ export default function AgenteModal() {
               {v && tab === "ahora" && (
                 <TabAhora
                   filas={v.ahora.filas}
+                  investigar={investigarFila}
+                  puedeInvestigar={(h) => Boolean(INVESTIGACION_DE[h])}
                   marcarLeidos={async (ids) => {
                     await d.escribir("/api/agente/leidos", { ids }, ["vista"]);
                   }}
@@ -175,6 +207,17 @@ export default function AgenteModal() {
                 />
               )}
               {tab === "historial" && <TabHistorial leer={d.leer} />}
+              {tab === "lab" && (
+                <TabLab
+                  // La `key` remonta la tab cuando se llega desde otra fila:
+                  // así el caso nuevo entra como valor inicial y no hay que
+                  // sincronizar una prop hacia el estado.
+                  key={aInvestigar ? `${aInvestigar.tipo}:${aInvestigar.caso}` : "libre"}
+                  leer={d.leer}
+                  casoInicial={aInvestigar}
+                  investigar={(tipo, caso) => d.calcular(
+                    "/api/agente/lab/investigar", { tipo, caso })} />
+              )}
               {v && tab === "habilidades" && (
                 <PanelHabilidades habilidades={v.habilidades}
                                   correr={(n) => d.escribir(
