@@ -188,7 +188,9 @@ export type Pedido = {
 // Un caso que se PUEDE investigar ahora mismo. Sale de los hallazgos y las
 // reincidencias abiertas del agente — no es una lista de ejemplos.
 export type CasoInvestigable = {
-  origen: "reincidencia" | "hallazgo";
+  // De QUÉ vista salió — la misma que dibuja cada tab del modal, así que el
+  // desplegable no puede ofrecer algo que la pantalla no muestre.
+  origen: "reincidencia" | "encontro" | "ahora";
   sujeto: string;
   habilidad: string;
   regla: string;
@@ -215,9 +217,6 @@ export type Lab = {
   // había que adivinar qué escribir.
   casos: CasoInvestigable[];
   casos_error: string;
-  // Los tipos vienen del backend, NO escritos acá: si estuvieran en el
-  // navegador, una investigación nueva no aparecería y una dada de baja
-  // dejaría un botón que falla.
   tipos: TipoInvestigacion[];
 };
 

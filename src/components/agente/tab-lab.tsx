@@ -33,6 +33,14 @@ import {
 
 const CADA_MS = 4000;   // mientras corre. La investigación tarda minutos.
 
+// De dónde sale cada caso, con el MISMO nombre que la tab del modal: así se ve
+// que esta lista no inventa nada — lee las mismas vistas.
+const ETIQUETA_ORIGEN: Record<string, string> = {
+  reincidencia: "volvieron después de un arreglo",
+  encontro: "ENCONTRÓ · lo abierto que tiene arreglo",
+  ahora: "AHORA · lo de hoy sin leer",
+};
+
 const COLOR_ESTADO: Record<string, string> = {
   pendiente: "var(--t-text-dim)",
   corriendo: "var(--t-accent)",
@@ -62,13 +70,14 @@ export function TabLab({ leer, investigar, casoInicial }: {
   // ⚠️ No se copia al estado con un efecto: se DERIVA abajo. Sincronizar una
   // prop hacia el estado es la fuente clásica de pantallas que se pisan solas
   // mientras alguien está mirando.
-  casoInicial?: { caso: string } | null;
+  casoInicial?: { caso: string; tema?: string } | null;
 }) {
   const [lab, setLab] = useState<Lab | null>(null);
   const [error, setError] = useState("");
   const [abierto, setAbierto] = useState<number | null>(null);
   const [pedido, setPedido] = useState<Pedido | null>(null);
   const [elegido, setElegido] = useState("");
+  const [tema, setTema] = useState(casoInicial?.tema ?? "");
   const [pidiendo, setPidiendo] = useState(false);
   const vivo = useRef(true);
   useEffect(() => () => { vivo.current = false; }, []);
@@ -111,12 +120,16 @@ export function TabLab({ leer, investigar, casoInicial }: {
   }, [abierto, leer, cargar]);
 
   const casos: CasoInvestigable[] = lab?.casos ?? [];
+  const tipos = lab?.tipos ?? [];
   // ⚠️ SE DERIVA, no se sincroniza: mientras nadie eligió nada a mano, vale el
   // sujeto que traía la fila. Apenas se toca el desplegable, manda la elección.
   // Así el preseleccionado funciona aunque la lista llegue después.
   const caso = elegido
     ? casos.find((c) => clave(c) === elegido)
     : casos.find((c) => c.sujeto === (casoInicial?.caso ?? ""));
+  // El tema efectivo: el elegido a mano, o el del caso que vino de la fila.
+  const temaVivo = tema || caso?.tipo || "";
+  const delTema = casos.filter((c) => c.tipo === temaVivo);
 
   async function pedir() {
     if (!caso || pidiendo) return;
@@ -135,39 +148,68 @@ export function TabLab({ leer, investigar, casoInicial }: {
         proponga qué hacer. <b>No ejecuta nada.</b> Tarda uno o dos minutos.
       </p>
 
-      {/* ── ELEGIR EL CASO ───────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-2 border border-[var(--t-border)] p-2">
-        <select value={caso ? clave(caso) : ""}
-                onChange={(e) => setElegido(e.target.value)}
-                className="bg-[var(--t-surface)] border border-[var(--t-border)] text-[10px] px-2 py-1 flex-1 min-w-[260px] text-[var(--t-text)]">
-          <option value="">
-            {casos.length ? `— elegí qué investigar (${casos.length}) —`
-                          : "— no hay nada abierto para investigar —"}
-          </option>
-          {/* Las reincidencias primero: es la tabla que debería estar vacía. */}
-          {(["reincidencia", "hallazgo"] as const).map((origen) => {
-            const grupo = casos.filter((c) => c.origen === origen);
-            if (!grupo.length) return null;
+      {/* ── ELEGIR: PRIMERO EL TEMA, DESPUÉS EL CASO ────────────────
+          Un solo desplegable con los 60 casos era ilegible. Dos pasos: el
+          tema acota, y recién ahí se elige. La cuenta de cada tema sale de
+          los casos, no de un contador aparte. */}
+      <div className="border border-[var(--t-border)] p-2 flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] w-10">
+            tema
+          </span>
+          {tipos.map((t) => {
+            const n = casos.filter((c) => c.tipo === t.nombre).length;
             return (
-              <optgroup key={origen}
-                        label={origen === "reincidencia"
-                          ? "volvieron después de un arreglo"
-                          : "abiertos"}>
-                {grupo.map((c) => (
-                  <option key={clave(c)} value={clave(c)}>
-                    {c.sujeto} · {c.habilidad} · {c.regla}
-                  </option>
-                ))}
-              </optgroup>
+              <button key={t.nombre} disabled={!n}
+                      onClick={() => { setTema(t.nombre); setElegido(""); }}
+                      title={`${t.que_es}. Mínimo que va a mirar: ${t.piso.join(", ") || "—"}`}
+                      className={`text-[9px] uppercase tracking-widest px-2 py-0.5 border disabled:opacity-30 ${
+                        temaVivo === t.nombre
+                          ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                          : "border-[var(--t-border)] text-[var(--t-text-muted)] hover:text-[var(--t-text)]"}`}>
+                {t.nombre} <span className="tabular-nums opacity-60">{n}</span>
+              </button>
             );
           })}
-        </select>
-        <button disabled={pidiendo || !caso} onClick={() => void pedir()}
-                className="text-[9px] uppercase tracking-widest px-2 py-1 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-40">
-          {pidiendo ? "pidiendo…" : "investigar"}
-        </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] w-10">
+            caso
+          </span>
+          <select value={caso ? clave(caso) : ""}
+                  disabled={!temaVivo}
+                  onChange={(e) => setElegido(e.target.value)}
+                  className="bg-[var(--t-surface)] border border-[var(--t-border)] text-[10px] px-2 py-1 flex-1 min-w-[240px] text-[var(--t-text)] disabled:opacity-40">
+            <option value="">
+              {!temaVivo ? "— elegí un tema primero —"
+                     : delTema.length ? `— ${delTema.length} caso(s) —`
+                                      : "— no hay ninguno abierto —"}
+            </option>
+            {/* Agrupados por DE DÓNDE SALEN, con el mismo nombre que la tab
+                del modal: así se ve que la lista no inventa nada. */}
+            {(["reincidencia", "encontro", "ahora"] as const).map((origen) => {
+              const grupo = delTema.filter((c) => c.origen === origen);
+              if (!grupo.length) return null;
+              return (
+                <optgroup key={origen} label={ETIQUETA_ORIGEN[origen]}>
+                  {grupo.map((c) => (
+                    <option key={clave(c)} value={clave(c)}>
+                      {c.sujeto} · {c.regla}
+                    </option>
+                  ))}
+                </optgroup>
+              );
+            })}
+          </select>
+          <button disabled={pidiendo || !caso} onClick={() => void pedir()}
+                  className="text-[9px] uppercase tracking-widest px-2 py-1 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-40">
+            {pidiendo ? "pidiendo…" : "investigar"}
+          </button>
+        </div>
+
         {caso && (
-          <p className="w-full text-[9px] text-[var(--t-text-dim)]">
+          <p className="text-[9px] text-[var(--t-text-dim)] pl-12">
             {caso.que} · desde {caso.cuando}
           </p>
         )}
