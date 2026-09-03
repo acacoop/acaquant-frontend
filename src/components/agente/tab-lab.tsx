@@ -4,22 +4,31 @@
 //
 // El agente detecta y frena: **16 de sus 24 habilidades son avisos sin botón**.
 // Sus filas dicen «Relanzar jobs.interbanking_sync» y no lo hace nadie. Acá se
-// pide que averigüe POR QUÉ y proponga qué hacer.
+// pide que averigüe POR QUÉ pasó y proponga qué hacer.
 //
-// ⚠️ **SE PIDE Y SE PREGUNTA, NO SE ESPERA.** Una investigación son uno o dos
-// minutos y el proxy corta a los 30 s — ese corte se ve en pantalla idéntico a
-// un backend caído. Así que el POST devuelve un id en milisegundos y esta tab
-// pollea el pedido mientras el daemon lo corre.
+// TRES DECISIONES DE PANTALLA, LAS TRES POR UN DEFECTO REAL
+// =========================================================
 //
-// ⚠️ **LOS PASOS SE MUESTRAN, no se esconden detrás de un spinner.** Es lo que
-// deja distinguir si eligió mal la herramienta, si la herramienta trajo basura,
-// o si tenía todo y razonó mal — tres problemas distintos con arreglos
-// distintos. Un spinner los hace ver iguales.
+// 1. **EL CASO SE ELIGE, NO SE ESCRIBE.** Había un campo de texto libre donde
+//    no se entendía qué poner. Ahora el desplegable trae lo que está REALMENTE
+//    abierto —las reincidencias vivas y los hallazgos que sabemos investigar—,
+//    derivado del estado del agente: lo nuevo aparece solo y lo resuelto
+//    desaparece solo.
+//
+// 2. **EL VEREDICTO SE LEE PRIMERO.** El título arriba, después las viñetas.
+//    Los campos vienen como LISTAS desde el backend, así que acá no hay que
+//    cortar nada: si fuera un párrafo, el arreglo estaría en el lugar
+//    equivocado.
+//
+// 3. **LOS PASOS VAN PLEGADOS.** Son 25 líneas que tapaban el resultado. Se
+//    abren si querés auditar cómo llegó — y hay que poder, porque es lo único
+//    que deja distinguir si eligió mal la herramienta, si la herramienta trajo
+//    basura, o si tenía todo y razonó mal.
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   ICONO_PASO, fechaHora,
-  type Lab, type Pedido, type TipoInvestigacion,
+  type CasoInvestigable, type Lab, type Pedido,
 } from "@/components/agente/tipos";
 
 const CADA_MS = 4000;   // mientras corre. La investigación tarda minutos.
@@ -31,23 +40,35 @@ const COLOR_ESTADO: Record<string, string> = {
   error: "var(--t-neg)",
 };
 
+// De quién es el problema. Se colorea porque es la respuesta que más se busca.
+const COLOR_CULPA: Record<string, string> = {
+  nuestro: "var(--t-neg)",
+  dato: "var(--t-accent)",
+  proveedor: "var(--t-text-muted)",
+  no_se: "var(--t-text-dim)",
+};
+
+function clave(c: { tipo: string; sujeto: string }) {
+  return `${c.tipo}${c.sujeto}`;
+}
+
 export function TabLab({ leer, investigar, casoInicial }: {
   leer: <T>(url: string) => Promise<T>;
   investigar: (tipo: string, caso: string) => Promise<{ ok: boolean; id?: number; error?: string }>;
-  // Cuando se llega acá desde el botón de una fila, ya viene elegido.
+  // El SUJETO que traía la fila desde la que se apretó «investigar». Sólo eso:
+  // qué investigación le corresponde lo resuelve esta tab con su propia lista,
+  // que viene del backend.
   //
-  // ⚠️ Se usa SÓLO como valor inicial: el modal le pone una `key` distinta a
-  // esta tab cuando cambia, así React la remonta con el caso nuevo. Sincronizar
-  // una prop hacia el estado con un efecto es la fuente clásica de pantallas
-  // que se pisan solas mientras alguien está escribiendo.
-  casoInicial?: { tipo: string; caso: string } | null;
+  // ⚠️ No se copia al estado con un efecto: se DERIVA abajo. Sincronizar una
+  // prop hacia el estado es la fuente clásica de pantallas que se pisan solas
+  // mientras alguien está mirando.
+  casoInicial?: { caso: string } | null;
 }) {
   const [lab, setLab] = useState<Lab | null>(null);
   const [error, setError] = useState("");
   const [abierto, setAbierto] = useState<number | null>(null);
   const [pedido, setPedido] = useState<Pedido | null>(null);
-  const [tipo, setTipo] = useState(casoInicial?.tipo ?? "");
-  const [caso, setCaso] = useState(casoInicial?.caso ?? "");
+  const [elegido, setElegido] = useState("");
   const [pidiendo, setPidiendo] = useState(false);
   const vivo = useRef(true);
   useEffect(() => () => { vivo.current = false; }, []);
@@ -57,24 +78,22 @@ export function TabLab({ leer, investigar, casoInicial }: {
       const d = await leer<Lab>("/api/agente/lab");
       if (!vivo.current) return;
       setLab(d);
-      // ⚠️ El backend manda `ok` y `error` aparte de la lista: una lista vacía
-      // y una lectura fallida NO se pueden dibujar iguales.
+      // ⚠️ `ok` y `error` vienen aparte de la lista: una lista vacía y una
+      // lectura fallida NO se pueden dibujar iguales.
       setError(d.ok ? "" : d.error);
     } catch (e) {
       if (vivo.current) setError(String(e));
     }
   }, [leer]);
 
-  // ⚠️ La carga va DIFERIDA, igual que en `tab-historial`. Llamar algo que
-  // hace `setState` en el cuerpo del efecto dispara renders en cascada, y el
-  // lint del repo lo prohíbe: es la regla la que sostiene el patrón, no la
-  // memoria de quien escribe la próxima tab.
+  // Diferida, igual que en `tab-historial`: llamar algo que hace `setState` en
+  // el cuerpo del efecto dispara renders en cascada y el lint lo prohíbe.
   useEffect(() => {
     const id = setTimeout(() => void cargar(), 0);
     return () => clearTimeout(id);
   }, [cargar]);
 
-  // Mientras el pedido abierto está corriendo, se pregunta cómo va.
+  // Mientras el pedido abierto corre, se pregunta cómo va.
   useEffect(() => {
     if (abierto == null) return;
     let cancelado = false;
@@ -86,63 +105,84 @@ export function TabLab({ leer, investigar, casoInicial }: {
         if (p.estado === "listo" || p.estado === "error") void cargar();
       } catch { /* un poll fallido conserva lo que había */ }
     };
-    void preguntar();
-    const id = setInterval(preguntar, CADA_MS);
-    return () => { cancelado = true; clearInterval(id); };
+    const id0 = setTimeout(() => void preguntar(), 0);
+    const id = setInterval(() => void preguntar(), CADA_MS);
+    return () => { cancelado = true; clearTimeout(id0); clearInterval(id); };
   }, [abierto, leer, cargar]);
 
+  const casos: CasoInvestigable[] = lab?.casos ?? [];
+  // ⚠️ SE DERIVA, no se sincroniza: mientras nadie eligió nada a mano, vale el
+  // sujeto que traía la fila. Apenas se toca el desplegable, manda la elección.
+  // Así el preseleccionado funciona aunque la lista llegue después.
+  const caso = elegido
+    ? casos.find((c) => clave(c) === elegido)
+    : casos.find((c) => c.sujeto === (casoInicial?.caso ?? ""));
+
   async function pedir() {
-    if (!tipo || !caso.trim() || pidiendo) return;
+    if (!caso || pidiendo) return;
     setPidiendo(true);
     try {
-      const r = await investigar(tipo, caso.trim());
+      const r = await investigar(caso.tipo, caso.sujeto);
       if (r.ok && r.id) { setAbierto(r.id); setPedido(null); await cargar(); }
       else setError(r.error || "no pude encolar la investigación");
     } catch (e) { setError(String(e)); } finally { setPidiendo(false); }
   }
 
-  const tipos: TipoInvestigacion[] = lab?.tipos ?? [];
-  const elegido = tipos.find((t) => t.nombre === tipo);
-
   return (
     <div className="flex flex-col gap-3">
       <p className="text-[10px] text-[var(--t-text-dim)]">
         El agente <b>detecta y frena</b>. Acá se le pide que averigüe <b>por qué</b> y
-        proponga qué hacer. Tarda uno o dos minutos: se pide y se sigue por los pasos.
+        proponga qué hacer. <b>No ejecuta nada.</b> Tarda uno o dos minutos.
       </p>
 
-      {/* ── PEDIR ────────────────────────────────────────────────────── */}
+      {/* ── ELEGIR EL CASO ───────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2 border border-[var(--t-border)] p-2">
-        <select value={tipo} onChange={(e) => setTipo(e.target.value)}
-                className="bg-[var(--t-surface)] border border-[var(--t-border)] text-[10px] px-2 py-1 text-[var(--t-text)]">
-          <option value="">— qué investigar —</option>
-          {tipos.map((t) => (
-            <option key={t.nombre} value={t.nombre}>{t.nombre} · {t.que_es}</option>
-          ))}
+        <select value={caso ? clave(caso) : ""}
+                onChange={(e) => setElegido(e.target.value)}
+                className="bg-[var(--t-surface)] border border-[var(--t-border)] text-[10px] px-2 py-1 flex-1 min-w-[260px] text-[var(--t-text)]">
+          <option value="">
+            {casos.length ? `— elegí qué investigar (${casos.length}) —`
+                          : "— no hay nada abierto para investigar —"}
+          </option>
+          {/* Las reincidencias primero: es la tabla que debería estar vacía. */}
+          {(["reincidencia", "hallazgo"] as const).map((origen) => {
+            const grupo = casos.filter((c) => c.origen === origen);
+            if (!grupo.length) return null;
+            return (
+              <optgroup key={origen}
+                        label={origen === "reincidencia"
+                          ? "volvieron después de un arreglo"
+                          : "abiertos"}>
+                {grupo.map((c) => (
+                  <option key={clave(c)} value={clave(c)}>
+                    {c.sujeto} · {c.habilidad} · {c.regla}
+                  </option>
+                ))}
+              </optgroup>
+            );
+          })}
         </select>
-        <input value={caso} onChange={(e) => setCaso(e.target.value)}
-               onKeyDown={(e) => { if (e.key === "Enter") void pedir(); }}
-               placeholder="el caso: un ticker, un job, una tabla…"
-               className="bg-[var(--t-surface)] border border-[var(--t-border)] text-[10px] px-2 py-1 flex-1 min-w-[180px] text-[var(--t-text)]" />
-        <button disabled={pidiendo || !tipo || !caso.trim()} onClick={() => void pedir()}
+        <button disabled={pidiendo || !caso} onClick={() => void pedir()}
                 className="text-[9px] uppercase tracking-widest px-2 py-1 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-40">
-          {pidiendo ? "pidiendo…" : "🔍 investigar"}
+          {pidiendo ? "pidiendo…" : "investigar"}
         </button>
-        {elegido && (
-          // El PISO se muestra porque es lo que distingue «se le ocurrió mirar
-          // eso» de «tuvo que mirarlo».
+        {caso && (
           <p className="w-full text-[9px] text-[var(--t-text-dim)]">
-            mínimo que va a mirar: {elegido.piso.join(" · ") || "(sin mínimo)"}
+            {caso.que} · desde {caso.cuando}
           </p>
         )}
       </div>
 
       {error && <p className="text-[10px] text-[var(--t-neg)]">{error}</p>}
+      {lab?.casos_error && (
+        <p className="text-[10px] text-[var(--t-neg)]">
+          No pude leer qué hay para investigar: {lab.casos_error}
+        </p>
+      )}
 
-      {/* ── EL PEDIDO ABIERTO ────────────────────────────────────────── */}
       {abierto != null && pedido && <VerPedido p={pedido} />}
 
-      {/* ── LOS ÚLTIMOS ──────────────────────────────────────────────── */}
+      {/* ── LAS ANTERIORES ───────────────────────────────────────────── */}
       <div className="flex flex-col">
         <p className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] mb-1">
           investigaciones
@@ -161,9 +201,7 @@ export function TabLab({ leer, investigar, casoInicial }: {
               <span className="text-[var(--t-text-dim)]">{fechaHora(p.at)}</span>{" "}
               <b className="text-[var(--t-text)]">{p.tipo}</b>{" "}
               <span className="text-[var(--t-accent)]">{p.caso}</span>{" "}
-              <span className="text-[var(--t-text-dim)]">
-                · {p.estado}{p.por ? ` · ${p.por}` : ""}
-              </span>
+              <span className="text-[var(--t-text-dim)]">· {p.estado}</span>
             </span>
             {p.error && (
               <span className="block text-[9px] text-[var(--t-neg)]">{p.error}</span>
@@ -176,83 +214,106 @@ export function TabLab({ leer, investigar, casoInicial }: {
 }
 
 
-// ── UN PEDIDO, CON SUS PASOS Y SU VEREDICTO ──────────────────────────────
+// ── UN PEDIDO: EL RESULTADO PRIMERO, EL CÓMO LLEGÓ PLEGADO ───────────────
 function VerPedido({ p }: { p: Pedido }) {
+  const [verPasos, setVerPasos] = useState(false);
   const corriendo = p.estado === "pendiente" || p.estado === "corriendo";
+  const listo = Boolean(p.investigacion_id);
+
   return (
     <div className="border border-[var(--t-border)] p-2 flex flex-col gap-2">
-      <p className="text-[10px]">
-        <span style={{ color: COLOR_ESTADO[p.estado] }}>●</span>{" "}
-        <b>{p.tipo} {p.caso}</b>{" "}
-        <span className="text-[var(--t-text-dim)]">
-          · pedido {fechaHora(p.at)}
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <span style={{ color: COLOR_ESTADO[p.estado] }}>●</span>
+        <b className="text-[11px] text-[var(--t-text)]">{p.tipo} {p.caso}</b>
+        <span className="text-[9px] text-[var(--t-text-dim)]">
+          pedido {fechaHora(p.at)}
           {p.terminado_at ? ` · terminó ${fechaHora(p.terminado_at)}` : ""}
         </span>
-      </p>
+      </div>
 
-      {p.error && <p className="text-[10px] text-[var(--t-neg)]">⚠ {p.error}</p>}
-
-      {/* Los pasos. Se ven SIEMPRE, no sólo al final. */}
-      {p.pasos?.length > 0 && (
-        <div className="bg-[var(--t-surface)] p-1.5 max-h-52 overflow-y-auto">
-          {p.pasos.map((paso, i) => (
-            <p key={i} className="text-[9px] text-[var(--t-text-muted)] leading-relaxed">
-              <span className="mr-1">{ICONO_PASO[paso.clase] ?? "·"}</span>
-              {paso.que && <b className="text-[var(--t-text)]">{paso.que} </b>}
-              <span className={paso.clase === "freno" || paso.clase === "repetido"
-                ? "text-[var(--t-accent)]" : ""}>{paso.detalle}</span>
-            </p>
-          ))}
-        </div>
-      )}
+      {p.error && <p className="text-[10px] text-[var(--t-neg)]">{p.error}</p>}
 
       {corriendo && (
         <p className="text-[10px] text-[var(--t-accent)]">
           {p.estado === "pendiente"
             ? "en la cola — el agente la levanta en su próxima pasada…"
-            : "investigando…"}
+            : `investigando… ${p.pasos?.length ?? 0} pasos`}
         </p>
       )}
 
-      {/* El veredicto. Los seis campos vienen del backend, sin derivar nada. */}
-      {p.investigacion_id && (
-        <div className="flex flex-col gap-1.5">
-          <Campo titulo="QUÉ PASÓ" texto={p.que_paso} />
-          <Campo titulo="POR QUÉ" texto={p.por_que} />
-          <Campo titulo="DE QUIÉN ES" texto={p.de_quien_es} destacado />
-          <Campo titulo="QUÉ HARÍA" texto={p.que_haria} destacado />
-          {/* ⚠️ «Lo que no sé» NO es un pie de página: es lo que separa una
-              conclusión de una afirmación sobre lo que no se miró. */}
-          <Campo titulo="LO QUE NO SÉ" texto={p.lo_que_no_se} />
-          {p.de_donde?.length ? (
-            <div>
-              <p className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
-                de dónde lo saqué
-              </p>
-              {p.de_donde.map((f, i) => (
-                <p key={i} className="text-[9px] text-[var(--t-text-muted)]">· {f}</p>
+      {/* EL RESULTADO. Primero el título, que se entiende solo. */}
+      {listo && (
+        <div className="flex flex-col gap-2">
+          {p.titulo && (
+            <p className="text-[12px] font-bold text-[var(--t-text)] leading-snug">
+              {p.titulo}
+            </p>
+          )}
+          {p.de_quien_es && (
+            <p className="text-[9px] uppercase tracking-widest"
+               style={{ color: COLOR_CULPA[p.de_quien_es] ?? "var(--t-text-dim)" }}>
+              es {p.de_quien_es === "no_se" ? "no se sabe de quién" : p.de_quien_es}
+            </p>
+          )}
+          {/* QUÉ HARÍA va ARRIBA de la cronología: es lo accionable, y lo que
+              pasó ya lo resume el título. */}
+          <Campo titulo="qué haría" items={p.que_haria} destacado />
+          <Campo titulo="por qué" items={p.por_que} />
+          <Campo titulo="qué pasó" items={p.que_paso} />
+          {/* «Lo que no sé» NO es un pie de página: separa una conclusión de
+              una afirmación sobre lo que no se miró. */}
+          <Campo titulo="lo que no sé" items={p.lo_que_no_se} />
+          <Campo titulo="de dónde lo saqué" items={p.de_donde} tenue />
+        </div>
+      )}
+
+      {/* EL CÓMO LLEGÓ. Plegado: 25 líneas tapaban el resultado. */}
+      {p.pasos?.length > 0 && (
+        <div>
+          <button onClick={() => setVerPasos(!verPasos)}
+                  className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)]">
+            {verPasos ? "cerrar" : "ver"} cómo llegó · {p.pasos.length} pasos
+          </button>
+          {verPasos && (
+            <div className="bg-[var(--t-surface)] p-1.5 mt-1 max-h-64 overflow-y-auto">
+              {p.pasos.map((paso, i) => (
+                <p key={i} className="text-[9px] text-[var(--t-text-muted)] leading-relaxed">
+                  <span className="mr-1">{ICONO_PASO[paso.clase] ?? "·"}</span>
+                  {paso.que && <b className="text-[var(--t-text)]">{paso.que} </b>}
+                  <span className={paso.clase === "freno" || paso.clase === "repetido"
+                    ? "text-[var(--t-accent)]" : ""}>{paso.detalle}</span>
+                </p>
               ))}
             </div>
-          ) : null}
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function Campo({ titulo, texto, destacado }: {
-  titulo: string; texto?: string | null; destacado?: boolean;
+
+function Campo({ titulo, items, destacado, tenue }: {
+  titulo: string;
+  items?: string[] | null;
+  destacado?: boolean;
+  tenue?: boolean;
 }) {
-  if (!texto) return null;
+  if (!items?.length) return null;
   return (
     <div>
-      <p className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
+      <p className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] mb-0.5">
         {titulo}
       </p>
-      <p className={`text-[10px] whitespace-pre-wrap ${
-        destacado ? "text-[var(--t-text)]" : "text-[var(--t-text-muted)]"}`}>
-        {texto}
-      </p>
+      <ul className="flex flex-col gap-0.5">
+        {items.map((x, i) => (
+          <li key={i} className={`text-[10px] leading-snug pl-3 -indent-3 ${
+            tenue ? "text-[var(--t-text-dim)]"
+                  : destacado ? "text-[var(--t-text)]" : "text-[var(--t-text-muted)]"}`}>
+            <span className="text-[var(--t-text-dim)]">· </span>{x}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

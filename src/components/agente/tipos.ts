@@ -26,6 +26,8 @@ export type Hallazgo = {
   estado?: string;
   dominio: string | null;
   accionable?: boolean;
+  // ¿El laboratorio sabe investigar esta habilidad? Lo decide el backend.
+  investigable?: boolean;
 };
 
 export type Habilidad = {
@@ -170,12 +172,29 @@ export type Pedido = {
   investigacion_id: number | null;
   error: string;
   // El veredicto, cuando ya terminó. Viene del JOIN con el diario.
+  //
+  // ⚠️ Los campos que ENUMERAN son listas, no texto. El modelo está obligado
+  // por el esquema: un párrafo de ochenta palabras no se lee, y el arreglo va
+  // en el lugar donde se decide qué devolver, no en el que dibuja.
+  titulo?: string | null;
   de_quien_es?: "nuestro" | "dato" | "proveedor" | "no_se" | null;
-  que_paso?: string | null;
-  por_que?: string | null;
-  que_haria?: string | null;
-  lo_que_no_se?: string | null;
+  que_paso?: string[] | null;
+  por_que?: string[] | null;
+  que_haria?: string[] | null;
+  lo_que_no_se?: string[] | null;
   de_donde?: string[] | null;
+};
+
+// Un caso que se PUEDE investigar ahora mismo. Sale de los hallazgos y las
+// reincidencias abiertas del agente — no es una lista de ejemplos.
+export type CasoInvestigable = {
+  origen: "reincidencia" | "hallazgo";
+  sujeto: string;
+  habilidad: string;
+  regla: string;
+  cuando: string;
+  que: string;
+  tipo: string;
 };
 
 export type TipoInvestigacion = {
@@ -192,6 +211,10 @@ export type Lab = {
   // NO se pueden dibujar iguales.
   error: string;
   pedidos: Pedido[];
+  // Lo que se puede investigar AHORA. Reemplaza al campo de texto libre donde
+  // había que adivinar qué escribir.
+  casos: CasoInvestigable[];
+  casos_error: string;
   // Los tipos vienen del backend, NO escritos acá: si estuvieran en el
   // navegador, una investigación nueva no aparecería y una dada de baja
   // dejaría un botón que falla.

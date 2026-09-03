@@ -20,7 +20,7 @@ import { useState } from "react";
 import { COLOR, fechaHora, type Hallazgo } from "@/components/agente/tipos";
 import { Confirmado, Evidencia } from "./evidencia";
 
-export function TabAhora({ filas, marcarLeidos, investigar, puedeInvestigar }: {
+export function TabAhora({ filas, marcarLeidos, investigar }: {
   filas: Hallazgo[];
   marcarLeidos: (ids: number[]) => Promise<void>;
   // ⚠️ **EL BOTÓN QUE FALTABA.** La mayoría de estas filas son AVISOS: dicen
@@ -28,10 +28,11 @@ export function TabAhora({ filas, marcarLeidos, investigar, puedeInvestigar }: {
   // agente termina ahí y el trabajo queda sin dueño. Esto no ejecuta nada —
   // manda a investigar POR QUÉ pasó, que es lo que hoy hace una persona
   // abriendo logs.
-  investigar?: (habilidad: string, sujeto: string) => void;
-  // Sólo donde el backend sabe investigar. Sin esto habría botones que abren
-  // la investigación equivocada, que es peor que no tener botón.
-  puedeInvestigar?: (habilidad: string) => boolean;
+  // ⚠️ Sólo se dibuja donde `f.investigable` viene en true — lo decide el
+  // BACKEND. Una copia acá de qué se puede investigar serían dos verdades sin
+  // árbitro: agregar una investigación no mostraría el botón y sacar una
+  // dejaría uno que falla.
+  investigar?: (sujeto: string) => void;
 }) {
   const [enviando, setEnviando] = useState(false);
 
@@ -129,9 +130,9 @@ export function TabAhora({ filas, marcarLeidos, investigar, puedeInvestigar }: {
               >
                 ✓
               </button>
-              {investigar && puedeInvestigar?.(f.habilidad) && (
+              {investigar && f.investigable && (
                 <button
-                  onClick={() => investigar(f.habilidad, f.sujeto)}
+                  onClick={() => investigar(f.sujeto)}
                   title="Averiguar por qué pasó — no ejecuta nada"
                   className="text-[9px] px-1.5 py-0.5 border border-[var(--t-border)] text-[var(--t-text-dim)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
                 >

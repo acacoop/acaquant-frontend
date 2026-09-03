@@ -28,34 +28,20 @@ import { fechaHora, hace } from "@/components/agente/tipos";
 
 type Tab = "ahora" | "encontro" | "historial" | "habilidades" | "lab";
 
-// De qué habilidad sale qué tipo de investigación. **Vive acá porque es
-// una decisión de PANTALLA** —qué ofrecer al apretar el botón de una fila—
-// y no una regla del agente. Lo que no está acá simplemente no muestra el
-// botón: mejor sin botón que con uno que abra la investigación equivocada.
-const INVESTIGACION_DE: Record<string, string> = {
-  soberanos_faltantes: "reincidencia",
-  bono_sin_precio: "bono_sin_precio",
-  precio_moneda: "bono_sin_precio",
-  bono_sin_tasa: "bono_sin_precio",
-  tabla_quieta: "job",
-  motor_caido: "job",
-  salud: "job",
-  job_reporto: "job",
-  trajo_poco: "job",
-  proveedor_caido: "job",
-};
 
 export default function AgenteModal() {
   const [abierto, setAbierto] = useState(false);
   const [tab, setTab] = useState<Tab>("ahora");
   // Lo que el botón «investigar» de una fila le pasa a la tab LAB.
-  const [aInvestigar, setAInvestigar] =
-    useState<{ tipo: string; caso: string } | null>(null);
+  const [aInvestigar, setAInvestigar] = useState<{ caso: string } | null>(null);
 
-  function investigarFila(habilidad: string, sujeto: string) {
-    const tipo = INVESTIGACION_DE[habilidad];
-    if (!tipo) return;
-    setAInvestigar({ tipo, caso: sujeto });
+  // ⚠️ El TIPO lo decide el BACKEND: la fila viene con `investigable` y la tab
+  // LAB elige el caso de su propia lista. Acá no hay ninguna copia de qué se
+  // puede investigar — tenerla sería la REGLA #9 otra vez: dos verdades sin
+  // árbitro, donde agregar una investigación no mostraría el botón y sacar una
+  // dejaría uno que falla, sin que nada avise.
+  function investigarFila(sujeto: string) {
+    setAInvestigar({ caso: sujeto });
     setTab("lab");
   }
   const d = useAgente(abierto);
@@ -188,7 +174,6 @@ export default function AgenteModal() {
                 <TabAhora
                   filas={v.ahora.filas}
                   investigar={investigarFila}
-                  puedeInvestigar={(h) => Boolean(INVESTIGACION_DE[h])}
                   marcarLeidos={async (ids) => {
                     await d.escribir("/api/agente/leidos", { ids }, ["vista"]);
                   }}
@@ -212,7 +197,7 @@ export default function AgenteModal() {
                   // La `key` remonta la tab cuando se llega desde otra fila:
                   // así el caso nuevo entra como valor inicial y no hay que
                   // sincronizar una prop hacia el estado.
-                  key={aInvestigar ? `${aInvestigar.tipo}:${aInvestigar.caso}` : "libre"}
+                  key={aInvestigar?.caso ?? "libre"}
                   leer={d.leer}
                   casoInicial={aInvestigar}
                   investigar={(tipo, caso) => d.calcular(
