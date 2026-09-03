@@ -204,14 +204,20 @@ type CuentaConsolidada = Cuenta & {
   //   "manual"   → no está en Interbanking: el saldo ES lo cargado a mano
   fuente: "extracto" | "saldo" | "manual" | null;
   saldo_banco: number | null;
-  // ⚠️ El cierre CRUDO del extracto, sin el ajuste manual. Es lo que nombra el
-  // tooltip del ≠: `saldo_cierre` es NUESTRO saldo (la fuente que manda + lo que
-  // cargó una persona) y la `discrepancia` compara las dos cosas que informa EL
-  // BANCO, así que usar aquél hacía que las tres cifras del mensaje no dieran la
-  // resta.
+  // ⚠️ El cierre CRUDO del extracto, sin el ajuste manual. `saldo_cierre` es
+  // NUESTRO saldo (la fuente que manda + lo que cargó una persona) y la
+  // `discrepancia` compara las dos cosas que informa EL BANCO, así que usar aquél
+  // hacía que las tres cifras del mensaje no dieran la resta. Es, además, el otro
+  // CANDIDATO a saldo del día: el selector muestra los dos números juntos.
   saldo_extracto: number | null;
   // El banco informó las DOS cosas y no coinciden: hallazgo de conciliación.
   discrepancia: number | null;
+  // ⚠️ Cuál de los dos saldos ELIGIÓ el back office para esta cuenta y este día
+  // (`bancos.fuente_elegida`), o `null` = automático. Viaja aparte de `fuente`
+  // —la que se APLICÓ— porque pueden diferir: si la fuente elegida se quedó sin
+  // número ese día, el cierre cae al default y la pantalla lo tiene que decir en
+  // vez de rotular un origen que no es.
+  fuente_elegida: "saldo" | "extracto" | null;
   // Suma de los gastos que cobró el banco ese día. **null mientras la regla de
   // clasificación no esté definida** — «no sabemos» no es «no hubo gastos», así
   // que jamás cero por defecto.
@@ -759,9 +765,16 @@ function Consolidado({
   fecha: string; banco: string; onFecha: (f: string) => void;
   onDatos: (d: RespConsolidado) => void; onAbrir: (c: CuentaConsolidada) => void;
 }) {
+  // `bump` fuerza un refetch inmediato después de elegir la fuente del saldo. El
+  // número nuevo lo recalcula el BACKEND (misma función que sella), así que la
+  // pantalla no puede quedar diciendo otra cosa que el cierre sellado.
+  const [bump, setBump] = useState(0);
+  const [elegir, setElegir] = useState<CuentaConsolidada | null>(null);
+
   const url = useMemo(
-    () => `/api/back-office/interbanking/consolidado${fecha ? `?fecha=${fecha}` : ""}`,
-    [fecha],
+    () => `/api/back-office/interbanking/consolidado?_r=${bump}`
+      + `${fecha ? `&fecha=${fecha}` : ""}`,
+    [fecha, bump],
   );
 
   const { data, lastAt, error } = usePoll<RespConsolidado>(url, CONSOLIDADO_VACIO, POLL_MS, {
@@ -839,6 +852,8 @@ function Consolidado({
                 conceptos={conceptos}
                 otros={otros}
                 onAbrir={onAbrir}
+                puedeEscribir={data.puede_escribir}
+                onElegir={setElegir}
               />
             ))}
             {visibles.length === 0 && (
@@ -847,15 +862,27 @@ function Consolidado({
           </tbody>
         </table>
       </div>
+
+      {elegir && (
+        <ModalElegirSaldo
+          cuenta={elegir}
+          fecha={data.fecha || fecha}
+          puedeEscribir={data.puede_escribir}
+          onCerrar={() => setElegir(null)}
+          onGuardado={() => { setElegir(null); setBump((n) => n + 1); }}
+        />
+      )}
     </div>
   );
 }
 
 function BloqueBanco({
-  banco, conceptos, otros, onAbrir,
+  banco, conceptos, otros, onAbrir, puedeEscribir, onElegir,
 }: {
   banco: Banco; conceptos: Balde[]; otros: Balde[];
   onAbrir: (c: CuentaConsolidada) => void;
+  puedeEscribir: boolean;
+  onElegir: (c: CuentaConsolidada) => void;
 }) {
   return (
     <>
@@ -939,16 +966,35 @@ function BloqueBanco({
                 saldo
               </span>
             )}
+            {/* ⚠️ HAY DOS SALDOS y no coinciden. El badge no es solo un aviso:
+                es el botón para ELEGIR cuál vale ese día (user, 2026-09-03: «no
+                es lineal, hay veces que vale uno y otras que vale otro»).
+
+                Lo que se elige es la FUENTE y se guarda por cuenta y por fecha;
+                el backend re-sella el cierre, así que la elección viaja sola al
+                SALDO INICIO de mañana, a CONCILIAR y a DIFERENCIAS. Acá no se
+                recalcula nada: se pide y se vuelve a leer. */}
             {c.discrepancia != null && (
-              <span
-                className="ml-1 text-[9px] uppercase text-[var(--t-neg)]"
-                title={`El extracto cierra en ${plata(c.saldo_extracto)} y el saldo `
-                  + `informado dice ${plata(c.saldo_banco)} (${plata(c.discrepancia)} de `
-                  + "diferencia). Las dos las informa el banco. La columna muestra "
-                  + "el saldo informado."}
+              <button
+                onClick={(e) => { e.stopPropagation(); onElegir(c); }}
+                className={`ml-1 px-1 text-[9px] uppercase border ${
+                  c.fuente_elegida
+                    ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                    : "border-[var(--t-neg)] text-[var(--t-neg)]"
+                } hover:bg-[var(--t-surface)]`}
+                title={`El banco informa DOS saldos para este día y no coinciden:\n`
+                  + `· extracto: ${plata(c.saldo_extracto)}\n`
+                  + `· informado: ${plata(c.saldo_banco)}\n`
+                  + `(${plata(c.discrepancia)} de diferencia)\n`
+                  + (c.fuente_elegida
+                      ? `Elegido a mano: el ${c.fuente_elegida === "saldo" ? "informado" : "extracto"}.`
+                      : "Sin elegir: manda el informado.")
+                  + (puedeEscribir
+                      ? "\nClic para elegir cuál vale."
+                      : "\nNo tenés permiso para cambiarlo.")}
               >
-                ≠
-              </span>
+                {c.fuente_elegida ? "≠ elegido" : "≠"}
+              </button>
             )}
           </Td>
           <Td center strong className={COL_DATO} copiar={plata(c.gastos_bancarios)}>
@@ -968,6 +1014,230 @@ function BloqueBanco({
         </tr>
       ))}
     </>
+  );
+}
+
+/* ── MODAL: CUÁL de los dos saldos vale ─────────────────────────────────── */
+
+/** Una de las dos opciones del selector: el número grande, de qué fuente sale y
+ *  en qué estado está (`elegido` = lo eligió una persona · `en uso` = ganó por
+ *  el criterio automático).
+ *
+ *  Vive ACÁ afuera y no adentro del modal: un componente declarado adentro de
+ *  otro se vuelve a crear en cada render, React lo trata como un tipo nuevo y
+ *  desmonta/remonta el subárbol —el `eslint` de la app lo prohíbe directamente—. */
+function OpcionSaldo({
+  cuenta, clave, titulo, valor, detalle, moneda, fecha, puedeEscribir, ocupado,
+  onElegir,
+}: {
+  cuenta: CuentaConsolidada;
+  clave: "saldo" | "extracto";
+  titulo: string; valor: number | null; detalle: string;
+  moneda: string; fecha: string; puedeEscribir: boolean; ocupado: boolean;
+  onElegir: (f: "saldo" | "extracto" | null) => void;
+}) {
+  const aplicada = cuenta.fuente === clave;
+  const elegida = cuenta.fuente_elegida === clave;
+  // «No informado» no es «cero»: si el banco no mandó este saldo, no se puede
+  // elegir. Deshabilitado y dicho, en vez de dejar clickear algo que no existe.
+  const sinDato = valor === null;
+  return (
+    <button
+      onClick={() => onElegir(clave)}
+      disabled={!puedeEscribir || sinDato || ocupado}
+      className={`flex-1 text-left px-3 py-2 border ${
+        elegida
+          ? "border-[var(--t-accent)] bg-[var(--t-surface-2)]"
+          : "border-[var(--t-border-2)] hover:bg-[var(--t-surface)]"
+      } disabled:opacity-40 disabled:cursor-not-allowed`}
+      title={puedeEscribir
+        ? (sinDato ? "El banco no informó este saldo para este día."
+                   : `Tomar este saldo como el cierre del ${fecha}`)
+        : "No tenés permiso para cambiarlo."}
+    >
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
+          {titulo}
+        </span>
+        {elegida && (
+          <span className="px-1 text-[9px] uppercase text-[var(--t-accent)] border border-[var(--t-accent)]">
+            elegido
+          </span>
+        )}
+        {aplicada && !elegida && (
+          <span className="px-1 text-[9px] uppercase text-[var(--t-text-muted)] border border-[var(--t-border-2)]">
+            en uso
+          </span>
+        )}
+      </div>
+      <div className="text-[15px] font-semibold tabular-nums">
+        {plata(valor, moneda)}
+      </div>
+      <div className="mt-1 text-[10px] text-[var(--t-text-muted)]">{detalle}</div>
+    </button>
+  );
+}
+
+/**
+ * El banco informa el cierre de un día por DOS vías —el extracto y la API de
+ * Saldos— y a veces no coinciden. Hasta el 2026-09-03 la pantalla mostraba el
+ * informado y avisaba con un ≠; ahora **el back office elige cuál vale**
+ * (user: *«no es lineal, hay veces que vale uno y otras que vale otro»*).
+ *
+ * Tres cosas que este modal hace a propósito:
+ *
+ * · **Muestra los DOS números juntos**, con su diferencia. Elegir entre dos
+ *   saldos sin verlos al lado es adivinar.
+ * · **La elección es de ESE día y de ESA cuenta.** Se dice en el encabezado: una
+ *   preferencia pegajosa arrastraría al día siguiente una decisión que se tomó
+ *   mirando otro día.
+ * · **Avisa qué más se mueve.** El cierre de hoy es el SALDO INICIO de mañana y
+ *   es contra lo que concilia el mayor: si eso no se dijera, el que elige creería
+ *   que está tocando una celda de una pantalla.
+ *
+ * No calcula nada. Manda la elección y vuelve a leer: el número nuevo lo arma el
+ * backend con la MISMA función que sella, así que la pantalla no puede quedar
+ * mostrando un cierre que no es el sellado.
+ */
+function ModalElegirSaldo({
+  cuenta, fecha, puedeEscribir, onCerrar, onGuardado,
+}: {
+  cuenta: CuentaConsolidada; fecha: string; puedeEscribir: boolean;
+  onCerrar: () => void; onGuardado: () => void;
+}) {
+  const [err, setErr] = useState<string | null>(null);
+  const [guardando, setGuardando] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCerrar(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onCerrar]);
+
+  async function elegir(fuente: "saldo" | "extracto" | null) {
+    setErr(null);
+    setGuardando(fuente ?? "auto");
+    try {
+      const res = await fetch("/api/back-office/interbanking/saldo/fuente", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ cuenta_id: cuenta.id, fecha, fuente }),
+      });
+      if (!res.ok) {
+        setErr((await res.json().catch(() => ({}))).detail
+          ?? "No se pudo guardar la elección.");
+        return;
+      }
+      onGuardado();
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setGuardando(null);
+    }
+  }
+
+  const mon = cuenta.moneda || "";
+  // El ajuste manual NO es parte de la elección: se suma arriba de la fuente que
+  // gane, venga la que venga. Se dice acá porque si no, los dos números del
+  // modal no dan el de la columna y parece que uno de los dos está mal.
+  const ajuste = cuenta.ajuste_manual ?? 0;
+
+  const comun = {
+    cuenta, moneda: mon, puedeEscribir, fecha,
+    ocupado: !!guardando, onElegir: elegir,
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+      onClick={onCerrar}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] w-full max-w-[620px] flex flex-col text-[12px]"
+      >
+        <div className="px-3 py-2 border-b border-[var(--t-border-2)] bg-[var(--t-surface-2)] flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="font-semibold tracking-wide">Qué saldo vale</span>
+          <span className="text-[var(--t-text-dim)]">
+            {cuenta.banco_nombre} · {cuenta.tipo} {mon} ·{" "}
+            <span className="text-[var(--t-text)] font-semibold">{cuenta.numero}</span>
+            {cuenta.etiqueta ? ` · ${cuenta.etiqueta}` : ""}
+          </span>
+          <span className="text-[var(--t-accent)]">{fecha}</span>
+          <button
+            onClick={onCerrar}
+            className="ml-auto px-2 py-1 text-[13px] hover:bg-[var(--t-surface)]"
+            title="Cerrar (Esc)"
+          >
+            ✕
+          </button>
+        </div>
+
+        <ErrorLinea error={err} />
+
+        <div className="px-3 py-3 flex flex-col gap-3">
+          <p className="text-[11px] text-[var(--t-text-dim)]">
+            El banco informa <strong>dos</strong> saldos para este día y no
+            coinciden en <strong>{plata(cuenta.discrepancia, mon)}</strong>. Cuál
+            de los dos es el cierre lo elegís vos, <strong>para esta cuenta y
+            este día</strong>.
+          </p>
+
+          <div className="flex gap-2">
+            <OpcionSaldo
+              {...comun}
+              clave="saldo"
+              titulo="Saldo informado"
+              valor={cuenta.saldo_banco}
+              detalle="Lo que el banco declara que quedó ese día. Es el default."
+            />
+            <OpcionSaldo
+              {...comun}
+              clave="extracto"
+              titulo="Cierre del extracto"
+              valor={cuenta.saldo_extracto}
+              detalle="El que cierra el extracto, con su detalle de movimientos."
+            />
+          </div>
+
+          {ajuste !== 0 && (
+            <p className="text-[10px] text-[var(--t-accent)]">
+              A la fuente que gane se le suman {plata(ajuste, mon)} de movimientos
+              cargados a mano: por eso la columna muestra{" "}
+              {plata(cuenta.saldo_cierre, mon)}.
+            </p>
+          )}
+
+          {/* Qué más se mueve. Sin esto, elegir parece tocar una celda. */}
+          <p className="text-[10px] text-[var(--t-text-muted)]">
+            Lo que elijas pasa a ser el saldo al cierre de este día: se vuelve a
+            sellar y con eso cambia el <strong>saldo al inicio</strong> del día
+            siguiente, lo que compara <strong>CONCILIAR</strong> contra el mayor y
+            la variación de <strong>DIFERENCIAS</strong>. Podés cambiarlo cuantas
+            veces quieras; el otro número no se pierde.
+          </p>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => elegir(null)}
+              disabled={!puedeEscribir || !cuenta.fuente_elegida || !!guardando}
+              className="px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border-2)] hover:bg-[var(--t-surface)] disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Vuelve al criterio automático: manda el saldo informado y el extracto queda de respaldo."
+            >
+              Volver al automático
+            </button>
+            {!puedeEscribir && (
+              <span className="text-[10px] text-[var(--t-text-muted)]">
+                Solo lectura: no tenés permiso para elegir.
+              </span>
+            )}
+            {guardando && (
+              <span className="text-[10px] text-[var(--t-text-dim)]">Guardando…</span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

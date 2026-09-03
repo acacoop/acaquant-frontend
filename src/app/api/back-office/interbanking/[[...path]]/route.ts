@@ -8,12 +8,13 @@ import { isGuestRequest, trustedEmail } from "@/lib/cf-access";
 // `jobs/interbanking_sync` y la vista los lee de Postgres. Este proxy no puede
 // llegar a Interbanking ni queriendo.
 //
-// Desde 2026-08-18 sí pasan POST/PUT/DELETE, y **solo para `/gastos/*` y
-// `/manual/*`**: la clasificación de gastos bancarios y lo cargado a mano, que
-// escriben en tablas nuestras
-// (`bancos.gastos_reglas` / `gastos_overrides` / `movimientos_ignorados`). El
-// resto de los paths siguen siendo de lectura y una escritura contra ellos se
-// rechaza ACÁ, antes de salir
+// Desde 2026-08-18 sí pasan POST/PUT/DELETE, y **solo para `/gastos/*`,
+// `/manual/*` y `/saldo/*`**: la clasificación de gastos bancarios, lo cargado a
+// mano y cuál de los dos saldos del banco vale como cierre, que escriben en
+// tablas nuestras
+// (`bancos.gastos_reglas` / `gastos_overrides` / `movimientos_ignorados` /
+// `fuente_elegida`). El resto de los paths siguen siendo de lectura y una
+// escritura contra ellos se rechaza ACÁ, antes de salir
 // — es una segunda cerradura sobre la misma puerta, y la de acá es la que mira
 // internet. El permiso REAL (allowlist + admin) lo aplica el backend; esto solo
 // acota la superficie.
@@ -34,12 +35,16 @@ type Ctx = { params: Promise<{ path?: string[] }> };
 /** Los únicos sub-paths donde se admite un método que no sea GET.
  *  `gastos`    = la clasificación (reglas, marcas, ignorados, desglose).
  *  `manual`    = cuentas y movimientos que Interbanking no informa.
+ *  `saldo`     = cuál de los DOS saldos que informa el banco vale como cierre de
+ *                ese día (`bancos.fuente_elegida`). Es la única escritura que
+ *                mueve el NÚMERO de la columna, y por eso tiene path propio en
+ *                vez de colgar de `gastos`.
  *  `conciliar` = compara el saldo del mayor contra el nuestro. Es POST porque
  *                la grilla del Excel viaja en el cuerpo, pero **no persiste
  *                nada**: no hay tabla ni estado, y el archivo no queda en
  *                ningún lado.
  *  Ninguna sale a Interbanking. */
-const ESCRITURA = new Set(["gastos", "manual", "conciliar"]);
+const ESCRITURA = new Set(["gastos", "manual", "saldo", "conciliar"]);
 
 function esEscrituraPermitida(path: string[] | undefined) {
   return ESCRITURA.has(path?.[0] ?? "");
