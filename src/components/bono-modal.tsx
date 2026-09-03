@@ -49,20 +49,49 @@ const fmt2 = (v: number | null | undefined, d = 2) =>
 const pct = (v: number | null | undefined, d = 2) =>
   v === null || v === undefined ? "--" : `${(v * 100).toFixed(d)}%`;
 
+/**
+ * Dato INLINE: rótulo y valor en la MISMA línea, para tiras que se leen de
+ * corrido. La versión apilada (rótulo arriba, valor abajo) cuesta el doble de
+ * alto por dato, y en un modal el alto es lo único que no sobra: cada píxel que
+ * se lleva la cabecera se lo saca al cronograma, que es el dato que se mira.
+ */
 function Dato({ label, valor, tip }: { label: string; valor: React.ReactNode; tip?: string }) {
   return (
-    <div className="min-w-0" title={tip}>
-      <div className="text-[9px] tracking-wide text-[var(--t-text-muted)] uppercase">{label}</div>
-      <div className="text-xs text-[var(--t-text-dim)] truncate">{valor}</div>
+    <span className="inline-flex items-baseline gap-1.5 min-w-0" title={tip}>
+      <span className="text-[9px] tracking-wide text-[var(--t-text-muted)] uppercase shrink-0">{label}</span>
+      <span className="text-xs text-[var(--t-text-dim)] truncate">{valor}</span>
+    </span>
+  );
+}
+
+/** El rótulo de cada mitad del flujo: el cuadradito de color + qué es. */
+function SubtituloFlujo({ color, texto }: { color: string; texto: string }) {
+  return (
+    <div className="flex items-center gap-1.5 px-1 shrink-0">
+      <span className="w-2 h-2 shrink-0" style={{ background: color }} />
+      <span className="text-[9px] text-[var(--t-text-muted)] tracking-wide">{texto}</span>
     </div>
   );
 }
+
+/** El tooltip de los dos gráficos del flujo: uno solo, así no se despegan. */
+const tooltipFlujo = (nombre: string) => ({
+  contentStyle: {
+    background: "var(--t-surface)",
+    border: "1px solid var(--t-border-2)",
+    fontSize: 11,
+    fontFamily: "JetBrains Mono, monospace",
+  },
+  labelStyle: { color: "var(--t-text-dim)" },
+  labelFormatter: (v: unknown) => fmtFechaCorta(String(v)),
+  formatter: (v: unknown) => [fmt2(Number(v), 3), nombre] as [string, string],
+});
 
 /** Fila label → valor. Es la unidad de la FICHA: se lee de arriba hacia abajo. */
 function Fila({ label, valor, tip }: { label: string; valor: React.ReactNode; tip?: string }) {
   return (
     <div
-      className="flex items-baseline justify-between gap-3 px-2 py-1.5 border-b border-[var(--t-border)] last:border-b-0"
+      className="flex items-baseline justify-between gap-3 px-2 py-1 border-b border-[var(--t-border)] last:border-b-0"
       title={tip}
     >
       <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] shrink-0">{label}</span>
@@ -228,76 +257,76 @@ export function BonoModal({ ticker, onClose }: Props) {
                   rinden distinto de verdad; mostrar una sola es el bug que la
                   tabla ya resolvió, no se reintroduce acá. */}
               {patas.map((p) => (
-                <div key={`${p.pill}-${p.pata}`} className="shrink-0 border border-[var(--t-border-2)] p-2">
-                  <div className="flex items-baseline gap-2 mb-2">
-                    <span className="text-[10px] tracking-wide text-[var(--t-accent)]">
-                      {p.pill.replace(/_/g, " ").toUpperCase()}
-                    </span>
-                    <span className="text-[9px] text-[var(--t-text-muted)]">{p.lado}</span>
-                    {/* De dónde salió la tasa. `null` = del motor, live. */}
+                <div
+                  key={`${p.pill}-${p.pata}`}
+                  className="shrink-0 border border-[var(--t-border-2)] px-2 py-1.5 flex flex-wrap items-baseline gap-x-4 gap-y-1"
+                >
+                  <span className="text-[10px] tracking-wide text-[var(--t-accent)] shrink-0">
+                    {p.pill.replace(/_/g, " ").toUpperCase()}
+                  </span>
+                  <span className="text-[9px] text-[var(--t-text-muted)] shrink-0">{p.lado}</span>
+                  {/* De dónde salió la tasa. `null` = del motor, live. */}
+                  <span
+                    className="text-[9px] text-[var(--t-text-muted)] shrink-0"
+                    title={
+                      p.tea_fuente === "1816"
+                        ? "Tasa de 1816 (actualiza cada 30 min). Esta pata todavía no la calcula el motor, así que no es live."
+                        : "Tasa del motor: Primary, live."
+                    }
+                  >
+                    {p.tea_fuente === "1816"
+                      ? `1816${p.tea_fecha ? ` · ${fmtFechaCorta(p.tea_fecha)}` : ""}`
+                      : "LIVE"}
+                  </span>
+                  {p.tasa_ruido && (
                     <span
-                      className="text-[9px] text-[var(--t-text-muted)]"
-                      title={
-                        p.tea_fuente === "1816"
-                          ? "Tasa de 1816 (actualiza cada 30 min). Esta pata todavía no la calcula el motor, así que no es live."
-                          : "Tasa del motor: Primary, live."
-                      }
+                      className="text-[9px] text-[var(--t-text-muted)] opacity-70 shrink-0"
+                      title="Vence en pocos días: anualizar ese plazo infla la tasa. No es comparable con el resto de la curva."
                     >
-                      {p.tea_fuente === "1816"
-                        ? `1816${p.tea_fecha ? ` · ${fmtFechaCorta(p.tea_fecha)}` : ""}`
-                        : "LIVE"}
+                      TASA RUIDO
                     </span>
-                    {p.tasa_ruido && (
-                      <span
-                        className="text-[9px] text-[var(--t-text-muted)] opacity-70"
-                        title="Vence en pocos días: anualizar ese plazo infla la tasa. No es comparable con el resto de la curva."
-                      >
-                        TASA RUIDO
-                      </span>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-8 gap-x-3 gap-y-2">
-                    <Dato label="Last" valor={fmt2(p.metrics?.last_price)} />
-                    <Dato label="TEA" valor={pct(p.metrics?.TEA)} />
+                  )}
+                  <span className="w-px self-stretch bg-[var(--t-border-2)]" />
+                  <Dato label="Last" valor={fmt2(p.metrics?.last_price)} />
+                  <Dato label="TEA" valor={pct(p.metrics?.TEA)} />
+                  <Dato
+                    label="TNA"
+                    valor={
+                      p.metrics?.TNA !== undefined
+                        ? pct(p.metrics.TNA, 1)
+                        : p.metrics?.TEA !== undefined
+                          ? `${((Math.pow(1 + p.metrics.TEA, 1 / 12) - 1) * 12 * 100).toFixed(1)}%`
+                          : "--"
+                    }
+                    tip="Si el proveedor la publica, gana la suya; si no, se deriva de la TEA como en la tabla (TEM × 12)."
+                  />
+                  <Dato label="TEM" valor={pct(p.metrics?.TEM)} />
+                  <Dato label="Duration" valor={fmt2(p.metrics?.duration)} />
+                  <Dato label="Mod dur" valor={fmt2(p.metrics?.mod_duration)} />
+                  <Dato label="Convexity" valor={fmt2(p.metrics?.convexity)} />
+                  <Dato label="Paridad" valor={fmt2(p.metrics?.paridad)} />
+                  {p.margen != null && (
                     <Dato
-                      label="TNA"
-                      valor={
-                        p.metrics?.TNA !== undefined
-                          ? pct(p.metrics.TNA, 1)
-                          : p.metrics?.TEA !== undefined
-                            ? `${((Math.pow(1 + p.metrics.TEA, 1 / 12) - 1) * 12 * 100).toFixed(1)}%`
-                            : "--"
-                      }
-                      tip="Si el proveedor la publica, gana la suya; si no, se deriva de la TEA como en la tabla (TEM × 12)."
+                      label="Margen s/TAMAR"
+                      valor={pct(p.margen)}
+                      tip="Cuánto paga este bono por encima de la tasa de referencia del BCRA. Fuente 1816."
                     />
-                    <Dato label="TEM" valor={pct(p.metrics?.TEM)} />
-                    <Dato label="Duration" valor={fmt2(p.metrics?.duration)} />
-                    <Dato label="Mod dur" valor={fmt2(p.metrics?.mod_duration)} />
-                    <Dato label="Convexity" valor={fmt2(p.metrics?.convexity)} />
-                    <Dato label="Paridad" valor={fmt2(p.metrics?.paridad)} />
-                    {p.margen != null && (
-                      <Dato
-                        label="Margen s/TAMAR"
-                        valor={pct(p.margen)}
-                        tip="Cuánto paga este bono por encima de la tasa de referencia del BCRA. Fuente 1816."
-                      />
-                    )}
-                    {p.tc_breakeven != null && (
-                      <Dato
-                        label="TC BE"
-                        valor={Math.round(p.tc_breakeven).toLocaleString("es-AR")}
-                        tip="TC al que este bono empata contra comprar MEP hoy y esperar al vencimiento."
-                      />
-                    )}
-                    <Dato label="Vol nom" valor={fmt2(p.metrics?.total_nominals, 0)} />
-                  </div>
+                  )}
+                  {p.tc_breakeven != null && (
+                    <Dato
+                      label="TC BE"
+                      valor={Math.round(p.tc_breakeven).toLocaleString("es-AR")}
+                      tip="TC al que este bono empata contra comprar MEP hoy y esperar al vencimiento."
+                    />
+                  )}
+                  <Dato label="Vol nom" valor={fmt2(p.metrics?.total_nominals, 0)} />
                 </div>
               ))}
 
               {/* ── EL CUERPO, mitad y mitad ── izquierda la FICHA a todo lo
                   alto; derecha el gráfico arriba y el cronograma abajo. En
                   pantallas chicas se apila y scrollea el modal, como antes. */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)] gap-3 lg:flex-1 lg:min-h-0">
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,37fr)_minmax(0,63fr)] lg:grid-rows-[minmax(0,1fr)] gap-3 lg:flex-1 lg:min-h-0">
 
               {/* ── FICHA ── el lomo con el rótulo en vertical y las filas
                   label→valor. Ocupa toda la altura de su mitad. */}
@@ -324,7 +353,7 @@ export function BonoModal({ ticker, onClose }: Props) {
 
               {/* ── FLUJO DE FONDOS ── */}
               <div className="border border-[var(--t-border-2)] p-2 flex flex-col min-h-0 lg:flex-1">
-                <div className="flex items-center gap-2 mb-2 flex-wrap shrink-0">
+                <div className="flex items-center gap-2 mb-1.5 flex-wrap shrink-0">
                   <span className="text-[10px] tracking-wide text-[var(--t-accent)]">
                     FLUJO DE FONDOS
                   </span>
@@ -361,61 +390,71 @@ export function BonoModal({ ticker, onClose }: Props) {
                       : "Sin cronograma cargado para este bono."}
                   </p>
                 ) : (
-                  <div className="h-[240px] lg:h-auto lg:flex-1 lg:min-h-[180px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chart} margin={{ top: 8, right: 12, bottom: 28, left: 4 }}>
-                        <XAxis
-                          dataKey="fecha"
-                          tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
-                          axisLine={{ stroke: "var(--t-border-2)" }}
-                          tickLine={false}
-                          angle={-35}
-                          textAnchor="end"
-                          height={44}
-                          tickFormatter={fmtFechaCorta}
-                          interval={Math.max(0, Math.floor(chart.length / 12))}
-                        />
-                        <YAxis
-                          tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
-                          axisLine={{ stroke: "var(--t-border-2)" }}
-                          tickLine={false}
-                          width={52}
-                          tickFormatter={(v: number) => v.toFixed(0)}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            background: "var(--t-surface)",
-                            border: "1px solid var(--t-border-2)",
-                            fontSize: 11,
-                            fontFamily: "JetBrains Mono, monospace",
-                          }}
-                          labelStyle={{ color: "var(--t-text-dim)" }}
-                          labelFormatter={(v) => fmtFechaCorta(String(v))}
-                          formatter={(v, n) => [
-                            fmt2(Number(v), 3),
-                            n === "amortizacion" ? "Amortización" : "Interés",
-                          ]}
-                        />
-                        {/* Apiladas: la altura total es lo que se cobra ese día.
-                            Los pagos ya vencidos van apagados — se ven distinto
-                            de los que faltan sin sacarlos del gráfico. */}
-                        <Bar dataKey="amortizacion" stackId="f" isAnimationActive={false}>
-                          {chart.map((c, i) => (
-                            <Cell key={i} fill={c.futuro ? "var(--t-accent)" : "#5a6470"} />
-                          ))}
-                        </Bar>
-                        <Bar dataKey="interes" stackId="f" isAnimationActive={false}>
-                          {chart.map((c, i) => (
-                            <Cell key={i} fill={c.futuro ? "#33ccaa" : "#3e4650"} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
+                  /* DOS paneles con el MISMO eje de fechas y cada uno su propia
+                     escala — el mismo criterio que SIMULAR INVERSIÓN. Apilado en
+                     una sola escala, en un bullet la amortización (100) aplasta
+                     al cupón (0,50) y la renta se dibuja pegada al cero: parece
+                     que el bono no paga nada hasta el vencimiento. El doble eje
+                     Y no es la salida (misma unidad en dos escalas: el ojo
+                     compara alturas que no son comparables). */
+                  <div className="flex-1 min-h-0 flex flex-col gap-1">
+                    <SubtituloFlujo color="var(--t-accent)" texto="CAPITAL — amortización" />
+                    <div className="flex-1 min-h-[70px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chart} margin={{ top: 4, right: 12, bottom: 0, left: 4 }} syncId="flujo-bono">
+                          <XAxis dataKey="fecha" tick={false} axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false} height={4} />
+                          <YAxis
+                            tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                            axisLine={{ stroke: "var(--t-border-2)" }}
+                            tickLine={false}
+                            width={52}
+                            tickFormatter={(v: number) => v.toFixed(0)}
+                          />
+                          <Tooltip {...tooltipFlujo("Amortización")} />
+                          <Bar dataKey="amortizacion" isAnimationActive={false}>
+                            {chart.map((c, i) => (
+                              <Cell key={i} fill={c.futuro ? "var(--t-accent)" : "#5a6470"} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <SubtituloFlujo color="#33ccaa" texto="RENTA — interés (en su propia escala)" />
+                    <div className="flex-1 min-h-[80px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chart} margin={{ top: 4, right: 12, bottom: 24, left: 4 }} syncId="flujo-bono">
+                          <XAxis
+                            dataKey="fecha"
+                            tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                            axisLine={{ stroke: "var(--t-border-2)" }}
+                            tickLine={false}
+                            angle={-35}
+                            textAnchor="end"
+                            height={40}
+                            tickFormatter={fmtFechaCorta}
+                            interval={Math.max(0, Math.floor(chart.length / 10))}
+                          />
+                          <YAxis
+                            tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                            axisLine={{ stroke: "var(--t-border-2)" }}
+                            tickLine={false}
+                            width={52}
+                            tickFormatter={(v: number) => fmt2(v, v >= 10 ? 0 : 2)}
+                          />
+                          <Tooltip {...tooltipFlujo("Interés")} />
+                          <Bar dataKey="interes" isAnimationActive={false}>
+                            {chart.map((c, i) => (
+                              <Cell key={i} fill={c.futuro ? "#33ccaa" : "#3e4650"} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
                   </div>
                 )}
 
                 {data?.resumen && (
-                  <div className="shrink-0 grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-2 mt-2 pt-2 border-t border-[var(--t-border-2)]">
+                  <div className="shrink-0 flex flex-wrap items-baseline gap-x-4 gap-y-1 mt-1.5 pt-1.5 border-t border-[var(--t-border-2)]">
                     <Dato label="Pagos futuros" valor={data.resumen.n_pagos_futuros} />
                     <Dato
                       label="Próximo pago"
