@@ -26,6 +26,16 @@ import { fmtFechaCorta } from "@/lib/fmt";
 // en USD, en pesos, o en pesos de emisión para un CER) la decide el servidor,
 // porque depende de con qué fórmula se valúa el bono — y un monto por 100 VN sin
 // unidad no se puede leer, o peor, se lee mal.
+//
+// **Layout: mitad y mitad, sin scroll de página.** Antes los cuatro bloques iban
+// apilados a todo el ancho y la FICHA quedaba al pie: para leer la ficha había
+// que scrollear, y al scrollear se perdía de vista el cronograma — o sea que las
+// dos cosas que se comparan (qué bono es / cuándo paga) nunca estaban juntas en
+// pantalla. Ahora las TASAS quedan arriba, a todo el ancho (es el titular), y
+// abajo el cuerpo se parte 50/50: la FICHA ocupa toda la altura de la mitad
+// izquierda en filas verticales label→valor, con el rótulo FICHA escrito en
+// vertical sobre el lomo; a la derecha el gráfico arriba y el cronograma abajo.
+// Cada mitad scrollea por dentro, así el modal entero no se mueve.
 
 interface Props {
   ticker: string;             // el CORTO (AL30) — el mismo que muestra la tabla
@@ -44,6 +54,19 @@ function Dato({ label, valor, tip }: { label: string; valor: React.ReactNode; ti
     <div className="min-w-0" title={tip}>
       <div className="text-[9px] tracking-wide text-[var(--t-text-muted)] uppercase">{label}</div>
       <div className="text-xs text-[var(--t-text-dim)] truncate">{valor}</div>
+    </div>
+  );
+}
+
+/** Fila label → valor. Es la unidad de la FICHA: se lee de arriba hacia abajo. */
+function Fila({ label, valor, tip }: { label: string; valor: React.ReactNode; tip?: string }) {
+  return (
+    <div
+      className="flex items-baseline justify-between gap-3 px-2 py-1.5 border-b border-[var(--t-border)] last:border-b-0"
+      title={tip}
+    >
+      <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] shrink-0">{label}</span>
+      <span className="text-xs text-[var(--t-text-dim)] text-right truncate">{valor}</span>
     </div>
   );
 }
@@ -110,6 +133,47 @@ export function BonoModal({ ticker, onClose }: Props) {
   // tiene dos y las dos se muestran, cada una con su tasa y su procedencia.
   const patas: PataBono[] = data?.patas || [];
 
+  // La FICHA, en filas verticales. Lo condicional (industria, ley, CER) entra o
+  // no entra según el bono — una fila vacía en una lista vertical se lee como un
+  // dato faltante, no como un campo que no aplica.
+  const filasFicha: { label: string; valor: React.ReactNode; tip?: string }[] = ficha ? [
+    { label: "Símbolo", valor: data?.instrumento || "--", tip: "El símbolo que se le manda a Primary" },
+    { label: "Emisor", valor: ficha.emisor || "--" },
+    { label: "Tipo emisor", valor: ficha.emisor_tipo || "--" },
+    ...(ficha.industria ? [{ label: "Industria", valor: ficha.industria }] : []),
+    { label: "Tipo", valor: ficha.tipo || "--" },
+    { label: "Moneda", valor: ficha.moneda || "--" },
+    {
+      label: "Ajuste",
+      valor: ficha.ajuste_alt ? `${ficha.ajuste} + ${ficha.ajuste_alt}` : ficha.ajuste || "--",
+      tip: ficha.ajuste_alt ? "Bono DUAL: tiene dos patas de rendimiento" : undefined,
+    },
+    ...(ficha.ley
+      ? [{ label: "Ley", valor: ficha.ley === "local" ? "Local (Bonar)" : "NY (Global)" }]
+      : []),
+    { label: "Emisión", valor: ficha.fecha_emision ? fmtFechaCorta(ficha.fecha_emision) : "--" },
+    { label: "Vencimiento", valor: ficha.fecha_vencimiento ? fmtFechaCorta(ficha.fecha_vencimiento) : "--" },
+    { label: "Valor nominal", valor: fmt2(ficha.valor_nominal, 0) },
+    { label: "Cupón anual", valor: ficha.cupon_anual == null ? "--" : fmt2(ficha.cupon_anual, 4) },
+    ...(ficha.cer_emision != null
+      ? [{ label: "CER emisión", valor: fmt2(ficha.cer_emision, 4) }]
+      : []),
+    ...(ficha.flujo_vencimiento != null
+      ? [{
+          label: "Pago final",
+          valor: fmt2(ficha.flujo_vencimiento, 2),
+          tip: "Pago al vencimiento por 100 VN (bullet)",
+        }]
+      : []),
+    ...(ficha.cer_fijado
+      ? [{
+          label: "CER",
+          valor: "FIJADO",
+          tip: "Su CER de liquidación ya está publicado: se comporta como tasa fija.",
+        }]
+      : []),
+  ] : [];
+
   return (
     <div
       onClick={onClose}
@@ -117,7 +181,7 @@ export function BonoModal({ ticker, onClose }: Props) {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] w-full max-w-5xl max-h-[88vh] flex flex-col"
+        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] w-full max-w-6xl h-[88vh] max-h-[88vh] flex flex-col"
       >
         {/* ── cabecera ── */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--t-border-2)] shrink-0">
@@ -151,7 +215,7 @@ export function BonoModal({ ticker, onClose }: Props) {
           </button>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-3">
+        <div className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden p-3 flex flex-col gap-3">
           {loading ? (
             <p className="text-[var(--t-text-muted)] text-xs text-center py-8">cargando…</p>
           ) : error ? (
@@ -164,7 +228,7 @@ export function BonoModal({ ticker, onClose }: Props) {
                   rinden distinto de verdad; mostrar una sola es el bug que la
                   tabla ya resolvió, no se reintroduce acá. */}
               {patas.map((p) => (
-                <div key={`${p.pill}-${p.pata}`} className="border border-[var(--t-border-2)] p-2">
+                <div key={`${p.pill}-${p.pata}`} className="shrink-0 border border-[var(--t-border-2)] p-2">
                   <div className="flex items-baseline gap-2 mb-2">
                     <span className="text-[10px] tracking-wide text-[var(--t-accent)]">
                       {p.pill.replace(/_/g, " ").toUpperCase()}
@@ -230,9 +294,37 @@ export function BonoModal({ ticker, onClose }: Props) {
                 </div>
               ))}
 
+              {/* ── EL CUERPO, mitad y mitad ── izquierda la FICHA a todo lo
+                  alto; derecha el gráfico arriba y el cronograma abajo. En
+                  pantallas chicas se apila y scrollea el modal, como antes. */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)] gap-3 lg:flex-1 lg:min-h-0">
+
+              {/* ── FICHA ── el lomo con el rótulo en vertical y las filas
+                  label→valor. Ocupa toda la altura de su mitad. */}
+              {ficha && (
+                <div className="flex min-h-0 border border-[var(--t-border-2)] order-2 lg:order-1">
+                  <div className="shrink-0 flex items-start justify-center px-1.5 pt-2 border-r border-[var(--t-border-2)] bg-[var(--t-surface)]">
+                    <span
+                      className="text-[10px] tracking-[0.35em] text-[var(--t-accent)]"
+                      style={{ writingMode: "vertical-rl" }}
+                    >
+                      FICHA
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0 min-h-0 overflow-y-auto">
+                    {filasFicha.map((f) => (
+                      <Fila key={f.label} label={f.label} valor={f.valor} tip={f.tip} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ── la mitad derecha: gráfico arriba, cronograma abajo ── */}
+              <div className="flex flex-col gap-3 min-h-0 order-1 lg:order-2">
+
               {/* ── FLUJO DE FONDOS ── */}
-              <div className="border border-[var(--t-border-2)] p-2">
-                <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <div className="border border-[var(--t-border-2)] p-2 flex flex-col min-h-0 lg:flex-1">
+                <div className="flex items-center gap-2 mb-2 flex-wrap shrink-0">
                   <span className="text-[10px] tracking-wide text-[var(--t-accent)]">
                     FLUJO DE FONDOS
                   </span>
@@ -269,7 +361,7 @@ export function BonoModal({ ticker, onClose }: Props) {
                       : "Sin cronograma cargado para este bono."}
                   </p>
                 ) : (
-                  <div className="h-[240px]">
+                  <div className="h-[240px] lg:h-auto lg:flex-1 lg:min-h-[180px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={chart} margin={{ top: 8, right: 12, bottom: 28, left: 4 }}>
                         <XAxis
@@ -323,7 +415,7 @@ export function BonoModal({ ticker, onClose }: Props) {
                 )}
 
                 {data?.resumen && (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-2 mt-2 pt-2 border-t border-[var(--t-border-2)]">
+                  <div className="shrink-0 grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-2 mt-2 pt-2 border-t border-[var(--t-border-2)]">
                     <Dato label="Pagos futuros" valor={data.resumen.n_pagos_futuros} />
                     <Dato
                       label="Próximo pago"
@@ -352,12 +444,12 @@ export function BonoModal({ ticker, onClose }: Props) {
 
               {/* ── CRONOGRAMA ── el dato duro que respalda el gráfico ── */}
               {flujos.length > 0 && (
-                <div className="border border-[var(--t-border-2)] p-2">
-                  <div className="text-[10px] tracking-wide text-[var(--t-accent)] mb-2">
+                <div className="border border-[var(--t-border-2)] p-2 flex flex-col min-h-0 lg:flex-1">
+                  <div className="shrink-0 text-[10px] tracking-wide text-[var(--t-accent)] mb-2">
                     CRONOGRAMA
                     <span className="ml-2 text-[var(--t-text-muted)]">{flujos.length}</span>
                   </div>
-                  <div className="max-h-[240px] overflow-y-auto">
+                  <div className="max-h-[240px] lg:max-h-none lg:flex-1 lg:min-h-0 overflow-y-auto">
                     <table className="w-full">
                       <thead>
                         <tr>
@@ -388,49 +480,8 @@ export function BonoModal({ ticker, onClose }: Props) {
                 </div>
               )}
 
-              {/* ── FICHA ── */}
-              {ficha && (
-                <div className="border border-[var(--t-border-2)] p-2">
-                  <div className="text-[10px] tracking-wide text-[var(--t-accent)] mb-2">FICHA</div>
-                  <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-7 gap-x-3 gap-y-2">
-                    <Dato label="Símbolo" valor={data?.instrumento || "--"} tip="El símbolo que se le manda a Primary" />
-                    <Dato label="Emisor" valor={ficha.emisor || "--"} />
-                    <Dato label="Tipo emisor" valor={ficha.emisor_tipo || "--"} />
-                    {ficha.industria && <Dato label="Industria" valor={ficha.industria} />}
-                    <Dato label="Tipo" valor={ficha.tipo || "--"} />
-                    <Dato label="Moneda" valor={ficha.moneda || "--"} />
-                    <Dato
-                      label="Ajuste"
-                      valor={ficha.ajuste_alt ? `${ficha.ajuste} + ${ficha.ajuste_alt}` : ficha.ajuste || "--"}
-                      tip={ficha.ajuste_alt ? "Bono DUAL: tiene dos patas de rendimiento" : undefined}
-                    />
-                    {ficha.ley && (
-                      <Dato label="Ley" valor={ficha.ley === "local" ? "Local (Bonar)" : "NY (Global)"} />
-                    )}
-                    <Dato label="Emisión" valor={ficha.fecha_emision ? fmtFechaCorta(ficha.fecha_emision) : "--"} />
-                    <Dato label="Vencimiento" valor={ficha.fecha_vencimiento ? fmtFechaCorta(ficha.fecha_vencimiento) : "--"} />
-                    <Dato label="Valor nominal" valor={fmt2(ficha.valor_nominal, 0)} />
-                    <Dato label="Cupón anual" valor={ficha.cupon_anual == null ? "--" : fmt2(ficha.cupon_anual, 4)} />
-                    {ficha.cer_emision != null && (
-                      <Dato label="CER emisión" valor={fmt2(ficha.cer_emision, 4)} />
-                    )}
-                    {ficha.flujo_vencimiento != null && (
-                      <Dato
-                        label="Pago final"
-                        valor={fmt2(ficha.flujo_vencimiento, 2)}
-                        tip="Pago al vencimiento por 100 VN (bullet)"
-                      />
-                    )}
-                    {ficha.cer_fijado && (
-                      <Dato
-                        label="CER"
-                        valor="FIJADO"
-                        tip="Su CER de liquidación ya está publicado: se comporta como tasa fija."
-                      />
-                    )}
-                  </div>
-                </div>
-              )}
+              </div>{/* /mitad derecha */}
+              </div>{/* /grilla 50-50 */}
             </>
           )}
         </div>

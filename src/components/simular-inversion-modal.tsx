@@ -25,9 +25,14 @@ import { Dato, fmt0, fmt2, Panel } from "@/components/ui/informe";
 //
 // El diseño usa las piezas de INFORME (`ui/informe.tsx`: Panel con cabecera
 // azul + Dato) — es la identidad visual de "esto se lee como un informe", la
-// misma de /aca y CARTERAS. Layout: fila de Datos grandes (el resultado),
-// después RESULTADO/FLUJO en dos columnas, y la FICHA al pie ocupando todo el
-// ancho, en filas verticales label→valor.
+// misma de /aca y CARTERAS. Layout: fila de Datos grandes (el resultado) y
+// después RESULTADO/FLUJO en dos columnas.
+//
+// La FICHA del bono NO vive acá: es exactamente la misma que muestra el modal
+// del BONO (`bono-modal.tsx`), y repetirla obligaba a scrollear el simulador
+// para llegar a datos que ya se leen en otra pantalla. Acá se contesta una sola
+// pregunta —*si pongo esta plata a este precio, cuánto rinde y cuándo cobro*—
+// y todo lo que no la conteste es ruido.
 
 interface Props {
   bonos: BonoCurva[];         // el payload de curvas-vista (la tab CURVAS)
@@ -83,7 +88,7 @@ const tooltipFlujo = (nombre: string) => ({
   formatter: (v: unknown) => [fmt0(Number(v)), nombre] as [string, string],
 });
 
-/** Fila label → valor. Es la unidad de FICHA y RESULTADO: se lee en vertical. */
+/** Fila label → valor. Es la unidad de TASAS AL PRECIO: se lee en vertical. */
 function Fila({ label, valor, tip }: { label: string; valor: React.ReactNode; tip?: string }) {
   return (
     <div
@@ -266,7 +271,6 @@ export function SimularInversionModal({ bonos, onClose }: Props) {
   }, [ticker, importe, precio]);
 
   const sim = data && !data.error ? data.simulacion : null;
-  const ficha = data && !data.error ? data.ficha : null;
 
   const chart = useMemo(
     () => (sim?.flujos || []).map((f) => ({
@@ -280,37 +284,6 @@ export function SimularInversionModal({ bonos, onClose }: Props) {
   const inputCls =
     "w-28 bg-transparent border border-[var(--t-border-2)] px-2 py-1 text-xs text-right " +
     "text-[var(--t-text)] focus:border-[var(--t-accent)] outline-none";
-
-  // La FICHA al pie, en VERTICAL: filas label→valor repartidas en columnas que
-  // ocupan todo el ancho. El símbolo de mercado NO se muestra (es interno).
-  const filasFicha: { label: string; valor: React.ReactNode; tip?: string }[] = ficha ? [
-    { label: "Emisor", valor: ficha.emisor || "—" },
-    { label: "Tipo emisor", valor: ficha.emisor_tipo || "—" },
-    { label: "Tipo", valor: ficha.tipo || "—" },
-    { label: "Moneda", valor: ficha.moneda || "—" },
-    {
-      label: "Ajuste",
-      valor: ficha.ajuste_alt ? `${ficha.ajuste} + ${ficha.ajuste_alt}` : ficha.ajuste || "—",
-      tip: ficha.ajuste_alt ? "Bono DUAL: tiene dos patas de rendimiento" : undefined,
-    },
-    ...(ficha.ley ? [{ label: "Ley", valor: ficha.ley === "local" ? "Local (Bonar)" : "NY (Global)" }] : []),
-    { label: "Emisión", valor: ficha.fecha_emision ? fmtFechaCorta(ficha.fecha_emision) : "—" },
-    { label: "Vencimiento", valor: ficha.fecha_vencimiento ? fmtFechaCorta(ficha.fecha_vencimiento) : "—" },
-    { label: "Valor nominal", valor: fmt0(ficha.valor_nominal) },
-    { label: "Cupón anual", valor: ficha.cupon_anual == null ? "—" : fmt2(ficha.cupon_anual, 4) },
-    ...(ficha.cer_emision != null ? [{ label: "CER emisión", valor: fmt2(ficha.cer_emision, 4) }] : []),
-    ...(ficha.flujo_vencimiento != null
-      ? [{ label: "Pago final (por 100 VN)", valor: fmt2(ficha.flujo_vencimiento), tip: "Pago al vencimiento por 100 VN (bullet)" }]
-      : []),
-  ] : [];
-  // 3 columnas de filas: se recorre por tercios para que cada columna se lea
-  // de arriba hacia abajo.
-  const tercio = Math.ceil(filasFicha.length / 3);
-  const columnasFicha = [
-    filasFicha.slice(0, tercio),
-    filasFicha.slice(tercio, tercio * 2),
-    filasFicha.slice(tercio * 2),
-  ];
 
   return (
     <div
@@ -376,7 +349,7 @@ export function SimularInversionModal({ bonos, onClose }: Props) {
             <p className="text-[var(--t-neg)] text-xs text-center py-10">error: {error}</p>
           ) : data?.error ? (
             <p className="text-[var(--t-text-muted)] text-xs text-center py-10">{data.error}</p>
-          ) : !sim || !ficha ? (
+          ) : !sim ? (
             <p className="text-[var(--t-text-muted)] text-xs text-center py-10">
               {num(importe) ? "calculando…" : "Ingresá un importe para simular."}
             </p>
@@ -564,29 +537,6 @@ export function SimularInversionModal({ bonos, onClose }: Props) {
                   )}
                 </Panel>
               </div>
-
-              {/* ── FICHA: al pie, a todo lo ancho, en filas verticales ── */}
-              <Panel
-                titulo={`FICHA · ${data?.ticker ?? ""}`}
-                extra={data?.rama ? (
-                  <span
-                    className="text-[10px] text-white/80"
-                    title="Rama de cálculo del motor: la fórmula con la que se valúa este bono."
-                  >
-                    {data.rama.replace(/_/g, " ").toUpperCase()}
-                  </span>
-                ) : undefined}
-              >
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                  {columnasFicha.map((col, i) => (
-                    <div key={i} className="lg:border-r last:border-r-0 border-[var(--t-border)]">
-                      {col.map((f) => (
-                        <Fila key={f.label} label={f.label} valor={f.valor} tip={f.tip} />
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </Panel>
             </div>
           )}
         </div>
