@@ -4,20 +4,23 @@ import { useState } from "react";
 
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { IntradayView } from "./intraday-view";
+import { MonitorView } from "./monitor-view";
 import { PnlHistoricoView } from "./pnl-historico-view";
 import { TradingView } from "./trading-view";
 
 // Módulo TRADING con sub-pestañas:
 //   PIVOTS        → panel de pivots del CEDEAR + chart/tape/volumen (la señal
 //                   ESTRATEGIA vive AHÍ, como tab del radar — no acá).
+//   MONITOR       → volumen operado POR PRECIO (POC + área de valor), con el
+//                   filtro madre renta fija / renta variable. 2026-09-04.
 //   INTRADAY      → monitor intradía FIFO (migrado de Operaciones).
 //   PNL HISTÓRICO → cuaderno manual de PnL diario + acumulado (total/mensual).
 // (REUTERS se movió a /research → tab RENTA VARIABLE INTERNACIONAL, 2026-07-18.)
 // Keep-alive: cada tab se monta la primera vez y luego se oculta con CSS (mismo
 // patrón que operaciones-view) → cambiar de tab no re-fetchea ni pierde estado.
-type Tab = "pivots" | "intraday" | "pnl";
+type Tab = "pivots" | "monitor" | "intraday" | "pnl";
 
-const TABS: Tab[] = ["pivots", "intraday", "pnl"];
+const TABS: Tab[] = ["pivots", "monitor", "intraday", "pnl"];
 
 export function TradingShell() {
   const [tabRaw, setTab] = usePersistedState<string>("trading.tab", "pivots");
@@ -30,6 +33,7 @@ export function TradingShell() {
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-1 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <TabBtn active={tab === "pivots"} onClick={() => setTab("pivots")}>PIVOTS</TabBtn>
+        <TabBtn active={tab === "monitor"} onClick={() => setTab("monitor")}>MONITOR</TabBtn>
         <TabBtn active={tab === "intraday"} onClick={() => setTab("intraday")}>INTRADAY</TabBtn>
         <TabBtn active={tab === "pnl"} onClick={() => setTab("pnl")}>PNL HISTÓRICO</TabBtn>
       </div>
@@ -37,6 +41,11 @@ export function TradingShell() {
         {visited.has("pivots") && (
           <Pane active={tab === "pivots"}>
             <TradingView />
+          </Pane>
+        )}
+        {visited.has("monitor") && (
+          <Pane active={tab === "monitor"}>
+            <MonitorView />
           </Pane>
         )}
         {visited.has("intraday") && (
