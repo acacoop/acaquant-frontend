@@ -14,6 +14,7 @@
 // recalcula al aplicar, así lo que se escribe es lo cierto AHORA.
 import { useState } from "react";
 
+import { ListadoCedears, type FilaCedear } from "@/components/agente/listado-cedears";
 import { ListadoFicha, type FilaFicha } from "@/components/agente/listado-ficha";
 import { COLOR, fechaHora, type Hallazgo } from "@/components/agente/tipos";
 import { Confirmado, Evidencia } from "./evidencia";
@@ -29,9 +30,13 @@ type Preview = {
   escala?: string; rama?: string; vencimiento?: string; simbolo?: string;
   tea?: number | null; precio?: number | null;
   ejes?: Record<string, string>;
-  // Solo los arreglos que PIDEN DATOS (hoy `completar_ficha`): el listado que
-  // se despliega para cargar a mano, y los valores que ese campo ya tiene.
+  // Solo los arreglos que PIDEN DATOS: el listado que se despliega. Cuál se
+  // dibuja lo dice el backend (`listado`), no una lista de ids acá.
+  //   `completar_ficha` → `filas` para completar a mano + `opciones`
+  //   `alta_cedear`     → `cedears` para tildar (AGENT.md §0.dl)
+  listado?: string;
   campo?: string; filas?: FilaFicha[]; opciones?: string[];
+  cedears?: FilaCedear[]; motor?: { estado?: string; detalle?: string } | null;
 };
 
 type Datos = { unidad: string; valor: string }[];
@@ -189,7 +194,7 @@ export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: 
                     escritura sale del listado, que no puede guardar nada hasta
                     que se cargue un valor. Un botón «aplicar» al lado de un
                     listado vacío promete escribir sin tener qué. */}
-                {!p?.filas && (
+                {!p?.filas && !p?.cedears && (
                   <button
                     disabled={ocupado === f.id || f.estado === "en_curso"}
                     onClick={() => void hacer(f.id)}
@@ -253,7 +258,18 @@ export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: 
                         />
                       )}
 
-                      {p.puede_aplicar === false && !p.filas && (
+                      {/* EL LISTADO PARA TILDAR de `alta_cedear`: el sistema
+                          sabe escribirlo todo, lo que no decide es cuáles. */}
+                      {p.cedears && (
+                        <ListadoCedears
+                          filas={p.cedears}
+                          motor={p.motor}
+                          ocupado={ocupado === f.id}
+                          onAplicar={(datos) => hacer(f.id, datos)}
+                        />
+                      )}
+
+                      {p.puede_aplicar === false && !p.filas && !p.cedears && (
                         <div className="text-[var(--t-neg)]">
                           ✘ {p.veredicto || "la cadena FRENA: aplicar no va a escribir"}
                         </div>
