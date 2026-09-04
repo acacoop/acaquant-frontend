@@ -17,7 +17,7 @@ import { useState } from "react";
 import { ListadoCedears, type FilaCedear } from "@/components/agente/listado-cedears";
 import { ListadoFicha, type FilaFicha } from "@/components/agente/listado-ficha";
 import { COLOR, fechaHora, type Hallazgo } from "@/components/agente/tipos";
-import { Confirmado, Evidencia } from "./evidencia";
+import { Recurrencia, Confirmado, Evidencia } from "./evidencia";
 
 type Paso = { titulo?: string; estado?: string; detalle?: string;
               tabla?: string; aviso?: string };
@@ -155,6 +155,7 @@ export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: 
                       desde {fechaHora(f.detectado_at)}
                     </span>
                     <Confirmado desde={f.detectado_at} ultima={f.visto_ultima_vez} />
+                    <Recurrencia episodios={f.episodios} cronico={f.cronico} />
                     {f.estado === "en_curso" && (
                       <span className="text-[8px] uppercase tracking-widest text-[var(--t-accent)]">
                         aplicado · esperando que el detector confirme

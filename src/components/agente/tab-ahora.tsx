@@ -18,7 +18,7 @@
 import { useState } from "react";
 
 import { COLOR, fechaHora, type Hallazgo } from "@/components/agente/tipos";
-import { Confirmado, Evidencia } from "./evidencia";
+import { Recurrencia, Confirmado, Evidencia } from "./evidencia";
 
 export function TabAhora({ filas, marcarLeidos, investigar }: {
   filas: Hallazgo[];
@@ -84,6 +84,7 @@ export function TabAhora({ filas, marcarLeidos, investigar }: {
                   {fechaHora(f.detectado_at)}
                 </span>
                 <Confirmado desde={f.detectado_at} ultima={f.visto_ultima_vez} />
+                <Recurrencia episodios={f.episodios} cronico={f.cronico} />
                 <span className="text-[11px] font-bold text-[var(--t-text)] truncate">
                   {f.nombre || f.sujeto}
                 </span>

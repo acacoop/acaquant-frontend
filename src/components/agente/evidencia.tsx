@@ -44,6 +44,39 @@ export function Evidencia({ ev }: { ev: Record<string, unknown> | null | undefin
   );
 }
 
+/** ¿ESTO ES NUEVO O PASA SIEMPRE? — la pregunta que decide qué hacer.
+ *
+ *  Un job que no escribió hoy y uno que no escribe todos los días se veían
+ *  IGUAL, y por eso los dos terminaban en «relanzá el job». Para el primero
+ *  está bien; para el segundo, relanzar es el parche — lo que hay que mirar es
+ *  el umbral, el cron, o si el job sigue haciendo falta.
+ *
+ *  ⚠️ NO es `veces` (cuántas veces el detector lo vio en este episodio): es
+ *  cuántas veces NACIÓ el problema en 30 días. Un problema que persiste no
+ *  crea fila nueva, así que 27 episodios son 27 veces que apareció y se fue.
+ *
+ *  Sin dato NO se dibuja nada: el backend no pudo contar, y «no sé» no se
+ *  puede mostrar como «es la primera vez».
+ */
+export function Recurrencia({ episodios, cronico }: {
+  episodios?: number | null; cronico?: boolean;
+}) {
+  if (episodios == null || episodios < 2) return null;
+  return (
+    <span
+      className="text-[8px] uppercase tracking-widest whitespace-nowrap"
+      style={{ color: cronico ? "var(--t-neg)" : "var(--t-text-dim)" }}
+      title={cronico
+        ? `Apareció ${episodios} veces en los últimos 30 días. No es un incidente: `
+          + `revisá el umbral, el cron o si el job sigue haciendo falta — `
+          + `arreglarlo de nuevo lo tapa.`
+        : `Apareció ${episodios} veces en los últimos 30 días.`}
+    >
+      {cronico ? `⚠ crónico · ${episodios}× en 30d` : `${episodios}× en 30d`}
+    </span>
+  );
+}
+
 /** «confirmado hace…»: cuándo el detector vio el problema por última vez. Sin
  *  esto un hallazgo de hace tres días y uno confirmado hace veinte minutos se
  *  ven iguales. Solo se dibuja si difiere del nacimiento. */

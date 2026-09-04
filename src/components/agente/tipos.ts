@@ -28,6 +28,17 @@ export type Hallazgo = {
   accionable?: boolean;
   // ¿El laboratorio sabe investigar esta habilidad? Lo decide el backend.
   investigable?: boolean;
+  // ⚠️ CUÁNTAS VECES apareció ESTE MISMO problema en los últimos 30 días —
+  // no cuántas veces se lo vio (eso es `veces`). Tres episodios son tres veces
+  // que apareció, se fue y volvió: eso ya no es un incidente, es una
+  // configuración mal puesta, y relanzar el job todas las veces es taparlo.
+  //
+  // `undefined`/`null` = el backend NO PUDO CONTARLO. **No es «primera vez»**:
+  // se dibuja sin el indicador, no con un «1ª».
+  episodios?: number | null;
+  episodios_desde?: string | null;
+  // Lo DERIVA el backend (ningún contador se suma en el navegador).
+  cronico?: boolean;
 };
 
 export type Habilidad = {
