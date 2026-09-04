@@ -65,6 +65,16 @@ export interface MonitorVentana {
   por_defecto: boolean; // con ésta abre la tab (la manda el backend, ver monitor_sql)
 }
 
+// Curva del rail de renta fija (TASA FIJA · CER · TAMAR · …). La clasificación
+// la manda el backend desde el MISMO lugar que la tab CURVAS de renta fija:
+// un bono no puede ser TASA FIJA en una pantalla y CER en la otra.
+export interface MonitorCurva {
+  codigo: string;   // "tasa_fija" | "cer" | "tamar" | … | "otros"
+  display: string;  // "TASA FIJA" | "CER" | … | "OTROS"
+  lado: string;     // "ARS" | "USD" | "—"
+  n: number;        // cuántos bonos tiene, contados del MISMO universo del rail
+}
+
 export interface MonitorItem {
   ticker: string;
   nombre: string;
@@ -73,11 +83,15 @@ export interface MonitorItem {
   last: number | null;
   var_pct: number | null;
   cash: number | null;  // plata operada hoy (solo CEDEARs)
+  // Solo renta fija. Un dual CER+TAMAR trae las DOS y aparece con cualquiera
+  // de las dos elegida. Vacío nunca: sin pill acordada viene ["otros"].
+  curvas?: string[];
 }
 
 export interface MonitorUniverso {
   clase: MonitorClase;
   ventanas: MonitorVentana[];
+  curvas: MonitorCurva[];   // vacío en renta variable (los CEDEARs no tienen curva)
   items: MonitorItem[];
 }
 

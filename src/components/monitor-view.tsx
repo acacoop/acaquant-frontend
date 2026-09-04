@@ -86,9 +86,11 @@ const fmtVol = (n: number | null | undefined) => {
 // decimal es ruido a estos precios.
 const decimales = (clase: MonitorClase) => (clase === "rf" ? 2 : 0);
 
-const UNIDADES: Record<MonitorClase, { ejeX: string; ejeY: string; nota: string }> = {
-  rv: { ejeX: "PRECIO ARS", ejeY: "NOMINALES", nota: "precio ARS · nominales papeles" },
-  rf: { ejeX: "PRECIO c/100 VN", ejeY: "NOMINALES (VN)", nota: "precio c/100 VN · nominales VN" },
+// Las unidades viven en los EJES del gráfico, no en un chip aparte: repetirlas
+// arriba era ruido y encima podía quedar desincronizado del eje.
+const UNIDADES: Record<MonitorClase, { ejeX: string; ejeY: string }> = {
+  rv: { ejeX: "PRECIO ARS", ejeY: "NOMINALES" },
+  rf: { ejeX: "PRECIO c/100 VN", ejeY: "NOMINALES (VN)" },
 };
 
 export function MonitorView() {
@@ -98,6 +100,8 @@ export function MonitorView() {
   // (20 R en renta variable). Derivado, no seteado desde un efecto.
   const [ventana, setVentana] = useState<string | null>(null);
   const [filtro, setFiltro] = useState("");
+  // null = TODAS. Solo renta fija (los CEDEARs no tienen curva).
+  const [curva, setCurva] = useState<string | null>(null);
 
   const { data: uni, error: errUni } = usePoll<MonitorUniverso | null>(
     `/api/trading/monitor/universo?clase=${clase}`,
@@ -108,6 +112,7 @@ export function MonitorView() {
 
   const items = useMemo(() => uni?.items ?? [], [uni]);
   const ventanas = uni?.ventanas ?? [];
+  const curvasDisp = useMemo(() => uni?.curvas ?? [], [uni]);
 
   // Sin elección explícita se muestra el primero del rail, que viene ordenado
   // por plata operada — el papel que la mesa está mirando. Se DERIVA, no se
@@ -125,15 +130,19 @@ export function MonitorView() {
     setTicker(null);      // el ticker de la otra clase no existe en ésta
     setVentana(null);     // cada clase tiene su default y sus ventanas propias
     setFiltro("");
+    setCurva(null);
   };
 
   const visibles = useMemo(() => {
     const f = filtro.trim().toUpperCase();
-    if (!f) return items;
-    return items.filter(
-      (x) => x.ticker.includes(f) || (x.nombre || "").toUpperCase().includes(f),
-    );
-  }, [items, filtro]);
+    return items.filter((x) => {
+      // Un dual entra en DOS curvas y tiene que aparecer con cualquiera de las
+      // dos elegida — por eso es `includes` y no una comparación.
+      if (curva && !(x.curvas ?? []).includes(curva)) return false;
+      if (!f) return true;
+      return x.ticker.includes(f) || (x.nombre || "").toUpperCase().includes(f);
+    });
+  }, [items, filtro, curva]);
 
   const dec = decimales(clase);
 
@@ -158,6 +167,26 @@ export function MonitorView() {
               {visibles.length} / {items.length}
             </span>
           </div>
+          {/* Filtro por CURVA (solo renta fija): las mismas de la tab CURVAS
+              de /renta-fija, con su conteo. Las manda el backend — el front no
+              conoce la taxonomía ni la reconstruye. */}
+          {curvasDisp.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              <CurvaBtn active={curva === null} onClick={() => setCurva(null)}>
+                TODAS <span className="opacity-60">{items.length}</span>
+              </CurvaBtn>
+              {curvasDisp.map((c) => (
+                <CurvaBtn
+                  key={c.codigo}
+                  active={curva === c.codigo}
+                  onClick={() => setCurva(curva === c.codigo ? null : c.codigo)}
+                  title={c.lado === "—" ? "sin curva acordada" : c.lado}
+                >
+                  {c.display} <span className="opacity-60">{c.n}</span>
+                </CurvaBtn>
+              ))}
+            </div>
+          )}
           <input
             value={filtro}
             onChange={(e) => setFiltro(e.target.value)}
@@ -318,12 +347,15 @@ function PanelDerecho({
             <span className="text-[10px] font-semibold tracking-wider text-[var(--t-text-dim)]">
               VOLUMEN POR PRECIO
             </span>
-            <Chip>{u.nota}</Chip>
+            {/* Las UNIDADES ya las dicen los dos ejes del gráfico (PRECIO … /
+                NOMINALES): repetirlas en un chip era ruido. Lo que sí hacía
+                falta es que VAL y VAH digan QUÉ SON — en el gráfico son dos
+                siglas sueltas. Cada una es su propio KPI, con el nombre arriba
+                del número: piso y techo de la banda donde se operó el 70 %. */}
             <div className="ml-auto flex items-center gap-4">
-              <Kpi label="poc">{fmtNum(datos?.poc?.px, dec)}</Kpi>
-              <Kpi label="área de valor 70 %">
-                {fmtNum(datos?.val, dec)} – {fmtNum(datos?.vah, dec)}
-              </Kpi>
+              <Kpi label="poc · más operado">{fmtNum(datos?.poc?.px, dec)}</Kpi>
+              <Kpi label="val · piso 70 %">{fmtNum(datos?.val, dec)}</Kpi>
+              <Kpi label="vah · techo 70 %">{fmtNum(datos?.vah, dec)}</Kpi>
               <Kpi label={u.ejeY.toLowerCase()}>{fmtVol(datos?.resumen?.vol)}</Kpi>
             </div>
           </header>
@@ -595,6 +627,32 @@ function ClaseBtn({
         active
           ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
           : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)]"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function CurvaBtn({
+  active,
+  onClick,
+  title,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  title?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={`px-1.5 py-0.5 text-[9px] font-mono tracking-wide border ${
+        active
+          ? "bg-[var(--t-surface-2)] text-[var(--t-text)] border-[var(--t-accent)]"
+          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)]"
       }`}
     >
       {children}
