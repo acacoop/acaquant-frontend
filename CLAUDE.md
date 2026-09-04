@@ -283,6 +283,16 @@ qué filtro); el estado del **servidor** tiene un dueño y un ciclo: `leer` →
 - `escribir(url, body, relee)` — POST que **MUTA**. Declara qué recursos
   invalida y los relee al volver, **también si el backend contestó `ok: false`**.
 
+**El texto de un aviso viene en DOS campos, y el front no elige cuál es mejor.**
+`que_hacer` es el determinista que escribe el detector; `ia_texto` es el que
+redactó el modelo con la evidencia adelante (backend `agente/redactar.py`,
+`AGENT.md` §0.dm). Se dibuja el del modelo con una marca `ia` y la hora, y el
+determinista queda en el `title` para poder comparar los dos sin gastar
+pixeles. Si `ia_texto` viene vacío —sin key, sin presupuesto, o el backend
+rechazó lo que escribió porque inventaba un número— se dibuja el de siempre:
+**la fila nunca queda muda**. Los dos vienen resueltos del backend; acá no hay
+ninguna decisión.
+
 **El front no deriva, y ningún contador se suma acá.** Todos vienen del backend,
 de la misma query que dibuja su lista. El «AHORA 92» del agente viejo lo sumaba
 el navegador juntando cuatro cosas de dos endpoints con frescuras distintas
