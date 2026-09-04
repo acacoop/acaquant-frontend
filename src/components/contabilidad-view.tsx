@@ -60,11 +60,14 @@ type Resumen = {
   cierre_fin: { fecha_objetivo: string; fecha_usada: string | null };
   titulos: TituloRow[];
   altas: TituloRow[];
+  // Filas cuyos boletos NO explican los nominales del cierre: la TENENCIA
+  // manda, así que se muestran aparte y no suman al total del mes.
+  sin_conciliar: TituloRow[];
   ignorados: Record<string, number>;
   totales: {
     v_ini: number; v_fin: number; compras: number; ventas: number;
     rxt: number; intermediacion: number; total: number;
-    descuadres: number; mep_faltantes: number;
+    descuadres: number; sin_conciliar_total: number; mep_faltantes: number;
   };
   n_boletos: number;
 };
@@ -235,6 +238,19 @@ export function ContabilidadView() {
           { header: "Cuadre nominales", key: "cuadre_nominales", format: "number" },
         ],
       }, {
+        name: "Sin conciliar",
+        title: "La tenencia manda: los boletos no explican los nominales del cierre — no suman al total",
+        rows: vigente.sin_conciliar,
+        columns: [
+          { header: "Título", key: "titulo", format: "text", width: 16 },
+          { header: `Nominales ${mmaaDe(vigente.cierre_ini.fecha_objetivo)}`, key: "qty_ini", format: "number" },
+          { header: `Nominales ${mmaaDe(vigente.cierre_fin.fecha_objetivo)}`, key: "qty_fin", format: "number" },
+          { header: "Nominales sin explicar", key: "cuadre_nominales", format: "number" },
+          { header: "Compras", key: "compras", format: "number", width: 16 },
+          { header: "Ventas", key: "ventas", format: "number", width: 16 },
+          { header: "Total (no suma)", key: "total", format: "number", width: 16 },
+        ],
+      }, {
         name: "Altas del período",
         title: "Comprado para dejar en cartera — su resultado entra al mes siguiente",
         rows: vigente.altas,
@@ -277,6 +293,12 @@ export function ContabilidadView() {
             <Kpi label="Tenencia (RxT)" v={tot!.rxt} />
             <Kpi label="Intermediación" v={tot!.intermediacion} />
             <Kpi label="Total del mes" v={tot!.total} fuerte />
+            {tot!.descuadres > 0 && (
+              <span className="text-[10px] uppercase tracking-wide"
+                title="Títulos cuyos boletos no explican los nominales del cierre. La tenencia manda: se listan abajo y NO suman al total.">
+                ⚠ {tot!.descuadres} sin conciliar · {fmt$(tot!.sin_conciliar_total)} afuera
+              </span>
+            )}
             {tot!.mep_faltantes > 0 && (
               <span className="text-[10px] uppercase tracking-wide">⚠ {tot!.mep_faltantes} sin MEP</span>
             )}
@@ -298,13 +320,13 @@ export function ContabilidadView() {
       <div className="flex-1 min-h-0 overflow-auto bg-[var(--t-panel)]">
         {loading && <div className="p-4 text-[var(--t-text-dim)]">Calculando…</div>}
         {error && <div className="p-4 text-[var(--t-neg,#f87171)]">Error: {error}</div>}
-        {!loading && !error && vigente && !filas.length && (
+        {!loading && !error && vigente && !filas.length && !vigente.sin_conciliar.length && (
           <div className="p-4 text-[var(--t-text-dim)]">
             {filtroEstado ? "Ningún título con ese estado en el período."
                           : "Sin títulos ni boletos en el período."}
           </div>
         )}
-        {!loading && !error && vigente && filas.length > 0 && (
+        {!loading && !error && vigente && (filas.length > 0 || vigente.sin_conciliar.length > 0) && (
           <table className="w-full border-collapse">
             <thead className="sticky top-0 bg-[var(--t-panel)] shadow-[0_1px_0_var(--t-border)]">
               <tr>
@@ -321,31 +343,10 @@ export function ContabilidadView() {
               </tr>
             </thead>
             <tbody>
-              {filas.map((t) => (
-                <tr key={t.key} onClick={() => setDetalleKey(t)}
-                  className="hover:bg-[var(--t-accent)]/10 cursor-pointer">
-                  <td className={`${TD_TIT} ${SEP} font-medium`}>
-                    <span className="flex items-center gap-1">
-                      <span className={TIT_MAX} title={t.titulo}>{t.titulo}</span>
-                      {!t.cuadra && (
-                        <span className="shrink-0 text-[var(--t-text)]"
-                          title={`Nominales sin explicar por boletos: ${fmtNom(t.cuadre_nominales)} (¿falta boleto / amortización / canje?)`}>⚠</span>
-                      )}
-                    </span>
-                  </td>
-                  <td className={TD}>{fmtNom(t.qty_ini)}</td>
-                  <td className={TD}>{fmtNom(t.qty_fin)}</td>
-                  <td className={`${TD} ${neg(t.no_entran_rxt)}`}>{fmtNom(t.no_entran_rxt)}</td>
-                  <td className={`${TD} ${SEP}`}>{fmtNom(t.tenencia_mantenida)}</td>
-                  <td className={TD}>{fmt$(t.v_ini)}</td>
-                  <td className={`${TD} ${SEP}`}>{fmt$(t.v_fin)}</td>
-                  <td className={`${TD} ${neg(t.rxt)}`}>{fmt$(t.rxt)}</td>
-                  <td className={`${TD} ${neg(t.intermediacion)}`}>{fmt$(t.intermediacion)}</td>
-                  <td className={`${TD} font-medium ${neg(t.total)}`}>{fmt$(t.total)}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
+              {filas.map((t) => <FilaTitulo key={t.key} t={t} onClick={() => setDetalleKey(t)} />)}
+              {/* El TOTAL va adentro del tbody y no en un tfoot: el navegador
+                  dibuja tfoot al final de la tabla, y el bloque SIN CONCILIAR
+                  tiene que quedar DEBAJO del total, no arriba. */}
               <tr className="border-t-2 border-[var(--t-border)] font-medium bg-[var(--t-accent)]/5">
                 <td className={`${TD_TIT} ${SEP}`}>{filtroEstado ? "TOTAL DE LA CUENTA" : "TOTAL"}</td>
                 <td className={`${TD} ${SEP}`} colSpan={4} />
@@ -355,7 +356,24 @@ export function ContabilidadView() {
                 <td className={`${TD} ${neg(tot!.intermediacion)}`}>{fmt$(tot!.intermediacion)}</td>
                 <td className={`${TD} ${neg(tot!.total)}`}>{fmt$(tot!.total)}</td>
               </tr>
-            </tfoot>
+            </tbody>
+            {/* PARTIDAS SIN CONCILIAR: la tenencia manda. Se ven con las mismas
+                columnas, pero afuera del total — el número de arriba es solo lo
+                que la foto respalda. */}
+            {vigente.sin_conciliar.length > 0 && (
+              <tbody>
+                <tr>
+                  <td colSpan={10} className="px-2 pt-3 pb-1 text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
+                    ⚠ Sin conciliar · {vigente.sin_conciliar.length} · los boletos no explican los
+                    nominales del cierre — la tenencia manda y estas filas NO suman al total
+                    ({fmt$(tot!.sin_conciliar_total)} afuera)
+                  </td>
+                </tr>
+                {vigente.sin_conciliar.map((t) => (
+                  <FilaTitulo key={t.key} t={t} onClick={() => setDetalleKey(t)} apagada />
+                ))}
+              </tbody>
+            )}
           </table>
         )}
       </div>
@@ -434,6 +452,34 @@ function Desglose({ t }: { t: TituloRow }) {
         <span className={`tabular-nums text-sm font-semibold ${neg(t.total)}`}>{fmt$(t.total)}</span>
       </div>
     </div>
+  );
+}
+
+/** Una fila del informe. `apagada` = partida sin conciliar: mismas columnas,
+ *  atenuada, para que se lea que está afuera del total. */
+function FilaTitulo({ t, onClick, apagada }: { t: TituloRow; onClick: () => void; apagada?: boolean }) {
+  return (
+    <tr onClick={onClick}
+      className={`hover:bg-[var(--t-accent)]/10 cursor-pointer ${apagada ? "opacity-60" : ""}`}>
+      <td className={`${TD_TIT} ${SEP} font-medium`}>
+        <span className="flex items-center gap-1">
+          <span className={TIT_MAX} title={t.titulo}>{t.titulo}</span>
+          {!t.cuadra && (
+            <span className="shrink-0 text-[var(--t-text)]"
+              title={`Nominales sin explicar por boletos: ${fmtNom(t.cuadre_nominales)} (¿falta boleto / amortización / canje?)`}>⚠</span>
+          )}
+        </span>
+      </td>
+      <td className={TD}>{fmtNom(t.qty_ini)}</td>
+      <td className={TD}>{fmtNom(t.qty_fin)}</td>
+      <td className={`${TD} ${neg(t.no_entran_rxt)}`}>{fmtNom(t.no_entran_rxt)}</td>
+      <td className={`${TD} ${SEP}`}>{fmtNom(t.tenencia_mantenida)}</td>
+      <td className={TD}>{fmt$(t.v_ini)}</td>
+      <td className={`${TD} ${SEP}`}>{fmt$(t.v_fin)}</td>
+      <td className={`${TD} ${neg(t.rxt)}`}>{fmt$(t.rxt)}</td>
+      <td className={`${TD} ${neg(t.intermediacion)}`}>{fmt$(t.intermediacion)}</td>
+      <td className={`${TD} font-medium ${neg(t.total)}`}>{fmt$(t.total)}</td>
+    </tr>
   );
 }
 
