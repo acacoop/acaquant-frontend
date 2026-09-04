@@ -87,6 +87,33 @@ export type Vista = {
   // sólo crece deja el cartel rojo prendido para siempre y enseña a ignorarlo.
   reincidencias: { total: number; filas: Reincidencia[]; historicas?: number };
   habilidades: Habilidad[];
+  // LO QUE PASA SIEMPRE. `activos` = pasó en los últimos `dias_activo`;
+  // `historicos` = fue crónico y se cortó. Los umbrales viajan en el payload a
+  // propósito: si el front los hardcodeara, el día que cambien la leyenda
+  // mentiría sin que nada falle.
+  cronicos?: {
+    total: number;
+    activos: Cronico[];
+    historicos: Cronico[];
+    ventana_dias: number;
+    dias_activo: number;
+    desde_episodios: number;
+  };
+};
+
+export type Cronico = {
+  habilidad: string;
+  sujeto: string;
+  regla: string;
+  episodios: number;
+  // MEDIANA de cuánto duró cada episodio, no promedio: uno de cuatro horas
+  // entre cuarenta de tres minutos mueve el promedio y cuenta otra historia.
+  mediana_s: number;
+  peor_s: number;
+  desde: string;
+  ultima: string;
+  abiertos: number;
+  activo: boolean;
 };
 
 export type Accion = {

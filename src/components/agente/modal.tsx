@@ -21,12 +21,13 @@ import { useState } from "react";
 import { useAgente } from "@/components/agente/datos";
 import { TabAhora } from "@/components/agente/tab-ahora";
 import { TabEncontro } from "@/components/agente/tab-encontro";
+import { TabCronicos } from "./tab-cronicos";
 import { TabHistorial } from "@/components/agente/tab-historial";
 import { PanelHabilidades } from "@/components/agente/panel-habilidades";
 import { TabLab } from "@/components/agente/tab-lab";
 import { fechaHora, hace } from "@/components/agente/tipos";
 
-type Tab = "ahora" | "encontro" | "historial" | "habilidades" | "lab";
+type Tab = "ahora" | "encontro" | "patrones" | "historial" | "habilidades" | "lab";
 
 
 export default function AgenteModal() {
@@ -146,6 +147,13 @@ export default function AgenteModal() {
               {([
                 ["ahora", "AHORA", nAhora, "lo de hoy · informativo"],
                 ["encontro", "ENCONTRÓ", nEncontro, "lo que tiene arreglo"],
+                // ⚠️ PATRONES contesta una pregunta que ninguna otra tab hace:
+                // «qué pasa SIEMPRE». Un job que no escribió hoy y uno que no
+                // escribe todos los días se ven idénticos en AHORA — y al
+                // primero se lo relanza, al segundo relanzarlo lo TAPA.
+                // El badge cuenta los ACTIVOS: lo que ya se cortó no es trabajo.
+                ["patrones", "PATRONES", v?.cronicos?.total ?? null,
+                 "lo que pasa siempre → mejorar"],
                 ["historial", "HISTORIAL", null, "lo que el agente escribió"],
                 // HABILIDADES es una tab PROPIA, no un panel pegado al costado
                 // de las otras: lo que el agente sabe hacer y cuándo miró cada
@@ -199,6 +207,7 @@ export default function AgenteModal() {
                   }}
                 />
               )}
+              {v && tab === "patrones" && <TabCronicos v={v} />}
               {tab === "historial" && <TabHistorial leer={d.leer} />}
               {tab === "lab" && (
                 <TabLab
