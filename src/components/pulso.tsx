@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useSyncExternalStore } from "react";
 
+import { arrancarTilde } from "@/lib/tilde";
 import { fotoCiegos, suscribirCiegos } from "@/lib/use-poll";
 
 /**
@@ -21,15 +22,27 @@ import { fotoCiegos, suscribirCiegos } from "@/lib/use-poll";
 const UMBRAL_MS = 60_000;      // menos de un minuto es un poll fallido, no una pantalla ciega
 const PULSO_CADA_MS = 60_000;
 
+// ⚠️ Constante, NO `() => []`. `useSyncExternalStore` compara la foto por
+// IDENTIDAD: un array nuevo en cada llamada se lee como «cambió» y obliga a
+// React a renderear de nuevo para verificarlo. Con una sola instancia no hay
+// nada que verificar.
+const SIN_CIEGOS: ReturnType<typeof fotoCiegos> = [];
+
 function minutos(desde: number, ahora: number): number {
   return Math.max(1, Math.round((ahora - desde) / 60_000));
 }
 
 export function Pulso() {
-  const ciegos = useSyncExternalStore(suscribirCiegos, fotoCiegos, () => []);
+  const ciegos = useSyncExternalStore(suscribirCiegos, fotoCiegos, () => SIN_CIEGOS);
   // Reloj propio para que la marca avance aunque no cambie el registro.
   const ahora = useSyncExternalStore(_tic, () => _ahora, () => 0);
   const enviados = useRef<Map<string, number>>(new Map());
+
+  // EL TILDE (`lib/tilde.ts`): la otra mitad de «se me colgó la app». El PULSO
+  // mide que los pedidos fallan; el tilde, que el navegador no responde. Se
+  // arranca acá porque este componente ya está en TODAS las pantallas y ya es
+  // el dueño de contar que algo anda mal.
+  useEffect(() => { arrancarTilde(); }, []);
 
   const viejos = ciegos.filter((c) => ahora - c.desde >= UMBRAL_MS);
 

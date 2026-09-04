@@ -72,22 +72,65 @@ export function fotoCiegos(): Ciego[] {
   return _foto;
 }
 
+// ⚠️⚠️ **TECHO DE UN POLL — sin esto, UN pedido colgado congela la pantalla
+// para siempre** (el bug de «se tilda y con F5 anda bien», 2026-09-04).
+//
+// El navegador NO le pone timeout a `fetch`: un request puede quedar pendiente
+// minutos (la función de Vercel que no vuelve, la notebook que durmió, el wifi
+// que cambió) y, en el peor caso, no resolverse nunca. Acá eso era MUCHO peor
+// que perder un poll: como el pedido en vuelo se COMPARTE por URL, la promesa
+// colgada quedaba en `_enVuelo` y **cada tick siguiente se colgaba de ella**.
+// Resultado: ese endpoint no volvía a pedirse en toda la vida de la pestaña.
+//
+// Y era INVISIBLE: una promesa que no resuelve no rechaza, así que no entraba
+// al catch, no marcaba ciego y la barra ni siquiera decía SIN ACTUALIZAR. La
+// pantalla se quedaba quieta mostrando datos viejos, sin un solo error — que es
+// exactamente lo que el user describió como «se congela, actualizo y anda».
+//
+// Con el techo: el pedido se aborta, el tick lo cuenta como fallo (marca ciego
+// → SIN ACTUALIZAR en la barra → pulso al agente) y el SIGUIENTE tick reintenta
+// de verdad. Se recupera solo y, si no, al menos se ve.
+const TECHO_MS = 20_000;
+
+function _abortaEn(ms: number): AbortSignal | undefined {
+  // `AbortSignal.timeout` existe en todos los navegadores que corren esta app;
+  // el try es por si algún runtime viejo (o un test en jsdom) no lo trae —
+  // sin señal se pierde el techo, pero no se rompe el poll.
+  try {
+    return AbortSignal.timeout(ms);
+  } catch {
+    return undefined;
+  }
+}
+
 async function _traerCrudo(endpoint: string): Promise<string> {
   const yaEnCurso = _enVuelo.get(endpoint);
   if (yaEnCurso) return yaEnCurso;
   const pedido = (async () => {
-    const r = await fetch(endpoint, { cache: "no-store" });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return r.text();
+    try {
+      const r = await fetch(endpoint, { cache: "no-store", signal: _abortaEn(TECHO_MS) });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return await r.text();
+    } catch (e) {
+      // El motivo viaja hasta la barra y hasta el agente: «sin respuesta en
+      // 20 s» dice algo muy distinto de «HTTP 502», y confundirlos manda a
+      // mirar el lugar equivocado.
+      if (e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError")) {
+        throw new Error(`sin respuesta en ${TECHO_MS / 1000} s`);
+      }
+      throw e;
+    }
   })();
+  // La limpieza cuelga de la PROPIA promesa, no del `await` del que llamó: así
+  // se borra igual aunque el caller se desmonte en el medio, y nunca puede
+  // quedar una entrada viva más que el techo. `then(f, f)` (y no `finally`) para
+  // no crear una promesa que rechace y quede sin handler.
+  const limpiar = () => {
+    if (_enVuelo.get(endpoint) === pedido) _enVuelo.delete(endpoint);
+  };
+  pedido.then(limpiar, limpiar);
   _enVuelo.set(endpoint, pedido);
-  try {
-    return await pedido;
-  } finally {
-    // Se limpia SIEMPRE (también si falló): el próximo tick tiene que poder
-    // reintentar de verdad, no quedar pegado a una promesa rechazada.
-    _enVuelo.delete(endpoint);
-  }
+  return pedido;
 }
 
 export function usePoll<T>(
