@@ -184,6 +184,161 @@ function FiltroTea({
   );
 }
 
+// ── FILTRO DE EMISOR (por NOMBRE) ──────────────────────────────────────────
+//
+// El de arriba (SOBERANO / PROVINCIAL / CORPORATIVO / BCRA) es el TIPO de
+// emisor. Este es el emisor de verdad: YPF, Pampa, Telecom. Hace falta por lo
+// mismo que hizo falta el piso de TEA — con TIPO=CORPORATIVO la tabla son ~134
+// ONs de decenas de emisores, y la pregunta que la mesa se hace ahí no es "qué
+// hay" sino "qué tiene YPF y a cuánto rinde contra Pampa".
+//
+// Tres decisiones:
+//
+//   1. **Agrupa por `emisor_key`, que la manda el BACKEND** (REGLA #9). Si esta
+//      pantalla armara la clave con el string, `'YPF '` y `'YPF'` serían dos
+//      chips —cada uno contando bien— y el que filtre por uno ve la mitad de
+//      los bonos sin que nada falle. La clave es la MISMA con la que la base
+//      resuelve la industria del emisor.
+//   2. **Las opciones salen de lo que el TIPO ya dejó pasar**, no del universo:
+//      un select con 67 emisores cuando estás mirando soberanos es ruido, y los
+//      contadores contradirían a la tabla.
+//   3. **Vacío = TODOS.** Acá sí (al revés que el filtro de TIPO, donde "nada
+//      seleccionado" mentía mostrando todo): el botón DICE cuántos hay activos,
+//      así que el estado se lee sin abrir el popover.
+//
+// Los bonos SIN emisor cargado no se esconden: son su propio grupo. Un bono que
+// desaparece de una lista no se nota.
+const SIN_EMISOR = "";   // la clave del grupo "(SIN EMISOR)" — `emisor_key` null
+
+// ⚠️ **El backend puede todavía no mandar `emisor_key`.** El front va a Vercel
+// solo y el backend se sube a mano, SIEMPRE después: entre un deploy y el otro,
+// `emisor_key` no viene y sin esta caída TODOS los bonos irían al grupo
+// "(SIN EMISOR)" — un filtro con una sola opción, roto sin decirlo. Se deriva
+// del nombre con la MISMA regla (`upper` + espacios colapsados) y, en cuanto el
+// campo llega, manda el backend: es UNA regla con dos implementaciones que dan
+// lo mismo, no dos criterios.
+function claveEmisor(b: BonoCurva): string {
+  if (b.emisor_key !== undefined) return b.emisor_key ?? SIN_EMISOR;
+  return (b.emisor ?? "").split(/\s+/).filter(Boolean).join(" ").toUpperCase();
+}
+
+interface OpcionEmisor {
+  key:   string;    // "" = sin emisor cargado
+  label: string;
+  n:     number;    // BONOS, no filas (un dual llega repetido, una fila por pata)
+}
+
+function FiltroEmisor({
+  opciones, seleccion, setSeleccion,
+}: {
+  opciones: OpcionEmisor[];
+  seleccion: string[];
+  setSeleccion: (v: string[]) => void;
+}) {
+  const [abierto, setAbierto] = useState(false);
+  const [busca, setBusca] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Click afuera / Esc cierran — igual que el filtro de TEA.
+  useEffect(() => {
+    if (!abierto) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setAbierto(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setAbierto(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [abierto]);
+
+  const q = busca.trim().toUpperCase();
+  const visibles = q ? opciones.filter((o) => o.label.toUpperCase().includes(q)) : opciones;
+
+  const toggle = (k: string) =>
+    setSeleccion(
+      seleccion.includes(k) ? seleccion.filter((x) => x !== k) : [...seleccion, k],
+    );
+
+  // El botón dice el ESTADO sin abrirlo: un emisor por su nombre, varios por su
+  // número. Sin eso, "vacío = todos" sería indistinguible de un filtro puesto.
+  const etiqueta =
+    seleccion.length === 0 ? "EMISOR"
+      : seleccion.length === 1
+        ? `EMISOR · ${opciones.find((o) => o.key === seleccion[0])?.label ?? "?"}`
+        : `EMISOR · ${seleccion.length}`;
+
+  return (
+    <div className="relative" ref={ref}>
+      <FilterBtn
+        active={seleccion.length > 0}
+        onClick={() => setAbierto((v) => !v)}
+        title={
+          seleccion.length === 0
+            ? `Filtrar por emisor — ${opciones.length} en lo que estás mirando`
+            : `Mostrando solo ${seleccion.length} emisor(es)`
+        }
+      >
+        {etiqueta}
+        {seleccion.length === 0 && (
+          <span className="ml-1 opacity-60">{opciones.length}</span>
+        )}
+      </FilterBtn>
+
+      {abierto && (
+        <div className="absolute right-0 top-full mt-1 z-40 bg-[var(--t-panel)] border border-[var(--t-border-2)] p-2 w-[260px] shadow-lg">
+          <div className="text-[9px] text-[var(--t-text-muted)] mb-1 leading-snug">
+            Emisores de lo que el filtro de TIPO dejó pasar. Sin ninguno tildado
+            se ven todos.
+          </div>
+          <input
+            type="text"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="buscar emisor"
+            className="w-full bg-transparent border border-[var(--t-border-2)] px-1.5 py-0.5 mb-1 text-[10px] text-[var(--t-text-dim)] focus:outline-none focus:border-[var(--t-accent)]"
+          />
+          <div className="max-h-[260px] overflow-y-auto">
+            {visibles.length === 0 && (
+              <div className="text-[10px] text-[var(--t-text-muted)] px-1 py-2">
+                nada que coincida
+              </div>
+            )}
+            {visibles.map((o) => {
+              const on = seleccion.includes(o.key);
+              return (
+                <button
+                  key={o.key || "__sin__"}
+                  onClick={() => toggle(o.key)}
+                  className={`w-full flex items-center justify-between gap-2 px-1.5 py-0.5 text-[10px] text-left transition-colors ${
+                    on
+                      ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
+                      : "text-[var(--t-text-muted)] hover:text-[var(--t-accent)]"
+                  }`}
+                  title={o.label}
+                >
+                  <span className="truncate">{on ? "✓ " : ""}{o.label}</span>
+                  <span className="opacity-60 shrink-0">{o.n}</span>
+                </button>
+              );
+            })}
+          </div>
+          {seleccion.length > 0 && (
+            <button
+              onClick={() => setSeleccion([])}
+              className="mt-2 w-full px-1.5 py-0.5 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+            >
+              QUITAR FILTRO
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface Props {
   barra?: React.ReactNode;   // las tabs, para que compartan fila con el filtro
   inicial: CurvasVista;
@@ -261,6 +416,10 @@ export function CurvasTab({ barra, inicial, fairValueInicial }: Props) {
   // Ahora el último activo no se puede apagar → lo que se ve es SIEMPRE lo que
   // está encendido.
   const [emisores, setEmisores] = useState<string[]>(["soberano"]);
+  // Los emisores por NOMBRE (las CLAVES, no los nombres — ver `FiltroEmisor`).
+  // Vacío = todos, y acá eso NO es ambiguo: el botón dice cuántos hay activos.
+  // Tampoco se persiste, por lo mismo que el piso de TEA.
+  const [emisorSel, setEmisorSel] = useState<string[]>([]);
   const [pillArs, setPillArs] = useState("tasa_fija");
   const [pillUsd, setPillUsd] = useState("hard_dolar");
   // Abierto/cerrado NO se persiste (la geometría sí, adentro de la ventana): que
@@ -274,11 +433,47 @@ export function CurvasTab({ barra, inicial, fairValueInicial }: Props) {
   // El bono cuya ficha está abierta (`null` = ninguna). Es el CORTO.
   const [fichaDe, setFichaDe] = useState<string | null>(null);
 
-  // El filtro de EMISOR primero, el de TEA después: así el contador de "sin tasa
-  // comparable" habla de lo que el usuario está mirando y no del universo entero.
-  const delEmisor = useMemo(
+  // El orden es TIPO → EMISOR → TEA, el mismo en que se leen de izquierda a
+  // derecha: cada uno corta sobre lo que el anterior dejó pasar. Así el contador
+  // de "sin tasa comparable" habla de lo que el usuario está mirando y no del
+  // universo entero.
+  const delTipo = useMemo(
     () => data.bonos.filter((b) => emisores.includes(b.emisor_tipo)),
     [data.bonos, emisores],
+  );
+
+  // El catálogo del filtro de emisor: lo que hay EN LO QUE SE ESTÁ MIRANDO.
+  //
+  // ⚠️ Cuenta BONOS, no filas — un dual llega REPETIDO (una fila por pata) y sin
+  // el dedupe el chip diría 4 donde hay 3, que es el mismo cuidado que el
+  // backend ya tiene con el contador por tipo de emisor.
+  const opcionesEmisor = useMemo<OpcionEmisor[]>(() => {
+    const grupos = new Map<string, { label: string; tickers: Set<string> }>();
+    for (const b of delTipo) {
+      const key = claveEmisor(b);
+      const g = grupos.get(key) ?? {
+        // El NOMBRE que se muestra es el del bono; la CLAVE es la que agrupa.
+        // Si dos filas del mismo emisor lo escriben distinto, se muestra la
+        // primera — la clave ya garantizó que sean UN solo grupo, que es lo
+        // único que cambia lo que el filtro devuelve.
+        label: key === SIN_EMISOR ? "(SIN EMISOR)" : (b.emisor ?? key).trim(),
+        tickers: new Set<string>(),
+      };
+      g.tickers.add(b.ticker_corto);
+      grupos.set(key, g);
+    }
+    return [...grupos.entries()]
+      .map(([key, g]) => ({ key, label: g.label, n: g.tickers.size }))
+      // Por cantidad primero: con CORPORATIVO el que tiene 8 bonos es el que se
+      // busca, y alfabético lo dejaría entre 60 emisores de un bono.
+      .sort((a, b) => b.n - a.n || a.label.localeCompare(b.label));
+  }, [delTipo]);
+
+  const delEmisor = useMemo(
+    () => (emisorSel.length === 0
+      ? delTipo
+      : delTipo.filter((b) => emisorSel.includes(claveEmisor(b)))),
+    [delTipo, emisorSel],
   );
 
   // ⚠️ Un bono SIN TEA no puede cumplir "TEA ≥ 5", así que sale — pero eso es
@@ -317,8 +512,9 @@ export function CurvasTab({ barra, inicial, fairValueInicial }: Props) {
 
   // El universo del LIBRO es el lado ARS ENTERO, no una pill: el tape se busca
   // por TICKER, y cortarlo por ajuste obligaría a saber de antemano si el bono es
-  // CER o tasa fija para encontrarlo. Respeta el filtro de EMISOR de arriba, así
-  // que con el default (SOBERANO) la lista son exactamente los soberanos ARS.
+  // CER o tasa fija para encontrarlo. Respeta los filtros de arriba (TIPO,
+  // EMISOR y TEA), así que con el default (SOBERANO, sin emisor tildado) la
+  // lista son exactamente los soberanos ARS.
   //
   // Tres cuidados:
   //   · `lado` y no `moneda`: un dual TAMAR + DOLAR LINKED es ARS pero tiene una
@@ -358,13 +554,26 @@ export function CurvasTab({ barra, inicial, fairValueInicial }: Props) {
     </FilterBtn>
   );
 
-  const toggle = (cod: string) =>
-    setEmisores((prev) => {
-      if (!prev.includes(cod)) return [...prev, cod];
+  const toggle = (cod: string) => {
+    const proximos = !emisores.includes(cod)
+      ? [...emisores, cod]
       // Apagar el ÚLTIMO no hace nada: un filtro vacío no tiene lectura honesta
       // (o miente mostrando todo, o deja la pantalla muerta).
-      return prev.length === 1 ? prev : prev.filter((x) => x !== cod);
-    });
+      : emisores.length === 1 ? emisores : emisores.filter((x) => x !== cod);
+    if (proximos === emisores) return;
+    setEmisores(proximos);
+    // Y se SUELTAN los emisores tildados que el nuevo TIPO ya no muestra. Sin
+    // esto, sacar CORPORATIVO dejaba "EMISOR · YPF" encendido sobre una tabla
+    // de soberanos: cero filas y ningún control que lo explique. Se poda acá
+    // —en el evento— y no derivando en el render, para que un emisor tildado
+    // siga aplicándose aunque un día el bono no venga en el payload: la tabla
+    // vacía con el botón encendido dice la verdad; mostrarlo todo, no.
+    const vivas = new Set(
+      data.bonos.filter((b) => proximos.includes(b.emisor_tipo))
+                .map(claveEmisor),
+    );
+    setEmisorSel((prev) => prev.filter((k) => vivas.has(k)));
+  };
 
   return (
     <div className="h-full min-h-0 flex flex-col gap-2">
@@ -378,7 +587,11 @@ export function CurvasTab({ barra, inicial, fairValueInicial }: Props) {
             lo muestra en el banner ámbar, con el botón para clasificar cada uno.
             El campo sigue viajando en el payload: se sacó de la vista, no del
             modelo. */}
-        <span className="text-[var(--t-text-2)] ml-1">EMISOR</span>
+        {/* TIPO, no EMISOR: estas 4 pills son el TIPO de emisor
+            (`emisor_tipo`) y al lado ahora vive el filtro por emisor de verdad.
+            Dos controles llamados igual es cómo se termina filtrando por uno
+            creyendo que se filtró por el otro. */}
+        <span className="text-[var(--t-text-2)] ml-1">TIPO</span>
         {data.emisores.map((e) => (
           <FilterBtn
             key={e.codigo}
@@ -388,9 +601,15 @@ export function CurvasTab({ barra, inicial, fairValueInicial }: Props) {
             {e.label} <span className="ml-1 opacity-60">{e.n}</span>
           </FilterBtn>
         ))}
-        {/* A la DERECHA del todo: el piso de tasa corta sobre lo que el emisor
-            ya dejó pasar, y ese orden se lee de izquierda a derecha. */}
-        <div className="ml-auto">
+        {/* A la DERECHA del todo, en el orden en que cortan: el emisor sobre lo
+            que el TIPO dejó pasar, y el piso de tasa sobre lo que dejó el
+            emisor. Se lee de izquierda a derecha. */}
+        <div className="ml-auto flex items-center gap-2">
+          <FiltroEmisor
+            opciones={opcionesEmisor}
+            seleccion={emisorSel}
+            setSeleccion={setEmisorSel}
+          />
           <FiltroTea valor={teaMin} setValor={setTeaMin} ocultos={sinTasa} />
         </div>
       </div>

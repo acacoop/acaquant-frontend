@@ -158,7 +158,14 @@ export interface BonoCurva {
   pill:              string;          // tasa_fija | cer | hard_dolar | dolar_linked | tamar | duales
   lado:              "ARS" | "USD";
   emisor_tipo:       string;          // soberano | provincial | corporativo | bcra
-  emisor:            string | null;
+  emisor:            string | null;    // el NOMBRE, tal cual está cargado
+  // La CLAVE con la que se AGRUPA por emisor (`upper(btrim(emisor))`, la manda
+  // el backend). Nombre y clave viajan aparte a propósito: si esta pantalla
+  // armara la clave con el string, `'YPF '` y `'YPF'` serían dos grupos que
+  // cuentan bien por separado y el que filtre por uno ve la mitad de los bonos
+  // sin que nada falle (REGLA #9). `null` = sin emisor cargado, que es un
+  // ESTADO y se muestra como grupo propio.
+  emisor_key?:       string | null;
   moneda:            string;
   ajuste:            string;
   // La SEGUNDA pata de un dual. Un dual llega REPETIDO — una fila por pill, misma
