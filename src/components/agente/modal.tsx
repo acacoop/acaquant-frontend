@@ -123,6 +123,14 @@ export default function AgenteModal() {
               <div className="px-4 py-2 border-b border-[var(--t-neg)] bg-[var(--t-surface)]">
                 <p className="text-[10px] font-bold text-[var(--t-neg)]">
                   ⚠ {nVolvio} REINCIDENCIA(S) — un arreglo que aplicamos no sirvió
+                  {/* Las apagadas se nombran acá y no se esconden: sin esto, un
+                      cartel que ayer decía 1 y hoy no está se lee como «lo
+                      borraron». La fila sigue en la tabla y en HISTORIAL. */}
+                  {Boolean(v?.reincidencias.historicas) && (
+                    <span className="ml-2 font-normal text-[var(--t-text-muted)]">
+                      · {v?.reincidencias.historicas} ya cerrada(s), en el historial
+                    </span>
+                  )}
                 </p>
                 {v?.reincidencias.filas.slice(0, 5).map((r) => (
                   <p key={r.id} className="text-[9px] text-[var(--t-text-muted)]">

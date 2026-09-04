@@ -70,7 +70,11 @@ export type Vista = {
             cada_s?: number | null };
   ahora: { total: number; filas: Hallazgo[] };
   encontro: { total: number; filas: Hallazgo[]; por_habilidad: Record<string, number> };
-  reincidencias: { total: number; filas: Reincidencia[] };
+  // `total` son las ACTIVAS (su hallazgo sigue abierto) y `historicas` las
+  // que ya se apagaron. La fila NUNCA se borra —«`alta_bono` aguantó 3,6 días»
+  // es evidencia—, pero la alarma tiene que poder volver a cero: una tabla que
+  // sólo crece deja el cartel rojo prendido para siempre y enseña a ignorarlo.
+  reincidencias: { total: number; filas: Reincidencia[]; historicas?: number };
   habilidades: Habilidad[];
 };
 
