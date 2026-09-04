@@ -255,7 +255,7 @@ Doc del backend: **`docs/AGENT_2.0.md`**. El agente se rehízo entero el
 | **ENCONTRÓ** | lo abierto que **tiene arreglo** | ver qué haría · aplicar · no me interesa |
 | **HISTORIAL** | el libro: qué escribió el agente, de qué valor a qué valor | ninguno |
 
-Y a la **derecha, siempre visible**, el panel de HABILIDADES: las **23** (el
+Y a la **derecha, siempre visible**, el panel de HABILIDADES: las **25** (el
 número manda desde `agente/catalogo.py` del backend, no de acá), cada una
 con **la última hora que se ejecutó**, su estado (miró · no pudo mirar · reventó
 · todavía no le tocó) y cuántos hallazgos tiene abiertos.
