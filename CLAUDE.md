@@ -151,15 +151,28 @@ sirve para esconder pedazos de UI — es UX, el gate real es del backend.
 | Helper | Dónde | Contrato |
 |---|---|---|
 | `lib/api.ts::apiFetch` / `safeFetch` | **SSR** (pages, route handlers) | Habla directo con FastAPI: mete Bearer + CF service token + identidad. `safeFetch` devuelve fallback si el backend está caído. Timeout 15s. |
-| `lib/fetch-json.ts::fetchJson` | cliente, carga de vista | **TIRA** con status + detalle del backend. La vista atrapa y muestra el error. |
+| `lib/fetch-json.ts::fetchJson` | cliente, carga de vista | **TIRA** con status + detalle del backend. La vista atrapa y muestra el error. **Sin techo propio**: pasarle `{ signal: conTecho(ms) }` si es un GET que se repite. |
 | `lib/fetch-json.ts::getJSON` | cliente, polls/refetch | Devuelve `null` ante cualquier fallo. **Nunca** para decidir "no hay datos": un 403/502 se ve idéntico a vacío — así se perdió una semana la tab ESTRATEGIA. |
 | `lib/fetch-shared.ts::fetchShared` | listas de filtros | Dedupea en vuelo + cachea 5min. Un fallo no se cachea. |
 
-**`lib/use-poll.ts::usePoll`** es el hook de data viva y trae tres cosas que no son
+**`lib/use-poll.ts::usePoll`** es el hook de data viva y trae cuatro cosas que no son
 obvias: comparte el request en vuelo por URL (dos componentes polleando el mismo
-endpoint mandan **un** request), **no re-parsea ni re-renderiza si el payload crudo es
-idéntico** al anterior, y expone `error` aparte de `data` (un poll fallido conserva lo
-que había en vez de dibujar vacío). Resetea al cambiar de `endpoint`, no de `initial`.
+endpoint mandan **un** request), **le pone un techo de 20 s a cada pedido**, **no
+re-parsea ni re-renderiza si el payload crudo es idéntico** al anterior, y expone
+`error` aparte de `data` (un poll fallido conserva lo que había en vez de dibujar
+vacío). Resetea al cambiar de `endpoint`, no de `initial`.
+
+> ⚠️⚠️ **EL TECHO NO ES OPCIONAL, y su ausencia fue el bug de «se tilda y con F5
+> anda»** (2026-09-04, backend `docs/AGENT.md` §0.dm). El navegador **no le pone
+> timeout a `fetch`**: un pedido puede quedar pendiente minutos o no volver nunca.
+> Con el request compartido por URL eso era mucho peor que perder un poll — la
+> promesa colgada quedaba en el mapa de «en vuelo» y **cada tick siguiente se
+> colgaba de ella**, así que ese endpoint no se volvía a pedir en toda la vida de
+> la pestaña. Y era invisible: una promesa que no resuelve tampoco rechaza, así
+> que no marcaba ciego y la barra ni siquiera decía SIN ACTUALIZAR. Misma regla
+> para cualquier poll nuevo: **`conTecho(ms)` de `lib/fetch-json.ts` en las
+> LECTURAS**; en las escrituras no, que abortar un POST no deshace lo que el
+> backend ya escribió.
 
 ### Patrones de UI compartidos
 

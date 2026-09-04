@@ -32,3 +32,23 @@ export async function getJSON<T>(url: string): Promise<T | null> {
     return null;
   }
 }
+
+/**
+ * TECHO para un pedido del cliente: una señal que aborta a los `ms`.
+ *
+ * ⚠️ **El navegador NO le pone timeout a `fetch`.** Un request puede quedar
+ * pendiente minutos —o no volver nunca— cuando la función de Vercel no
+ * contesta, la notebook durmió o cambió la red. Sin techo eso no se ve como un
+ * error: se ve como una pantalla que se quedó quieta, y por eso el único
+ * arreglo que funcionaba era F5.
+ *
+ * No se usa en las ESCRITURAS: abortar un POST no deshace lo que el backend ya
+ * escribió, y deja la pantalla sin saber si pasó — peor que esperar.
+ */
+export function conTecho(ms: number): AbortSignal | undefined {
+  try {
+    return AbortSignal.timeout(ms);
+  } catch {
+    return undefined; // runtime sin AbortSignal.timeout: sin techo, pero no rompe
+  }
+}

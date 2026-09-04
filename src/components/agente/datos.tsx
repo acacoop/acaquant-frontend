@@ -14,7 +14,7 @@
 // volvieron» y «el informe desapareció al cambiar de tab».
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { fetchJson } from "@/lib/fetch-json";
+import { conTecho, fetchJson } from "@/lib/fetch-json";
 import type { Vista, Historial } from "@/components/agente/tipos";
 
 export const URLS = {
@@ -45,13 +45,21 @@ export function useAgente(abierto: boolean): Datos {
   const vivo = useRef(true);
   useEffect(() => () => { vivo.current = false; }, []);
 
-  const leer = useCallback(<T,>(url: string) => fetchJson<T>(url), []);
+  // ⚠️ **Techo a las LECTURAS.** Un GET colgado dejaba el modal cargando para
+  // siempre (el navegador no le pone timeout a `fetch`) y, peor, con el poll
+  // viejo se apilaba encima. 25 s es más que el `maxDuration = 30` del proxy de
+  // Next: lo que tarde más que eso ya no va a contestar nada útil.
+  //
+  // A las ESCRITURAS no se les pone techo a propósito: abortar un POST no
+  // deshace lo que el backend ya escribió, y dejaría la pantalla sin saber si
+  // el arreglo se aplicó — que es peor que esperar.
+  const leer = useCallback(<T,>(url: string) => fetchJson<T>(url, { signal: conTecho(25_000) }), []);
 
   const releer = useCallback(async (...rs: Recurso[]) => {
     const lista = rs.length ? rs : (["vista"] as Recurso[]);
     await Promise.all(lista.map(async (r) => {
       try {
-        const d = await fetchJson<unknown>(URLS[r]);
+        const d = await fetchJson<unknown>(URLS[r], { signal: conTecho(25_000) });
         if (!vivo.current) return;
         // ⚠️ «No pude leer» NUNCA borra lo que había: un recurso que falla
         // deja el error a la vista y **conserva** lo último bueno. Dibujar
@@ -100,13 +108,53 @@ export function useAgente(abierto: boolean): Datos {
   // Cerrado pollea LENTO (2 min) y abierto RÁPIDO (20 s): el badge tiene que
   // estar vivo, pero un modal cerrado consultando cada 20 s es tráfico para
   // nadie.
+  //
+  // ⚠️ **NO SE SUPERPONE CONSIGO MISMO, y espera a estar de vuelta para
+  // programar el siguiente.** Antes era un `setInterval` pelado: si `/vista`
+  // tardaba más que el intervalo (con el modal abierto son 20 s, y ese request
+  // arma seis consultas del lado del servidor), el reloj disparaba igual y los
+  // pedidos se apilaban — cada uno pidiendo otra vez el mismo tablero y
+  // ocupando otra conexión del pool de la API, justo cuando ya venía lenta.
+  // Un timer que se re-arma al terminar no puede apilar nada.
+  //
+  // Y **con la pestaña de fondo no pide**: el navegador no la está mostrando,
+  // así que un pedido cada 2 minutos por pestaña abierta todo el día es tráfico
+  // para nadie. Al volver a mirarla se pide en el acto, así lo primero que se
+  // ve está fresco.
   useEffect(() => {
-    let cancelado = false;
+    let vivoEfecto = true;
+    let corriendo = false;
+    let id: ReturnType<typeof setTimeout> | null = null;
+
+    const programar = () => {
+      if (!vivoEfecto) return;
+      if (id) clearTimeout(id);
+      id = setTimeout(() => void tick(), abierto ? 20_000 : 120_000);
+    };
+
+    async function tick() {
+      if (!vivoEfecto || corriendo) return;
+      // Escondida = no se pide. El `visibilitychange` de abajo la despierta.
+      if (typeof document !== "undefined" && document.hidden) { programar(); return; }
+      corriendo = true;
+      try {
+        await releer("vista");
+      } finally {
+        corriendo = false;
+        if (vivoEfecto) setCargando(false);
+        programar();
+      }
+    }
+
     setCargando(true);
-    void releer("vista").finally(() => { if (!cancelado) setCargando(false); });
-    const cada = abierto ? 20_000 : 120_000;
-    const id = setInterval(() => void releer("vista"), cada);
-    return () => { cancelado = true; clearInterval(id); };
+    void tick();
+    const alVolver = () => { if (!document.hidden) void tick(); };
+    document.addEventListener("visibilitychange", alVolver);
+    return () => {
+      vivoEfecto = false;
+      if (id) clearTimeout(id);
+      document.removeEventListener("visibilitychange", alVolver);
+    };
   }, [abierto, releer]);
 
   return useMemo(() => ({
