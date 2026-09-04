@@ -62,6 +62,7 @@ export interface MonitorVentana {
   paso_min: number;     // resample de la serie (1' hoy, 5'/15' multi-rueda)
   fuente: string;       // tabla + precisión, para el chip
   aproximado: boolean;  // true = perfil derivado de barras de 1', no de trades
+  por_defecto: boolean; // con ésta abre la tab (la manda el backend, ver monitor_sql)
 }
 
 export interface MonitorItem {

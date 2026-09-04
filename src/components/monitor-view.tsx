@@ -94,7 +94,9 @@ const UNIDADES: Record<MonitorClase, { ejeX: string; ejeY: string; nota: string 
 export function MonitorView() {
   const [clase, setClase] = useState<MonitorClase>("rv");
   const [ticker, setTicker] = useState<string | null>(null);
-  const [ventana, setVentana] = useState("hoy");
+  // null = "todavía no eligió": abre con la que el backend marca por defecto
+  // (20 R en renta variable). Derivado, no seteado desde un efecto.
+  const [ventana, setVentana] = useState<string | null>(null);
   const [filtro, setFiltro] = useState("");
 
   const { data: uni, error: errUni } = usePoll<MonitorUniverso | null>(
@@ -112,12 +114,16 @@ export function MonitorView() {
   // guarda en estado: setear el default desde un efecto encadena un render de
   // más en cada poll del universo (y el linter lo prohíbe, con razón).
   const activo = ticker ?? items[0]?.ticker ?? null;
+  // La ventana la elige el BACKEND (`por_defecto`), no una constante de acá: si
+  // se hardcodeara, cambiar el default sería tocar los dos repos, y mientras
+  // tanto la tab abriría en una ventana que el backend ya no considera la suya.
+  const ventanaActiva = ventana ?? ventanas.find((v) => v.por_defecto)?.ventana ?? null;
 
   const cambiarClase = (c: MonitorClase) => {
     if (c === clase) return;
     setClase(c);
     setTicker(null);      // el ticker de la otra clase no existe en ésta
-    setVentana("hoy");    // "20r" no existe en renta fija
+    setVentana(null);     // cada clase tiene su default y sus ventanas propias
     setFiltro("");
   };
 
@@ -207,11 +213,11 @@ export function MonitorView() {
       </aside>
 
       {/* ── precio (50 %) + volumen por precio (50 %) ───────────────────── */}
-      {activo ? (
+      {activo && ventanaActiva ? (
         <PanelDerecho
           clase={clase}
           ticker={activo}
-          ventana={ventana}
+          ventana={ventanaActiva}
           ventanas={ventanas}
           onVentana={setVentana}
         />
