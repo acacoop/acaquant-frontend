@@ -148,9 +148,23 @@ export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: 
                     <span className="text-[11px] font-bold text-[var(--t-text)] truncate">
                       {f.nombre || f.sujeto}
                     </span>
-                    <span className="text-[8px] uppercase tracking-widest text-[var(--t-text-dim)]">
-                      {f.habilidad} · {f.regla}
-                    </span>
+                    {/* ⚠️ **ACÁ NO VA `habilidad · regla`, y en AHORA SÍ.**
+                        No es una inconsistencia: contestan preguntas distintas.
+
+                        El trío `habilidad + sujeto + regla` es la IDENTIDAD del
+                        problema en el modelo (el índice único de `hallazgos`, y
+                        lo que silencia «no me interesa»). Pero en ESTA tab la
+                        habilidad ya está arriba, en un chip que además FILTRA:
+                        si apretaste `ficha_incompleta`, cada fila te repetía el
+                        chip que acabás de apretar. Y la regla, o repite el
+                        sujeto (`sin_emisor` sobre un título que dice EMISOR), o
+                        ya está dicha en castellano en el `problema`
+                        (`job_sin_dato` → «el día 04/09 no está en
+                        portafolio.tenencia y nadie lo va a escribir solo»).
+
+                        En AHORA no hay chips y hay un badge con un número: ahí
+                        el nombre de la habilidad es lo ÚNICO que deja abrirlo,
+                        y por eso se dibuja. */}
                     <span className="text-[9px] tabular-nums text-[var(--t-text-dim)]">
                       desde {fechaHora(f.detectado_at)}
                     </span>
