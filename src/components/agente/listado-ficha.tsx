@@ -46,7 +46,7 @@ export type FilaFicha = {
   // poder distinguirlos SIN abrir nada. Vacío = nadie supo, y la fila queda
   // como estaba: en blanco y tipeable.
   propuesto?: string;
-  fuente?: "nombre" | "finnhub" | "modelo" | "";
+  fuente?: "regla" | "nombre" | "finnhub" | "modelo" | "";
 };
 
 // Qué dice cada fuente, en una palabra. El backend manda la clave; acá solo se
@@ -54,6 +54,7 @@ export type FilaFicha = {
 // etiqueta sin un deploy del backend, y si la clave viviera acá serían dos
 // listas para desincronizar (REGLA #9).
 const FUENTE: Record<string, { txt: string; ayuda: string }> = {
+  regla: { txt: "regla", ayuda: "una regla fija del sistema, la misma que aplica el cron: FINANCIAMIENTO y DERIVADOS van a OTROS" },
   nombre: { txt: "nombre", ayuda: "el emisor está escrito en el nombre del título" },
   finnhub: { txt: "finnhub", ayuda: "la ficha del subyacente, según Finnhub" },
   modelo: { txt: "IA", ayuda: "lo eligió el modelo, de los emisores que ya existen" },
