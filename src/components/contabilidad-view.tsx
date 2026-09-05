@@ -94,6 +94,12 @@ type Resumen = {
     // Exclusiones que apuntan a una línea que Aunesa corrigió (cambió su hash):
     // ya no aplican, y en vez de desaparecer se cuentan.
     excluidos_huerfanos: number;
+    // Títulos comprados y NO vendidos: no son resultado de este mes (su RxT
+    // entra el que viene), así que salen de la tabla. Se CUENTAN acá porque
+    // hasta 2026-09-05 desaparecían de la pantalla sin dejar un número, y quien
+    // buscaba una fila que faltaba no podía distinguir «no es de este mes» de
+    // «se rompió algo».
+    altas: number; altas_valuacion: number;
   };
   n_boletos: number;
 };
@@ -361,6 +367,12 @@ export function ContabilidadView() {
               <span className="text-[10px] uppercase tracking-wide"
                 title="Exclusiones que apuntan a un movimiento que Aunesa corrigió: ya no aplican y ese movimiento volvió a contabilizar. Revisalo en el detalle de la fila.">
                 ⚠ {tot!.excluidos_huerfanos} exclusión(es) sin efecto
+              </span>
+            )}
+            {tot!.altas > 0 && (
+              <span className="text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]"
+                title="Títulos comprados y NO vendidos en el mes: su resultado no es de este período (entra al RxT del mes que viene), así que quedan fuera de la tabla y de los totales. Están en la segunda hoja del Excel.">
+                {tot!.altas} fuera del mes (altas) · {fmt$(tot!.altas_valuacion)} al cierre
               </span>
             )}
             {tot!.ajustes > 0 && (
