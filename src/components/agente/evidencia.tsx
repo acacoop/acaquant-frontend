@@ -25,7 +25,16 @@ function valor(v: unknown): string {
 }
 
 export function Evidencia({ ev }: { ev: Record<string, unknown> | null | undefined }) {
-  const claves = Object.keys(ev ?? {});
+  // ⚠️ **LAS CLAVES QUE EMPIEZAN CON `_` SON DATO DE MÁQUINA, no de pantalla.**
+  //
+  // La evidencia mezcla dos cosas: números para leer (cuántos fallos, qué error
+  // devolvió el proveedor) e insumos que el backend necesita para decidir —
+  // `_items` es la lista de unidades con la que `registro._ver` resuelve si algo
+  // REINCIDIÓ. Dibujarla desplegaba 379 unidades adentro de una tarjeta cuyo
+  // texto útil son dos renglones.
+  //
+  // Misma convención que `agente/explicar.py`, que ya filtra `_fuentes` así.
+  const claves = Object.keys(ev ?? {}).filter((k) => !k.startsWith("_"));
   if (!claves.length) return null;
   return (
     <details className="mt-0.5">

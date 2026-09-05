@@ -175,9 +175,15 @@ export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: 
                       {f.detalle}
                     </pre>
                   )}
-                  <p className="text-[9px] text-[var(--t-text-dim)] mt-0.5">
-                    {f.que_hacer}
-                  </p>
+                  {/* ⚠️ **EL `que_hacer` NO SE DIBUJA ACÁ: el botón lo dice.**
+                      En ENCONTRÓ todo tiene arreglo (es la definición de la
+                      tab), así que el texto y el botón contestan la misma
+                      pregunta — y el botón además la ejecuta. «Abrir el listado
+                      y completar el campo» arriba de un botón que dice
+                      COMPLETAR LA FICHA es el mismo choclo que el backend ya
+                      evita al no redactar lo que tiene botón
+                      (`registro.pendientes_de_texto` filtra `arreglo = ''`).
+                      En AHORA sí se dibuja: ahí no hay botón que lo diga. */}
                   <Evidencia ev={f.evidencia} />
                 </div>
               </div>
