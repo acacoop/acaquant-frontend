@@ -1,18 +1,28 @@
 "use client";
 
-// EL LISTADO EDITABLE de `completar_ficha` — el único arreglo del agente cuyo
-// valor no lo calcula el sistema: lo carga la mesa.
+// EL LISTADO EDITABLE de `completar_ficha` — el único arreglo del agente donde
+// una PERSONA elige el valor.
 //
 // El resto de los arreglos CALCULAN qué van a escribir (qué pata suscribir, qué
-// día rehacer) y por eso su pantalla es un botón. La clase de activo de un
-// título no se deduce de ningún lado — `assets_autofill` corre todas las noches
-// y ya completó todo lo que sus reglas saben derivar, así que lo que queda es,
-// por definición, lo que ninguna regla resuelve (medido 2026-08-27: **0
-// derivables** en las cuatro reglas). Un botón «completar automáticamente»
-// sería un botón que siempre dice «no pude».
+// día rehacer) y por eso su pantalla es un botón. Acá no se puede: la clase de
+// activo de un título no se deduce de ningún lado — `assets_autofill` corre
+// todas las noches y ya completó todo lo que sus reglas saben derivar, así que
+// lo que queda es, por definición, lo que ninguna regla resuelve (medido
+// 2026-08-27: **0 derivables** en las cuatro reglas).
 //
-// Lo que sí se puede es sacarle el viaje a Manager: la lista de lo que falta se
-// carga acá y **se escribe de verdad**.
+// ⚠️ **Para el EMISOR el valor ahora VIENE PROPUESTO** (2026-09-05, backend
+// `agente/emisor.py`): del nombre del título, de la ficha del subyacente en
+// Finnhub, o del modelo eligiendo de los emisores que ya existen. Cada fila
+// llega con su valor cargado y una etiqueta que dice DE DÓNDE SALIÓ, y el que
+// mira **destilda lo que está mal en vez de escribir lo que está bien**.
+//
+// Lo que NO cambió es quién decide: nada sale hacia el backend hasta apretar
+// GUARDAR, y el backend verifica cada unidad contra la lista viva antes de
+// escribir. Si el gateway no contesta, las filas llegan sin propuesta y esto
+// queda exactamente como estaba — proponer no puede agregar un modo de falla.
+//
+// La cartera y la clase de activo siguen en blanco a propósito: son criterio de
+// la mesa y no hay de dónde derivarlas. Proponerlas sería inventar.
 //
 // ⚠️ **ESTE ARCHIVO NO LLAMA A LA RED.** Recibe las filas ya calculadas y
 // devuelve lo cargado por `onAplicar`. La red vive UNA sola vez, en
@@ -27,6 +37,26 @@ export type FilaFicha = {
   ticker?: string;
   clase_activo?: string;
   emisor?: string;
+  // ⚠️ **EL VALOR PROPUESTO Y DE DÓNDE SALIÓ** (backend `agente/emisor.py`).
+  // Solo viene para el EMISOR: la cartera y la clase de activo son criterio de
+  // la mesa y no hay de dónde derivarlas, así que proponerlas sería inventar.
+  //
+  // `fuente` NO es decorado. Confirmar «Finnhub dice Chevron Corp» y confirmar
+  // «el modelo eligió IEB» son dos actos distintos, y el que mira tiene que
+  // poder distinguirlos SIN abrir nada. Vacío = nadie supo, y la fila queda
+  // como estaba: en blanco y tipeable.
+  propuesto?: string;
+  fuente?: "nombre" | "finnhub" | "modelo" | "";
+};
+
+// Qué dice cada fuente, en una palabra. El backend manda la clave; acá solo se
+// elige el dibujo — si el mapa viviera allá, la pantalla no podría cambiar una
+// etiqueta sin un deploy del backend, y si la clave viviera acá serían dos
+// listas para desincronizar (REGLA #9).
+const FUENTE: Record<string, { txt: string; ayuda: string }> = {
+  nombre: { txt: "nombre", ayuda: "el emisor está escrito en el nombre del título" },
+  finnhub: { txt: "finnhub", ayuda: "la ficha del subyacente, según Finnhub" },
+  modelo: { txt: "IA", ayuda: "lo eligió el modelo, de los emisores que ya existen" },
 };
 
 export function ListadoFicha({ campo, filas, opciones, ocupado, onAplicar }: {
@@ -49,7 +79,22 @@ export function ListadoFicha({ campo, filas, opciones, ocupado, onAplicar }: {
   // No fallaba: ofrecía opciones plausibles y equivocadas, que es peor.
   // `useId()` da un id estable y único por instancia del componente.
   const listaId = `${useId()}-${campo}`;
-  const [valores, setValores] = useState<Record<string, string>>({});
+  // ⚠️⚠️ **LAS PROPUESTAS ARRANCAN CARGADAS, y eso es todo el cambio.**
+  //
+  // Antes esto salía vacío y había que tipear los N valores. Ahora el que mira
+  // DESTILDA lo que está mal en vez de escribir lo que está bien.
+  //
+  // Sigue siendo estado de PANTALLA: nada sale hacia el backend hasta apretar
+  // GUARDAR, y el backend igual verifica cada unidad contra la lista viva de
+  // faltantes antes de escribir. Una propuesta que nadie confirma no toca la
+  // base.
+  //
+  // `useState(() => ...)` y no un `useEffect`: es el valor INICIAL, no una
+  // sincronización. Con un efecto, cada recálculo del preview pisaría lo que la
+  // persona acaba de corregir a mano.
+  const [valores, setValores] = useState<Record<string, string>>(
+    () => Object.fromEntries(
+      filas.filter((f) => f.propuesto).map((f) => [f.unidad, f.propuesto as string])));
   const [busca, setBusca] = useState("");
   // El valor que se aplica «a todos los que se ven». No es un default global:
   // se escribe en las filas visibles y después se puede corregir una por una
@@ -144,13 +189,26 @@ export function ListadoFicha({ campo, filas, opciones, ocupado, onAplicar }: {
                   {f.ticker || "—"}
                 </td>
                 <td className="px-1.5 py-0.5">
-                  <ValorInput
-                    valor={valores[f.unidad] ?? ""}
-                    onChange={(v) => setValores((x) => ({ ...x, [f.unidad]: v }))}
-                    lista={listaId}
-                    placeholder="—"
-                    ancho="w-36"
-                  />
+                  <div className="flex items-center gap-1">
+                    <ValorInput
+                      valor={valores[f.unidad] ?? ""}
+                      onChange={(v) => setValores((x) => ({ ...x, [f.unidad]: v }))}
+                      lista={listaId}
+                      placeholder="—"
+                      ancho="w-36"
+                    />
+                    {/* De dónde salió lo que está escrito ahí. Se apaga en
+                        cuanto alguien lo corrige: dejarlo prendido diría que
+                        Finnhub propuso algo que en realidad escribió una
+                        persona. */}
+                    {f.fuente && FUENTE[f.fuente]
+                      && valores[f.unidad] === f.propuesto && (
+                      <span title={FUENTE[f.fuente].ayuda}
+                            className="shrink-0 text-[8px] uppercase tracking-wider px-1 border border-[var(--t-border)] text-[var(--t-text-dim)]">
+                        {FUENTE[f.fuente].txt}
+                      </span>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
