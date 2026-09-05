@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
-import { fetchJson } from "@/lib/fetch-json";
+import { conTecho, fetchJson } from "@/lib/fetch-json";
 import { exportToXlsx } from "@/lib/xlsx-export";
 
 /**
@@ -31,7 +31,14 @@ import { exportToXlsx } from "@/lib/xlsx-export";
  * se informa, no se esconde.
  */
 
-type CuentaRow = { id_cuenta: string; etiqueta: string | null };
+// El universo de cuentas lo DERIVA el backend de `operaciones.movimientos_propias`
+// (2026-09-05). Ya no hay alta ni baja: si una cuenta no tiene movimientos
+// propios, no existe para el informe. Antes era texto libre y se podía elegir
+// una cuenta sin un solo movimiento y ver un informe vacío sin saber por qué.
+type CuentaRow = {
+  id_cuenta: string; etiqueta: string | null;
+  movimientos: number; desde: string; hasta: string;
+};
 type TituloRow = {
   titulo: string; key: string; unidades: string[];
   qty_ini: number; qty_fin: number; v_ini: number; v_fin: number;
@@ -53,6 +60,11 @@ type TituloRow = {
   estado: "alta" | "baja" | "sin_operar" | "operado";
   n_boletos: number; cuadre_nominales: number; cuadra: boolean;
   mep_faltantes: number;
+  // Movimientos ADMINISTRATIVOS (mueven nominales, no llevan plata) y los que
+  // una persona sacó a mano. Viajan en la fila para que un total que cambió
+  // porque alguien tildó una casilla se pueda explicar SIN abrir el modal.
+  n_ajustes: number; qty_ajustes: number;
+  excluidos: number; excluido_total: number;
 };
 type Resumen = {
   id_cuenta: string; mes: string;
@@ -68,6 +80,12 @@ type Resumen = {
     v_ini: number; v_fin: number; compras: number; ventas: number;
     rxt: number; intermediacion: number; total: number;
     descuadres: number; sin_conciliar_total: number; mep_faltantes: number;
+    // Lo que el back office sacó del mes y lo que se movió sin plata: se
+    // DECLARA en la barra, nunca en silencio.
+    excluidos: number; excluido_total: number; ajustes: number;
+    // Exclusiones que apuntan a una línea que Aunesa corrigió (cambió su hash):
+    // ya no aplican, y en vez de desaparecer se cuentan.
+    excluidos_huerfanos: number;
   };
   n_boletos: number;
 };
@@ -77,6 +95,11 @@ type Boleto = {
   mep: number | null; comprobante: string; importe_ars: number;
   sin_mep: boolean; direccion: "compra" | "venta" | "otro";
   nominales_acum: number; pnl_acum: number;
+  // La IDENTIDAD de la línea en `movimientos_propias`: es lo que se manda para
+  // excluirla. La fila sintética POSICIÓN INICIAL no la tiene y no se puede
+  // tildar (no es un movimiento).
+  id_linea?: string | null; ocurrencia?: number | null;
+  excluido?: boolean; excluido_motivo?: string | null;
 };
 
 const HDR = "px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2 flex-wrap";
@@ -137,23 +160,12 @@ export function ContabilidadView() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detalleKey, setDetalleKey] = useState<TituloRow | null>(null);
-  const [gestionar, setGestionar] = useState(false);
   // ESTADO dejó de ser columna (repetía el mismo valor en decenas de filas) y
   // pasó a ser FILTRO. `null` = todos.
   const [filtroEstado, setFiltroEstado] = usePersistedState<EstadoTitulo | "">("contabilidad.estado", "");
   // Orden por columna: desc → asc → sin orden (vuelve al del backend, por
   // impacto). Es estado de PANTALLA: no recalcula ni deriva ningún número.
   const [orden, setOrden] = useState<Orden>(null);
-
-  const cargarCuentas = useCallback(async () => {
-    try {
-      const r = await fetchJson<{ cuentas: CuentaRow[] }>("/api/back-office/contabilidad/cuentas");
-      setCuentas(r.cuentas);
-      return r.cuentas;
-    } catch {
-      return [];
-    }
-  }, []);
 
   useEffect(() => {
     let vivo = true;
@@ -170,12 +182,29 @@ export function ContabilidadView() {
     return () => { vivo = false; };
   }, [setCuenta]);
 
+  // El informe del mes. `recargar` existe aparte del efecto porque el modal
+  // tiene que poder RELEERLO: excluir un movimiento cambia el total, y una
+  // pantalla que no relee después de escribir es cómo nace «lo tildé y no pasó
+  // nada». Sin techo propio no: es un GET que se dispara solo, así que lleva
+  // `conTecho` — un fetch sin timeout puede quedar colgado para siempre.
+  const recargar = useCallback(() => {
+    if (!cuenta || !/^\d{4}-\d{2}$/.test(mes)) return;
+    setLoading(true);
+    fetchJson<Resumen>(
+      `/api/back-office/contabilidad/resumen?id_cuenta=${encodeURIComponent(cuenta)}&mes=${mes}`,
+      { signal: conTecho(30_000) })
+      .then((r) => { setData(r); setError(null); })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false));
+  }, [cuenta, mes]);
+
   useEffect(() => {
     if (!cuenta || !/^\d{4}-\d{2}$/.test(mes)) return;
     let vivo = true;
     Promise.resolve().then(() => { if (vivo) { setLoading(true); setError(null); } });
     fetchJson<Resumen>(
-      `/api/back-office/contabilidad/resumen?id_cuenta=${encodeURIComponent(cuenta)}&mes=${mes}`)
+      `/api/back-office/contabilidad/resumen?id_cuenta=${encodeURIComponent(cuenta)}&mes=${mes}`,
+      { signal: conTecho(30_000) })
       .then((r) => { if (vivo) { setData(r); setError(null); } })
       .catch((e) => { if (vivo) setError(e instanceof Error ? e.message : String(e)); })
       .finally(() => { if (vivo) setLoading(false); });
@@ -271,12 +300,14 @@ export function ContabilidadView() {
         {cuentas.map((c) => (
           <button key={c.id_cuenta} onClick={() => setCuenta(c.id_cuenta)}
             className={`${BTN} ${cuenta === c.id_cuenta ? "border-[var(--t-accent)] text-[var(--t-accent)]" : ""}`}
-            title={c.etiqueta ?? undefined}>
+            title={`${c.etiqueta ?? c.id_cuenta} · ${c.movimientos.toLocaleString("es-AR")} movimientos propios (${fmtFecha(c.desde)} → ${fmtFecha(c.hasta)})`}>
             {c.id_cuenta}
           </button>
         ))}
         {!cuentas.length && (
-          <span className="text-[var(--t-text-dim)]">sin cuentas — agregalas con GESTIONAR</span>
+          <span className="text-[var(--t-text-dim)]">
+            sin cuentas con movimientos propios
+          </span>
         )}
         <span className="ml-2 text-[11px] uppercase tracking-wide text-[var(--t-text-dim)]">Mes</span>
         <input type="month" value={mes} onChange={(e) => setMes(e.target.value)}
@@ -299,6 +330,24 @@ export function ContabilidadView() {
                 ⚠ {tot!.descuadres} sin conciliar · {fmt$(tot!.sin_conciliar_total)} afuera
               </span>
             )}
+            {tot!.excluidos > 0 && (
+              <span className="text-[10px] uppercase tracking-wide"
+                title="Movimientos que el back office sacó del RESULTADO desde el detalle de una fila. Sus nominales siguen contando para el cuadre; su plata no entra al total.">
+                ✎ {tot!.excluidos} excluido{tot!.excluidos === 1 ? "" : "s"} · {fmt$(tot!.excluido_total)} afuera
+              </span>
+            )}
+            {tot!.excluidos_huerfanos > 0 && (
+              <span className="text-[10px] uppercase tracking-wide"
+                title="Exclusiones que apuntan a un movimiento que Aunesa corrigió: ya no aplican y ese movimiento volvió a contabilizar. Revisalo en el detalle de la fila.">
+                ⚠ {tot!.excluidos_huerfanos} exclusión(es) sin efecto
+              </span>
+            )}
+            {tot!.ajustes > 0 && (
+              <span className="text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]"
+                title="Movimientos ADMINISTRATIVOS: mueven nominales y no llevan plata (canje, split, amortización, rebautizo). Cuentan para el cuadre y no suman al resultado.">
+                {tot!.ajustes} ajuste{tot!.ajustes === 1 ? "" : "s"}
+              </span>
+            )}
             {tot!.mep_faltantes > 0 && (
               <span className="text-[10px] uppercase tracking-wide">⚠ {tot!.mep_faltantes} sin MEP</span>
             )}
@@ -306,7 +355,6 @@ export function ContabilidadView() {
         )}
         <div className="ml-auto flex items-center gap-2">
           {vigente && <button className={BTN} onClick={exportar}>Descargar</button>}
-          <button className={BTN} onClick={() => setGestionar(true)}>Gestionar cuentas</button>
         </div>
       </div>
       {cierreRaro && vigente && (
@@ -380,11 +428,7 @@ export function ContabilidadView() {
 
       {detalleKey && vigente && (
         <DetalleModal cuenta={vigente.id_cuenta} mes={vigente.mes} fila={detalleKey}
-          onClose={() => setDetalleKey(null)} />
-      )}
-      {gestionar && (
-        <GestionarModal cuentas={cuentas} onClose={() => setGestionar(false)}
-          onCambio={() => void cargarCuentas()} />
+          onClose={() => setDetalleKey(null)} onCambio={recargar} />
       )}
     </div>
   );
@@ -512,22 +556,65 @@ function Kpi({ label, v, fuerte }: { label: string; v: number; fuerte?: boolean 
   );
 }
 
-/** Drill-down auditable: los boletos del mes que componen la fila. */
-function DetalleModal({ cuenta, mes, fila, onClose }: {
+/** Drill-down auditable: los boletos del mes que componen la fila — y el lugar
+ *  donde el back office decide QUÉ NO CONTABILIZAR (2026-09-05).
+ *
+ * ⚠️ **Excluir saca la PLATA, no el HECHO.** El movimiento sigue moviendo los
+ * nominales, así que el cuadre del título sigue dando y la fila NO se cae a
+ * «sin conciliar» por tildar una casilla — si saliera de las dos cosas, sacar
+ * un movimiento borraría el título entero del informe, que no es lo que nadie
+ * quiere al tildar. La regla vive en el backend; acá solo se dibuja.
+ *
+ * El ciclo es escribir → RELEER: después de tildar se vuelve a pedir el
+ * detalle Y el resumen, porque el número de la fila y el del total cambian. Un
+ * toggle optimista que no relee es cómo nacen los «apliqué y no pasó nada».
+ */
+function DetalleModal({ cuenta, mes, fila, onClose, onCambio }: {
   cuenta: string; mes: string; fila: TituloRow; onClose: () => void;
+  onCambio: () => void;
 }) {
   const [boletos, setBoletos] = useState<Boleto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
+  const [ocupado, setOcupado] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+
+  const cargar = useCallback(() => {
     fetchJson<{ boletos: Boleto[] }>(
       `/api/back-office/contabilidad/detalle?id_cuenta=${encodeURIComponent(cuenta)}&mes=${mes}&key=${encodeURIComponent(fila.key)}`)
       .then((r) => setBoletos(r.boletos))
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, [cuenta, mes, fila.key]);
+  useEffect(cargar, [cargar]);
+
+  async function alternar(b: Boleto) {
+    if (!b.id_linea) return;                 // POSICIÓN INICIAL no es un movimiento
+    setOcupado(b.id_linea);
+    setAviso(null);
+    try {
+      await fetchJson(`/api/back-office/contabilidad/${b.excluido ? "incluir" : "excluir"}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          id_cuenta: cuenta, fecha: b.fecha,
+          id_linea: b.id_linea, ocurrencia: b.ocurrencia ?? 1,
+        }),
+      });
+      cargar();        // el detalle
+      onCambio();      // y el resumen: cambió el total del mes
+    } catch (e) {
+      // El permiso real es del backend (allowlist de Tesorería + admin): un 403
+      // se MUESTRA, no se adivina escondiendo la casilla.
+      setAviso(e instanceof Error ? e.message : String(e));
+    } finally {
+      setOcupado(null);
+    }
+  }
+
   return (
     <Modal onClose={onClose} titulo={`${fila.titulo} · ${mes}`} ancho="max-w-[1500px]">
       <Desglose t={fila} />
       {error && <div className="text-[var(--t-neg,#f87171)]">Error: {error}</div>}
+      {aviso && <div className="text-[var(--t-neg,#f87171)] mb-2">No se pudo cambiar: {aviso}</div>}
       {!boletos && !error && <div className="text-[var(--t-text-dim)]">Cargando…</div>}
       {boletos && !boletos.length && (
         <div className="text-[var(--t-text-dim)]">Sin movimientos en el mes: todo el resultado es tenencia.</div>
@@ -537,6 +624,7 @@ function DetalleModal({ cuenta, mes, fila, onClose }: {
           <table className="w-full border-collapse">
             <thead>
               <tr className="text-left">
+                <th className={TH} title="Destildar saca el movimiento del RESULTADO del mes. Sus nominales siguen contando para el cuadre.">Cta.</th>
                 <th className={TH}>Fecha</th><th className={TH}>Operación</th>
                 <th className={`${TH} text-right`}>Cantidad</th>
                 <th className={`${TH} text-right`}>Importe</th>
@@ -549,14 +637,30 @@ function DetalleModal({ cuenta, mes, fila, onClose }: {
             </thead>
             <tbody>
               {boletos.map((b, i) => (
-                <tr key={i}
-                  className={`border-t border-[var(--t-border)]/50 ${b.categoria === "saldo_inicial" ? "italic text-[var(--t-text-dim)]" : ""}`}>
+                <tr key={b.id_linea ?? i}
+                  className={`border-t border-[var(--t-border)]/50 ${b.categoria === "saldo_inicial" ? "italic text-[var(--t-text-dim)]" : ""} ${b.excluido ? "opacity-45 line-through" : ""}`}>
+                  <td className={TD}>
+                    {b.id_linea ? (
+                      <input type="checkbox" checked={!b.excluido}
+                        disabled={ocupado === b.id_linea}
+                        onChange={() => void alternar(b)}
+                        title={b.excluido
+                          ? `Excluido del resultado${b.excluido_motivo ? `: ${b.excluido_motivo}` : ""}. Sus nominales siguen contando para el cuadre.`
+                          : "Contabiliza. Destildar lo saca del resultado del mes."} />
+                    ) : "—"}
+                  </td>
                   <td className={TD}>{fmtFecha(b.fecha)}</td>
                   <td className={TD}>
                     <span className={b.direccion === "compra" ? "text-[var(--t-neg,#f87171)]"
                       : b.direccion === "venta" ? "text-[var(--t-pos,#4ade80)]" : ""}>
                       {b.op || b.categoria}
                     </span>
+                    {b.categoria === "ajuste" && (
+                      <span className="ml-1 text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]"
+                        title="Movimiento ADMINISTRATIVO: mueve nominales y no lleva plata (canje, split, amortización). Cuenta para el cuadre y no suma al resultado.">
+                        ajuste
+                      </span>
+                    )}
                   </td>
                   <td className={`${TD} text-right`}>{fmtNom(b.cantidad)}</td>
                   <td className={`${TD} text-right`}>{fmt$(b.importe)}</td>
@@ -575,68 +679,6 @@ function DetalleModal({ cuenta, mes, fila, onClose }: {
   );
 }
 
-/** ABM de las cuentas del proceso. El permiso real es del backend (allowlist de
- *  Tesorería + admin): acá un 403 se muestra, no se adivina. */
-function GestionarModal({ cuentas, onClose, onCambio }: {
-  cuentas: CuentaRow[]; onClose: () => void; onCambio: () => void;
-}) {
-  const [idNueva, setIdNueva] = useState("");
-  const [etiqueta, setEtiqueta] = useState("");
-  const [msg, setMsg] = useState<string | null>(null);
-  const [ocupado, setOcupado] = useState(false);
-
-  const alta = async () => {
-    if (!idNueva.trim() || ocupado) return;
-    setOcupado(true); setMsg(null);
-    try {
-      await fetchJson("/api/back-office/contabilidad/cuentas", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id_cuenta: idNueva.trim(), etiqueta: etiqueta.trim() || null }),
-      });
-      setIdNueva(""); setEtiqueta("");
-      onCambio();
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : String(e));
-    } finally { setOcupado(false); }
-  };
-
-  const baja = async (id: string) => {
-    if (ocupado) return;
-    setOcupado(true); setMsg(null);
-    try {
-      await fetchJson(`/api/back-office/contabilidad/cuentas/${encodeURIComponent(id)}`, { method: "DELETE" });
-      onCambio();
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : String(e));
-    } finally { setOcupado(false); }
-  };
-
-  return (
-    <Modal onClose={onClose} titulo="Cuentas del proceso">
-      <div className="mb-3 text-[var(--t-text-dim)]">
-        Las cuentas propias cuyo resultado mensual muestra esta tab. Editarlas requiere el
-        permiso de escritura de Tesorería (se gestiona en Manager → MESA).
-      </div>
-      {cuentas.map((c) => (
-        <div key={c.id_cuenta} className="flex items-center gap-2 py-1 border-t border-[var(--t-border)]/50">
-          <span className="font-medium w-16">{c.id_cuenta}</span>
-          <span className="flex-1 text-[var(--t-text-dim)] truncate">{c.etiqueta}</span>
-          <button className={BTN} onClick={() => void baja(c.id_cuenta)}>Quitar</button>
-        </div>
-      ))}
-      <div className="flex items-center gap-2 mt-3">
-        <input value={idNueva} onChange={(e) => setIdNueva(e.target.value)} placeholder="id cuenta"
-          className="bg-transparent border border-[var(--t-border)] px-2 py-1 w-24" />
-        <input value={etiqueta} onChange={(e) => setEtiqueta(e.target.value)}
-          placeholder="etiqueta (opcional, default: nombre en tenencia)"
-          className="bg-transparent border border-[var(--t-border)] px-2 py-1 flex-1" />
-        <button className={BTN} onClick={() => void alta()} disabled={ocupado}>Agregar</button>
-      </div>
-      {msg && <div className="mt-2 text-[var(--t-neg,#f87171)]">{msg}</div>}
-    </Modal>
-  );
-}
 
 function Modal({ titulo, children, onClose, ancho = "max-w-4xl" }: {
   titulo: string; children: React.ReactNode; onClose: () => void; ancho?: string;

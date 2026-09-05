@@ -4,11 +4,10 @@ import { isGuestRequest, trustedEmail } from "@/lib/cf-access";
 // Proxy de la tab CONTABILIDAD (Back Office) hacia
 // /api/back-office/contabilidad/* del backend: /resumen, /detalle, /cuentas.
 //
-// El cálculo (resultado mensual por título: tenencia / intermediación / rentas)
-// vive ENTERO en el backend — acá no se deriva nada. Lo único que escribe esta
-// tab es el ABM de cuentas del proceso (`operaciones.contabilidad_cuentas`),
-// así que POST/DELETE pasan SOLO bajo `/cuentas`; el resto es de lectura y una
-// escritura contra ellos se corta acá, antes de salir. El permiso REAL
+// El cálculo (resultado mensual por título: tenencia / intermediación) vive
+// ENTERO en el backend — acá no se deriva nada. Lo único que escribe esta tab
+// es qué movimientos NO contabilizar (`operaciones.contabilidad_excluidos`),
+// así que POST pasa SOLO bajo `/excluir` e `/incluir`. El permiso REAL
 // (allowlist de Tesorería + admin) lo aplica el backend; esto solo acota la
 // superficie.
 //
@@ -25,8 +24,15 @@ export const revalidate = 0;
 
 type Ctx = { params: Promise<{ path?: string[] }> };
 
-/** Único sub-path con escritura: el ABM de cuentas del proceso. */
-const ESCRITURA = new Set(["cuentas"]);
+/** Los ÚNICOS sub-paths con escritura. Todo lo demás es de lectura y un POST
+ *  contra ellos se corta acá, antes de salir de Vercel.
+ *
+ *  El ABM de cuentas SE FUE (2026-09-05): el universo de cuentas lo deriva el
+ *  backend de `operaciones.movimientos_propias` y ya no se puede inventar una.
+ *  Lo que queda es elegir qué movimientos NO contabilizar — que cambia un
+ *  número que después se informa, así que el permiso real (allowlist de
+ *  Tesorería + admin) lo aplica el backend; esto solo acota la superficie. */
+const ESCRITURA = new Set(["excluir", "incluir"]);
 
 async function proxy(req: Request, params: Ctx["params"], method: string) {
   try {
@@ -78,4 +84,6 @@ async function proxy(req: Request, params: Ctx["params"], method: string) {
 
 export const GET = (req: Request, ctx: Ctx) => proxy(req, ctx.params, "GET");
 export const POST = (req: Request, ctx: Ctx) => proxy(req, ctx.params, "POST");
-export const DELETE = (req: Request, ctx: Ctx) => proxy(req, ctx.params, "DELETE");
+// Sin DELETE: la baja de cuentas se fue con el ABM y no quedó ninguna otra.
+// Exportarlo dejaría una puerta que hoy no lleva a ningún lado y que el día que
+// el backend estrene un DELETE quedaría abierta sin que nadie lo decida.
