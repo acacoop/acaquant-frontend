@@ -31,14 +31,20 @@ import { exportToXlsx } from "@/lib/xlsx-export";
  * se informa, no se esconde.
  */
 
-type CuentaRow = { id_cuenta: string; etiqueta: string | null };
+// `display` es el NOMBRE VISIBLE de la cuenta: cuando Aunesa parte una cuenta de
+// la casa en dos ids (hoy 100 y 255), el backend las pliega en UNA y manda
+// «100 / 255». El id que viaja en las queries es el canónico ("100"). La lista
+// la define `config.CUENTAS_UNIFICADAS` del backend — acá NO se deriva ni se
+// arma el texto, porque dos lugares decidiendo quién es la misma cuenta es
+// exactamente cómo se rompe esto sin que falle nada.
+type CuentaRow = { id_cuenta: string; etiqueta: string | null; display?: string };
 // El universo del que se PUEDE elegir: las cuentas que tienen movimientos en
 // `operaciones.movimientos_propias`, que es de donde sale el informe. El ABM lo
 // ofrece como lista en vez de hacer tipear un id a ciegas, y el backend además
 // lo VALIDA (2026-09-05): antes aceptaba cualquier string, así que un id mal
 // tipeado mostraba un informe vacío indistinguible de un mes sin actividad.
 type Elegible = {
-  id_cuenta: string; cuenta: string | null;
+  id_cuenta: string; cuenta: string | null; display?: string;
   movimientos: number; desde: string; hasta: string;
 };
 type TituloRow = {
@@ -69,7 +75,7 @@ type TituloRow = {
   excluidos: number; excluido_total: number;
 };
 type Resumen = {
-  id_cuenta: string; mes: string;
+  id_cuenta: string; display?: string; mes: string;
   cierre_ini: { fecha_objetivo: string; fecha_usada: string | null };
   cierre_fin: { fecha_objetivo: string; fecha_usada: string | null };
   titulos: TituloRow[];
@@ -260,10 +266,10 @@ export function ContabilidadView() {
   const exportar = () => {
     if (!vigente) return;
     void exportToXlsx({
-      filename: `contabilidad-${vigente.id_cuenta}-${vigente.mes}.xlsx`,
+      filename: `contabilidad-${(vigente.display ?? vigente.id_cuenta).replace(/\s*\/\s*/g, "-")}-${vigente.mes}.xlsx`,
       sheets: [{
         name: "Resultado",
-        title: `Cuenta ${vigente.id_cuenta} · ${vigente.mes} · cierres ${vigente.cierre_ini.fecha_usada ?? "—"} → ${vigente.cierre_fin.fecha_usada ?? "—"}`,
+        title: `Cuenta ${vigente.display ?? vigente.id_cuenta} · ${vigente.mes} · cierres ${vigente.cierre_ini.fecha_usada ?? "—"} → ${vigente.cierre_fin.fecha_usada ?? "—"}`,
         rows: filas,
         columns: [
           { header: "Título", key: "titulo", format: "text", width: 16 },
@@ -318,7 +324,7 @@ export function ContabilidadView() {
           <button key={c.id_cuenta} onClick={() => setCuenta(c.id_cuenta)}
             className={`${BTN} ${cuenta === c.id_cuenta ? "border-[var(--t-accent)] text-[var(--t-accent)]" : ""}`}
             title={c.etiqueta ?? undefined}>
-            {c.id_cuenta}
+            {c.display ?? c.id_cuenta}
           </button>
         ))}
         {!cuentas.length && (
@@ -764,7 +770,7 @@ function GestionarModal({ cuentas, elegibles, onClose, onCambio }: {
       </div>
       {cuentas.map((c) => (
         <div key={c.id_cuenta} className="flex items-center gap-2 py-1 border-t border-[var(--t-border)]/50">
-          <span className="font-medium w-16">{c.id_cuenta}</span>
+          <span className="font-medium w-20">{c.display ?? c.id_cuenta}</span>
           <span className="flex-1 text-[var(--t-text-dim)] truncate">{c.etiqueta}</span>
           <button className={BTN} onClick={() => void baja(c.id_cuenta)}>Quitar</button>
         </div>
@@ -775,7 +781,7 @@ function GestionarModal({ cuentas, elegibles, onClose, onCambio }: {
           <option value="">— elegir cuenta —</option>
           {disponibles.map((e) => (
             <option key={e.id_cuenta} value={e.id_cuenta}>
-              [{e.id_cuenta}] {e.cuenta ?? ""} · {e.movimientos.toLocaleString("es-AR")} mov.
+              [{e.display ?? e.id_cuenta}] {e.cuenta ?? ""} · {e.movimientos.toLocaleString("es-AR")} mov.
             </option>
           ))}
         </select>
