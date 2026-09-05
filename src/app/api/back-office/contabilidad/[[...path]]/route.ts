@@ -5,11 +5,11 @@ import { isGuestRequest, trustedEmail } from "@/lib/cf-access";
 // /api/back-office/contabilidad/* del backend: /resumen, /detalle, /cuentas.
 //
 // El cálculo (resultado mensual por título: tenencia / intermediación) vive
-// ENTERO en el backend — acá no se deriva nada. Lo único que escribe esta tab
-// es qué movimientos NO contabilizar (`operaciones.contabilidad_excluidos`),
-// así que POST pasa SOLO bajo `/excluir` e `/incluir`. El permiso REAL
-// (allowlist de Tesorería + admin) lo aplica el backend; esto solo acota la
-// superficie.
+// ENTERO en el backend — acá no se deriva nada. Esta tab escribe dos cosas: el
+// ABM de cuentas del proceso (`operaciones.contabilidad_cuentas`) y qué
+// movimientos NO contabilizar (`operaciones.contabilidad_excluidos`). El
+// permiso REAL (allowlist de Tesorería + admin) lo aplica el backend; esto solo
+// acota la superficie.
 //
 // Mismo patrón de auth que interbanking: bearer + service token de CF +
 // propagación de la identidad verificada + marca de portal invitado (REGLA #8:
@@ -24,15 +24,15 @@ export const revalidate = 0;
 
 type Ctx = { params: Promise<{ path?: string[] }> };
 
-/** Los ÚNICOS sub-paths con escritura. Todo lo demás es de lectura y un POST
- *  contra ellos se corta acá, antes de salir de Vercel.
+/** Los ÚNICOS sub-paths con escritura. Todo lo demás es de lectura y una
+ *  escritura contra ellos se corta acá, antes de salir de Vercel.
  *
- *  El ABM de cuentas SE FUE (2026-09-05): el universo de cuentas lo deriva el
- *  backend de `operaciones.movimientos_propias` y ya no se puede inventar una.
- *  Lo que queda es elegir qué movimientos NO contabilizar — que cambia un
- *  número que después se informa, así que el permiso real (allowlist de
- *  Tesorería + admin) lo aplica el backend; esto solo acota la superficie. */
-const ESCRITURA = new Set(["excluir", "incluir"]);
+ *  Dos cosas escriben: el ABM de cuentas del proceso (que desde 2026-09-05 solo
+ *  admite cuentas CON movimientos en `movimientos_propias` — lo valida el
+ *  backend) y elegir qué movimientos NO contabilizar. Las dos cambian un número
+ *  que después se informa, así que el permiso real (allowlist de Tesorería +
+ *  admin) lo aplica el backend; esto solo acota la superficie. */
+const ESCRITURA = new Set(["cuentas", "excluir", "incluir"]);
 
 async function proxy(req: Request, params: Ctx["params"], method: string) {
   try {
@@ -84,6 +84,4 @@ async function proxy(req: Request, params: Ctx["params"], method: string) {
 
 export const GET = (req: Request, ctx: Ctx) => proxy(req, ctx.params, "GET");
 export const POST = (req: Request, ctx: Ctx) => proxy(req, ctx.params, "POST");
-// Sin DELETE: la baja de cuentas se fue con el ABM y no quedó ninguna otra.
-// Exportarlo dejaría una puerta que hoy no lleva a ningún lado y que el día que
-// el backend estrene un DELETE quedaría abierta sin que nadie lo decida.
+export const DELETE = (req: Request, ctx: Ctx) => proxy(req, ctx.params, "DELETE");

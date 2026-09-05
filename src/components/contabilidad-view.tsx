@@ -31,12 +31,14 @@ import { exportToXlsx } from "@/lib/xlsx-export";
  * se informa, no se esconde.
  */
 
-// El universo de cuentas lo DERIVA el backend de `operaciones.movimientos_propias`
-// (2026-09-05). Ya no hay alta ni baja: si una cuenta no tiene movimientos
-// propios, no existe para el informe. Antes era texto libre y se podía elegir
-// una cuenta sin un solo movimiento y ver un informe vacío sin saber por qué.
-type CuentaRow = {
-  id_cuenta: string; etiqueta: string | null;
+type CuentaRow = { id_cuenta: string; etiqueta: string | null };
+// El universo del que se PUEDE elegir: las cuentas que tienen movimientos en
+// `operaciones.movimientos_propias`, que es de donde sale el informe. El ABM lo
+// ofrece como lista en vez de hacer tipear un id a ciegas, y el backend además
+// lo VALIDA (2026-09-05): antes aceptaba cualquier string, así que un id mal
+// tipeado mostraba un informe vacío indistinguible de un mes sin actividad.
+type Elegible = {
+  id_cuenta: string; cuenta: string | null;
   movimientos: number; desde: string; hasta: string;
 };
 type TituloRow = {
@@ -160,6 +162,8 @@ export function ContabilidadView() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detalleKey, setDetalleKey] = useState<TituloRow | null>(null);
+  const [elegibles, setElegibles] = useState<Elegible[]>([]);
+  const [gestionar, setGestionar] = useState(false);
   // ESTADO dejó de ser columna (repetía el mismo valor en decenas de filas) y
   // pasó a ser FILTRO. `null` = todos.
   const [filtroEstado, setFiltroEstado] = usePersistedState<EstadoTitulo | "">("contabilidad.estado", "");
@@ -167,12 +171,25 @@ export function ContabilidadView() {
   // impacto). Es estado de PANTALLA: no recalcula ni deriva ningún número.
   const [orden, setOrden] = useState<Orden>(null);
 
+  const cargarCuentas = useCallback(async () => {
+    try {
+      const r = await fetchJson<{ cuentas: CuentaRow[]; elegibles: Elegible[] }>(
+        "/api/back-office/contabilidad/cuentas");
+      setCuentas(r.cuentas);
+      setElegibles(r.elegibles ?? []);
+      return r.cuentas;
+    } catch {
+      return [];
+    }
+  }, []);
+
   useEffect(() => {
     let vivo = true;
-    fetchJson<{ cuentas: CuentaRow[] }>("/api/back-office/contabilidad/cuentas")
+    fetchJson<{ cuentas: CuentaRow[]; elegibles: Elegible[] }>("/api/back-office/contabilidad/cuentas")
       .then((r) => {
         if (!vivo) return;
         setCuentas(r.cuentas);
+        setElegibles(r.elegibles ?? []);
         // Si la cuenta persistida ya no está en el proceso, caer a la primera.
         setCuenta((prev) =>
           r.cuentas.length && !r.cuentas.some((c) => c.id_cuenta === prev)
@@ -300,14 +317,12 @@ export function ContabilidadView() {
         {cuentas.map((c) => (
           <button key={c.id_cuenta} onClick={() => setCuenta(c.id_cuenta)}
             className={`${BTN} ${cuenta === c.id_cuenta ? "border-[var(--t-accent)] text-[var(--t-accent)]" : ""}`}
-            title={`${c.etiqueta ?? c.id_cuenta} · ${c.movimientos.toLocaleString("es-AR")} movimientos propios (${fmtFecha(c.desde)} → ${fmtFecha(c.hasta)})`}>
+            title={c.etiqueta ?? undefined}>
             {c.id_cuenta}
           </button>
         ))}
         {!cuentas.length && (
-          <span className="text-[var(--t-text-dim)]">
-            sin cuentas con movimientos propios
-          </span>
+          <span className="text-[var(--t-text-dim)]">sin cuentas — agregalas con GESTIONAR</span>
         )}
         <span className="ml-2 text-[11px] uppercase tracking-wide text-[var(--t-text-dim)]">Mes</span>
         <input type="month" value={mes} onChange={(e) => setMes(e.target.value)}
@@ -355,6 +370,7 @@ export function ContabilidadView() {
         )}
         <div className="ml-auto flex items-center gap-2">
           {vigente && <button className={BTN} onClick={exportar}>Descargar</button>}
+          <button className={BTN} onClick={() => setGestionar(true)}>Gestionar cuentas</button>
         </div>
       </div>
       {cierreRaro && vigente && (
@@ -429,6 +445,10 @@ export function ContabilidadView() {
       {detalleKey && vigente && (
         <DetalleModal cuenta={vigente.id_cuenta} mes={vigente.mes} fila={detalleKey}
           onClose={() => setDetalleKey(null)} onCambio={recargar} />
+      )}
+      {gestionar && (
+        <GestionarModal cuentas={cuentas} elegibles={elegibles}
+          onClose={() => setGestionar(false)} onCambio={() => void cargarCuentas()} />
       )}
     </div>
   );
@@ -679,6 +699,102 @@ function DetalleModal({ cuenta, mes, fila, onClose, onCambio }: {
   );
 }
 
+
+/** ABM de las cuentas del proceso. El permiso real es del backend (allowlist de
+ *  Tesorería + admin): acá un 403 se muestra, no se adivina.
+ *
+ *  ⚠️ **Acotado a las cuentas CON movimientos propios (2026-09-05).** El id ya
+ *  no se tipea a ciegas: se elige de la lista que manda el backend, que son las
+ *  que existen en `operaciones.movimientos_propias` — la fuente del informe. El
+ *  backend además lo valida, así que la lista es una ayuda, no el candado:
+ *  antes se podía escribir cualquier cosa y el informe salía VACÍO, que se veía
+ *  igual que un mes sin actividad.
+ */
+function GestionarModal({ cuentas, elegibles, onClose, onCambio }: {
+  cuentas: CuentaRow[]; elegibles: Elegible[]; onClose: () => void; onCambio: () => void;
+}) {
+  const [idNueva, setIdNueva] = useState("");
+  const [etiqueta, setEtiqueta] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+
+  const yaEstan = useMemo(() => new Set(cuentas.map((c) => c.id_cuenta)), [cuentas]);
+  const disponibles = useMemo(
+    () => elegibles.filter((e) => !yaEstan.has(e.id_cuenta)), [elegibles, yaEstan]);
+
+  const alta = async (id?: string) => {
+    const elegida = (id ?? idNueva).trim();
+    if (!elegida || ocupado) return;
+    setOcupado(true); setMsg(null);
+    try {
+      const r = await fetchJson<{ ok: boolean; error?: string }>(
+        "/api/back-office/contabilidad/cuentas", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id_cuenta: elegida, etiqueta: etiqueta.trim() || null }),
+        });
+      // El backend contesta `ok: false` con el motivo (no es un HTTP error):
+      // mostrarlo es la mitad del refuerzo — si no, «no pasó nada» al agregar
+      // una cuenta sin movimientos se vería igual que un éxito.
+      if (r && r.ok === false) { setMsg(r.error ?? "No se pudo agregar."); return; }
+      setIdNueva(""); setEtiqueta("");
+      onCambio();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e));
+    } finally { setOcupado(false); }
+  };
+
+  const baja = async (id: string) => {
+    if (ocupado) return;
+    setOcupado(true); setMsg(null);
+    try {
+      await fetchJson(`/api/back-office/contabilidad/cuentas/${encodeURIComponent(id)}`, { method: "DELETE" });
+      onCambio();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e));
+    } finally { setOcupado(false); }
+  };
+
+  return (
+    <Modal onClose={onClose} titulo="Cuentas del proceso">
+      <div className="mb-3 text-[var(--t-text-dim)]">
+        Las cuentas propias cuyo resultado mensual muestra esta tab. Solo se pueden elegir
+        cuentas con movimientos propios (de ahí sale el informe). Editarlas requiere el
+        permiso de escritura de Tesorería (se gestiona en Manager → MESA).
+      </div>
+      {cuentas.map((c) => (
+        <div key={c.id_cuenta} className="flex items-center gap-2 py-1 border-t border-[var(--t-border)]/50">
+          <span className="font-medium w-16">{c.id_cuenta}</span>
+          <span className="flex-1 text-[var(--t-text-dim)] truncate">{c.etiqueta}</span>
+          <button className={BTN} onClick={() => void baja(c.id_cuenta)}>Quitar</button>
+        </div>
+      ))}
+      <div className="flex items-center gap-2 mt-3">
+        <select value={idNueva} onChange={(e) => setIdNueva(e.target.value)}
+          className="bg-[var(--t-panel)] border border-[var(--t-border)] px-2 py-1 max-w-[22rem]">
+          <option value="">— elegir cuenta —</option>
+          {disponibles.map((e) => (
+            <option key={e.id_cuenta} value={e.id_cuenta}>
+              [{e.id_cuenta}] {e.cuenta ?? ""} · {e.movimientos.toLocaleString("es-AR")} mov.
+            </option>
+          ))}
+        </select>
+        <input value={etiqueta} onChange={(e) => setEtiqueta(e.target.value)}
+          placeholder="etiqueta (opcional, default: nombre en el feed)"
+          className="bg-transparent border border-[var(--t-border)] px-2 py-1 flex-1" />
+        <button className={BTN} onClick={() => void alta()} disabled={ocupado || !idNueva}>Agregar</button>
+      </div>
+      {!disponibles.length && (
+        <div className="mt-2 text-[var(--t-text-dim)]">
+          {elegibles.length
+            ? "Todas las cuentas con movimientos propios ya están en el proceso."
+            : "Todavía no hay cuentas con movimientos en movimientos_propias."}
+        </div>
+      )}
+      {msg && <div className="mt-2 text-[var(--t-neg,#f87171)]">{msg}</div>}
+    </Modal>
+  );
+}
 
 function Modal({ titulo, children, onClose, ancho = "max-w-4xl" }: {
   titulo: string; children: React.ReactNode; onClose: () => void; ancho?: string;
