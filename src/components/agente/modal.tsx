@@ -1,6 +1,6 @@
 "use client";
 
-// EL MODAL DEL AV AGENT. Doc: `docs/AGENT_2.0.md` §6.
+// EL MODAL DEL AV AGENT. Doc: `docs/AGENT.md` §6.
 //
 // TRES pantallas y no siete:
 //

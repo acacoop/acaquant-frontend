@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-// Catch-all proxy de /api/agente/* → backend. EL AV AGENT (docs/AGENT_2.0.md).
+// Catch-all proxy de /api/agente/* → backend. EL AV AGENT (docs/AGENT.md).
 //
 // ⚠️ **`revalidate = 0` NO es opcional acá.** El agente viejo desapareció de la
 // barra y no volvió: el botón se esconde cuando `/vista` falla, y este proxy

@@ -1,6 +1,6 @@
 "use client";
 
-// ENCONTRÓ — SOLO LO QUE TIENE ARREGLO. Doc: `docs/AGENT_2.0.md` §6.2.
+// ENCONTRÓ — SOLO LO QUE TIENE ARREGLO. Doc: `docs/AGENT.md` §6.2.
 //
 //     ENCONTRÓ = hallazgos abiertos CON arreglo
 //

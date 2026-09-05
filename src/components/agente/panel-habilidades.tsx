@@ -1,6 +1,6 @@
 "use client";
 
-// HABILIDADES — una TAB PROPIA. Doc: `docs/AGENT_2.0.md` §6.
+// HABILIDADES — una TAB PROPIA. Doc: `docs/AGENT.md` §6.
 //
 // Pedido del user (2026-08-24): *«un listado de todas las skills, y cada skill
 // tiene que tener la última hora que se ejecutó»* · *«lo quiero ahí como una tab

@@ -123,8 +123,9 @@ export default async function RootLayout({
                 `usePoll`; si todo refresca, no se dibuja. */}
             <Pulso />
             {/* SALUD ya no tiene botón propio: sus chequeos y su interrupción
-                viven adentro del AV AGENT (2026-08-19, ver AV_AGENT.md §0.l). */}
-            {/* AV AGENT (docs/AV_AGENT.md): el primer agente del sistema. Vive
+                viven adentro del AV AGENT — es la habilidad `salud`, que TRADUCE
+                lo que evalúa `api/services/salud.py` en hallazgos. */}
+            {/* AV AGENT (backend `docs/AGENT.md`): el primer agente del sistema. Vive
                 ACÁ y no en el nav a propósito — no es una vista de datos que se
                 consulta, es un canal que interrumpe cuando tiene algo que
                 preguntar. Una entrada en el nav compite con RENTA FIJA y TRADING

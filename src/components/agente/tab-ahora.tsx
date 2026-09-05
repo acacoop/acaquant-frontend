@@ -1,6 +1,6 @@
 "use client";
 
-// AHORA — EL NOTICIERO DEL DÍA. Doc: `docs/AGENT_2.0.md` §6.1.
+// AHORA — EL NOTICIERO DEL DÍA. Doc: `docs/AGENT.md` §6.1.
 //
 // La regla, entera:
 //

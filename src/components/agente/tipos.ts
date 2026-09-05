@@ -196,7 +196,7 @@ export type Explicacion = {
 
 // ── EL LAB (el INVESTIGADOR) ───────────────────────────────────────────────
 //
-// El agente detecta y frena: 16 de sus 24 habilidades son avisos sin botón.
+// El agente detecta y frena: la mayoría de sus habilidades son avisos sin botón.
 // El investigador averigua POR QUÉ y propone qué hacer.
 //
 // ⚠️ **No se pide y se espera: se pide y se pregunta.** Una investigación son

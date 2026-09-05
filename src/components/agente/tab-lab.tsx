@@ -2,7 +2,9 @@
 
 // LAB — EL INVESTIGADOR. Doc del backend: `lab/langgraph/README.md`.
 //
-// El agente detecta y frena: **16 de sus 24 habilidades son avisos sin botón**.
+// El agente detecta y frena: **la mayoría de sus habilidades son avisos sin
+// botón** (cuántas, lo dice `agente/catalogo.py` del backend — acá había un
+// conteo escrito a mano y quedó viejo).
 // Sus filas dicen «Relanzar jobs.interbanking_sync» y no lo hace nadie. Acá se
 // pide que averigüe POR QUÉ pasó y proponga qué hacer.
 //

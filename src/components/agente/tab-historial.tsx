@@ -1,6 +1,6 @@
 "use client";
 
-// HISTORIAL — EL LIBRO DE AUDITORÍA. Doc: `docs/AGENT_2.0.md` §6.6.
+// HISTORIAL — EL LIBRO DE AUDITORÍA. Doc: `docs/AGENT.md` §6.6.
 //
 // Es la única pantalla del agente viejo que no tenía el vicio de las otras: no
 // opina. Dice quién tocó qué, cuándo, de qué valor a qué valor, y en qué tabla

@@ -26,7 +26,7 @@ const MANAGER_MODULES = [
 
 // (2026-08-19) Acá vivía el botón CONSULTALE A LA IA del header, con su mapa de
 // ruta → vista del copiloto. Se dio de baja junto con el copiloto entero: la IA
-// de la plataforma pasa a ser el AV AGENT (docs/AV_AGENT.md), que tiene su
+// de la plataforma pasa a ser el AV AGENT (backend `docs/AGENT.md`), que tiene su
 // propio botón en la barra inferior.
 
 const NAV: Entry[] = [

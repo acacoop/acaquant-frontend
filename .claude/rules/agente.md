@@ -7,26 +7,36 @@ paths:
 
 ## El modal del AV AGENT — la red se toca desde UN lugar
 
-Doc del backend: **`docs/AGENT_2.0.md`**. El agente se rehízo entero el
-2026-08-24 y el modal pasó de **siete tabs a TRES**:
+Doc del backend: **`docs/AGENT.md`** (parte A = cómo funciona; parte B = el
+diario). El agente se rehízo entero el 2026-08-24 y el modal pasó de siete tabs
+a **TRES pantallas de trabajo más tres de lectura**:
 
 | Tab | Qué muestra | Botones |
 |---|---|---|
-| **AHORA** | los hallazgos de **HOY** sin leer y sin resolver | uno: «leído» |
+| **AHORA** | los hallazgos de **HOY** sin leer y sin resolver | «leído», y —donde el backend marca `investigable`— «investigar» |
 | **ENCONTRÓ** | lo abierto que **tiene arreglo** | ver qué haría · aplicar · no me interesa |
+| **PATRONES** | **lo que pasa SIEMPRE**: el ranking de crónicos, activos e históricos aparte | ninguno |
 | **HISTORIAL** | el libro: qué escribió el agente, de qué valor a qué valor | ninguno |
+| **HABILIDADES** | qué sabe hacer y **cuándo miró cada cosa** | correr una · explicámelo |
+| **LAB** | el INVESTIGADOR: pedir por qué pasó algo y seguir los pasos | investigar |
 
-Y a la **derecha, siempre visible**, el panel de HABILIDADES: las **25** (el
-número manda desde `agente/catalogo.py` del backend, no de acá), cada una
-con **la última hora que se ejecutó**, su estado (miró · no pudo mirar · reventó
-· todavía no le tocó) y cuántos hallazgos tiene abiertos.
+⚠️ **HABILIDADES es una TAB PROPIA, no un panel al costado.** Lo dice el
+comentario del `modal.tsx` y hay que respetarlo: lo que el agente sabe hacer y
+cuándo miró cada cosa no es un accesorio de la lista de hoy. **Cuántas son lo
+dice `agente/catalogo.py` del backend, no este archivo** — acá había un número
+escrito a mano y quedó viejo sin que nada fallara (del lado del backend eso lo
+congela `test_ningun_conteo_de_habilidades_quedo_viejo`).
 
 ⚠️ **«Cuándo miró» es el único dato del agente que NO se puede derivar.** Una
 corrida que no encontró nada no deja rastro en los hallazgos, así que sin esa
-columna «miré y estaba todo bien» y «no corrí» se ven idénticos. Por eso el
-panel va al lado de las listas y no escondido en una tab: mirar «ENCONTRÓ 0» sin
-ver que cuatro habilidades no pudieron mirar es leer un verde que no significa
-nada.
+columna «miré y estaba todo bien» y «no corrí» se ven idénticos. Por eso la tab
+existe: mirar «ENCONTRÓ 0» sin ver que cuatro habilidades no pudieron mirar es
+leer un verde que no significa nada.
+
+⚠️ **Y PATRONES contesta la pregunta que ninguna otra tab hace**: un job que no
+escribió HOY y uno que no escribe TODOS LOS DÍAS se ven idénticos en AHORA — y
+al primero se lo relanza, al segundo relanzarlo lo TAPA. El badge cuenta los
+ACTIVOS (lo que ya se cortó no es trabajo) y lo cuenta el backend.
 
 Se fueron VIGILANCIA (era un segundo depósito de los mismos problemas, con otro
 reloj y otra tabla — la propia pantalla se lo explicaba al usuario), ¿AGUANTAN?
@@ -47,7 +57,7 @@ qué filtro); el estado del **servidor** tiene un dueño y un ciclo: `leer` →
 **El texto de un aviso viene en DOS campos, y el front no elige cuál es mejor.**
 `que_hacer` es el determinista que escribe el detector; `ia_texto` es el que
 redactó el modelo con la evidencia adelante (backend `agente/redactar.py`,
-`AGENT.md` §0.dm). Se dibuja el del modelo con una marca `ia` y la hora, y el
+`AGENT.md` §0.dn). Se dibuja el del modelo con una marca `ia` y la hora, y el
 determinista queda en el `title` para poder comparar los dos sin gastar
 pixeles. Si `ia_texto` viene vacío —sin key, sin presupuesto, o el backend
 rechazó lo que escribió porque inventaba un número— se dibuja el de siempre:
