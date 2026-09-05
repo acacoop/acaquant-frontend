@@ -29,5 +29,20 @@
       "Bash(git push --force:*)",
       "Bash(git push -f:*)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/check_contexto.mjs",
+            "timeout": 30,
+            "statusMessage": "Techo del contexto de Claude…"
+          }
+        ]
+      }
+    ]
   }
 }
