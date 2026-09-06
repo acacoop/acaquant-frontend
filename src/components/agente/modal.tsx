@@ -193,6 +193,9 @@ export default function AgenteModal() {
                   marcarLeidos={async (ids) => {
                     await d.escribir("/api/agente/leidos", { ids }, ["vista"]);
                   }}
+                  ignorar={async (id) => {
+                    await d.escribir("/api/agente/ignorar", { id }, ["vista"]);
+                  }}
                 />
               )}
               {v && tab === "encontro" && (

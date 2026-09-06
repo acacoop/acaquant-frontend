@@ -20,7 +20,7 @@ import { useState } from "react";
 import { COLOR, fechaHora, type Hallazgo } from "@/components/agente/tipos";
 import { Recurrencia, Confirmado, Evidencia } from "./evidencia";
 
-export function TabAhora({ filas, marcarLeidos, investigar }: {
+export function TabAhora({ filas, marcarLeidos, investigar, ignorar }: {
   filas: Hallazgo[];
   marcarLeidos: (ids: number[]) => Promise<void>;
   // ⚠️ **EL BOTÓN QUE FALTABA.** La mayoría de estas filas son AVISOS: dicen
@@ -33,6 +33,15 @@ export function TabAhora({ filas, marcarLeidos, investigar }: {
   // árbitro: agregar una investigación no mostraría el botón y sacar una
   // dejaría uno que falla.
   investigar?: (sujeto: string) => void;
+  // ⚠️ **«LEÍDO» NO ALCANZA, Y ESA ERA LA MITAD QUE FALTABA.** Marcar leído
+  // saca la fila de AHORA y nada más: el detector la vuelve a encontrar en la
+  // pasada siguiente y mañana está de nuevo. Para lo que NO se va a hacer
+  // —una ON que la mesa no quiere cargar— hace falta silenciar el PROBLEMA
+  // (habilidad + sujeto + regla), que es lo que hace `/api/agente/ignorar`.
+  // El endpoint y la tabla `agente.silenciados` existían desde el principio;
+  // el botón sólo estaba en ENCONTRÓ, así que los avisos —que son la mayoría
+  // de AHORA— no tenían forma de callarse. Es reversible.
+  ignorar?: (id: number) => Promise<void>;
 }) {
   const [enviando, setEnviando] = useState(false);
 
@@ -57,8 +66,9 @@ export function TabAhora({ filas, marcarLeidos, investigar }: {
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-2 flex-wrap">
         <p className="text-[10px] text-[var(--t-text-dim)]">
-          Lo que apareció <b>HOY</b>. Marcarlo como leído lo saca de acá y de
-          ningún otro lado — <b>leer no resuelve</b>.
+          Lo que apareció <b>HOY</b>. <b>✓</b> lo saca de acá y de ningún otro
+          lado — leer no resuelve. <b>✕</b> lo silencia para siempre: no vuelve
+          a aparecer nunca más (reversible).
         </p>
         <button
           disabled={enviando}
@@ -153,6 +163,16 @@ export function TabAhora({ filas, marcarLeidos, investigar }: {
               >
                 ✓
               </button>
+              {ignorar && (
+                <button
+                  disabled={enviando}
+                  onClick={() => void ignorar(f.id)}
+                  title="No me interesa — no vuelve a aparecer. Esconde, no resuelve. Reversible."
+                  className="text-[9px] px-1.5 py-0.5 border border-[var(--t-border)] text-[var(--t-text-dim)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-40"
+                >
+                  ✕
+                </button>
+              )}
               {investigar && f.investigable && (
                 <button
                   onClick={() => investigar(f.sujeto)}
