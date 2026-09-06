@@ -63,13 +63,19 @@ export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: 
   porHabilidad: Record<string, number>;
   preview: (id: number) => Promise<Preview>;
   aplicar: (id: number, datos?: Datos)
-    => Promise<{ ok: boolean; error?: string; detalle?: string; aviso?: string }>;
+    => Promise<{ ok: boolean; error?: string; detalle?: string; aviso?: string;
+                 pasos?: Paso[] }>;
   ignorar: (id: number) => Promise<void>;
 }) {
   const [filtro, setFiltro] = useState("");
   const [previews, setPreviews] = useState<Record<number, Preview>>({});
   const [ocupado, setOcupado] = useState<number | null>(null);
   const [resultado, setResultado] = useState<Record<number, string>>({});
+  // ⚠️ **EL RASTRO DE LO QUE HIZO.** Un alta hace siete cosas y antes el botón
+  // se ponía gris y después aparecía una frase: había que confiar. Cada paso
+  // viene del BACKEND con lo que de verdad pasó (`pasos`), incluido el que
+  // salió mal sin tumbar a los demás. Acá no se inventa ninguno.
+  const [rastro, setRastro] = useState<Record<number, Paso[]>>({});
 
   const vistos = filtro ? filas.filter((f) => f.habilidad === filtro) : filas;
 
@@ -86,11 +92,13 @@ export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: 
   async function hacer(id: number, datos?: Datos) {
     setOcupado(id);
     try {
+      setRastro((x) => ({ ...x, [id]: [] }));
       const r = await aplicar(id, datos);
       setResultado((x) => ({
         ...x,
         [id]: r.ok ? (r.aviso || r.detalle || "aplicado") : (r.error || "falló"),
       }));
+      setRastro((x) => ({ ...x, [id]: r.pasos ?? [] }));
       // ⚠️ **SE RECALCULA EL LISTADO DESPUÉS DE ESCRIBIR.** Es lo que hace que
       // lo completado desaparezca. No se filtra en el navegador: la lista viva
       // la arma el backend, así que lo que sale es lo que dejó de faltar de
@@ -141,6 +149,7 @@ export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: 
         {vistos.map((f) => {
           const p = previews[f.id];
           const res = resultado[f.id];
+          const tr = rastro[f.id];
           return (
             <div key={f.id} className="px-2 py-1.5">
               <div className="flex items-start gap-2">
@@ -236,10 +245,42 @@ export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: 
                 >
                   no me interesa
                 </button>
-                {res && (
+                {ocupado === f.id && (
+                  <span className="text-[9px] text-[var(--t-text-dim)]">
+                    trabajando…
+                  </span>
+                )}
+                {res && ocupado !== f.id && (
                   <span className="text-[9px] text-[var(--t-accent)]">{res}</span>
                 )}
               </div>
+
+              {/* ⚠️ **LO QUE HIZO, PASO POR PASO.** El botón se ponía gris y
+                  después aparecía una frase: había que confiar. Cada línea la
+                  manda el BACKEND con lo que de verdad pasó (`pasos`), así que
+                  un paso que salió mal sin tumbar a los demás se VE — antes iba
+                  metido en una subordinada y se leía como éxito. */}
+              {tr && tr.length > 0 && (
+                <div className="mt-1 ml-3.5 border-l-2 border-[var(--t-accent)] pl-2
+                                flex flex-col gap-0.5">
+                  {tr.map((s2, i) => (
+                    <div key={i} className="flex items-start gap-1.5 text-[9px]">
+                      <span className="shrink-0 w-3"
+                            style={{ color: s2.estado === "ok" ? "var(--t-pos)"
+                                     : s2.estado === "falló" ? "var(--t-neg)"
+                                     : "var(--t-text-dim)" }}>
+                        {s2.estado === "ok" ? "✔" : s2.estado === "falló" ? "✖" : "·"}
+                      </span>
+                      <span>
+                        <b className="text-[var(--t-text)]">{s2.titulo}</b>
+                        {s2.detalle ? (
+                          <span className="text-[var(--t-text-dim)]"> — {s2.detalle}</span>
+                        ) : null}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {p && (
                 <div className="mt-1 ml-3.5 border-l-2 border-[var(--t-border)] pl-2 text-[9px] text-[var(--t-text-muted)]">
