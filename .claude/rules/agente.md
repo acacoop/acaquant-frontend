@@ -13,7 +13,7 @@ a **TRES pantallas de trabajo más tres de lectura**:
 
 | Tab | Qué muestra | Botones |
 |---|---|---|
-| **AHORA** | los hallazgos de **HOY** sin leer y sin resolver | «leído», y —donde el backend marca `investigable`— «investigar» |
+| **AHORA** | los hallazgos de **HOY** sin leer y sin resolver | ✓ leído · **✕ silenciar** · 🔍 investigar (donde el backend marca `investigable`) |
 | **ENCONTRÓ** | lo abierto que **tiene arreglo** | ver qué haría · aplicar · no me interesa |
 | **PATRONES** | **lo que pasa SIEMPRE**: el ranking de crónicos, activos e históricos aparte | ninguno |
 | **HISTORIAL** | el libro: qué escribió el agente, de qué valor a qué valor | ninguno |
@@ -63,6 +63,33 @@ pixeles. Si `ia_texto` viene vacío —sin key, sin presupuesto, o el backend
 rechazó lo que escribió porque inventaba un número— se dibuja el de siempre:
 **la fila nunca queda muda**. Los dos vienen resueltos del backend; acá no hay
 ninguna decisión.
+
+⚠️ **✓ y ✕ NO son lo mismo, y que faltara el segundo dejó a AHORA sin salida.**
+`✓ leído` saca la fila de la pantalla **y nada más**: el detector la vuelve a
+crear en la pasada siguiente. `✕` silencia el PROBLEMA (habilidad + sujeto +
+regla) para que no vuelva a nacer, y es reversible. El botón vivía sólo en
+ENCONTRÓ —justo donde las filas SÍ tienen arreglo—, así que los avisos, que son
+la mayoría de AHORA, no tenían forma de callarse (backend `AGENT.md` §0.dr).
+
+**Los arreglos que PIDEN DATOS traen su listado, y cuál se dibuja lo dice el
+backend** (`preview.listado`), no una lista de ids acá:
+
+| `listado` | componente | por qué pide datos |
+|---|---|---|
+| `filas` (+`opciones`) | `listado-ficha` | el VALOR no lo sabe el sistema: se completa |
+| `cedears` | `listado-cedears` | el sistema sabe escribirlo todo, no sabe **cuáles** |
+| `ons` | `listado-ons` | idem — 1816 publica muchas más de las que la mesa sigue |
+
+⚠️ **Al aplicar se dibuja el RASTRO, y ninguno de sus pasos lo inventa el
+front**: vienen en `pasos` del backend, con ✔/✖ y lo que de verdad pasó. Un alta
+hace siete cosas y antes devolvía una frase, así que «el bono se escribió pero la
+especie no» se leía como éxito (`AGENT.md` §0.dx). Es la contracara del
+pre-flight: uno muestra lo que VA a hacer, el otro lo que HIZO.
+
+⚠️ **«↻ mirar ahora» muestra lo que devuelve la pasada.** El backend fuerza el
+RITMO y nunca la VENTANA, y contesta quién quedó afuera por la rueda. Antes se
+tiraba ese resultado y «corrieron 12» y «no le tocaba a ninguna» se veían
+idénticos: un botón mudo (`AGENT.md` §0.dz).
 
 **El front no deriva, y ningún contador se suma acá.** Todos vienen del backend,
 de la misma query que dibuja su lista. El «AHORA 92» del agente viejo lo sumaba

@@ -12,7 +12,7 @@ es para vos (humano).
 | `rbac` | Identidad firmada (`cf-access.ts`), sanitización y pre-gate en `proxy.ts`, el contrato `PATH_MODULES` ↔ backend, portal invitado. Carga al tocar proxy/auth/header/`src/app/api/**`. |
 | `red-cliente` | Los 4 helpers de red y sus contratos, `usePoll` y por qué el techo no es opcional, patrones de UI (shells keep-alive, `informe.tsx`, `fmt.ts`). Carga al tocar `src/lib/**` o `src/components/**`. |
 | `trading` | La vista TRADING: 50/50, RADAR, dos charts, y la regla «nada auto-asigna un chart». Carga al tocar `trading*.tsx` o `src/app/trading/**`. |
-| `agente` | El modal del AV AGENT: tres tabs, `datos.tsx` como único punto de red, `leer`/`calcular`/`escribir`, el botón que se dibuja SIEMPRE. Carga al tocar `components/agente/**`. |
+| `agente` | El modal del AV AGENT: las seis tabs, `datos.tsx` como único punto de red, `leer`/`calcular`/`escribir`, ✓ vs ✕, los listados que piden datos, el rastro de lo que hizo un arreglo, y el botón que se dibuja SIEMPRE. Carga al tocar `components/agente/**`. |
 
 **Techo, verificado por el hook de push `.claude/hooks/check_contexto.mjs`** (espejo
 en Node del test del backend): `CLAUDE.md` raíz ≤ 200 líneas / 16 kB y **sin fechas**;
