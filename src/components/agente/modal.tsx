@@ -48,6 +48,29 @@ export default function AgenteModal() {
   const d = useAgente(abierto);
   const v = d.vista;
 
+  // El resultado de «mirar ahora». Sale ENTERO del backend: cuántas corrieron y
+  // cuántas quedaron afuera porque la rueda está cerrada. Acá no se suma nada.
+  const [mirando, setMirando] = useState(false);
+  const [pasada, setPasada] = useState("");
+
+  async function mirarAhora() {
+    setMirando(true);
+    setPasada("");
+    try {
+      const r = await d.escribir<{
+        corridas?: unknown[]; fuera_de_ventana?: { nombre: string }[];
+      }>("/api/agente/correr", {}, ["vista"]);
+      const n = r.corridas?.length ?? 0;
+      const fuera = r.fuera_de_ventana?.length ?? 0;
+      setPasada(
+        `miró ${n}` +
+        (fuera ? ` · ${fuera} esperan a que abra la rueda` : "") +
+        (!n && !fuera ? " — no había nada que mirar" : ""));
+    } catch {
+      setPasada("no pude correr la pasada");
+    } finally { setMirando(false); }
+  }
+
   const nAhora = v?.ahora.total ?? 0;
   const nEncontro = v?.encontro.total ?? 0;
   const nVolvio = v?.reincidencias.total ?? 0;
@@ -105,12 +128,22 @@ export default function AgenteModal() {
                 {vivo ? "mirando" : "detenido"} · última pasada{" "}
                 {fechaHora(v?.latido.at ?? null)}
               </span>
+              {/* ⚠️ **EL BOTÓN QUE NO HACÍA NADA** (AGENT.md §0.dz). Disparaba
+                  la pasada y TIRABA el resultado, así que «corrieron 12» y «no
+                  le tocaba a ninguna» se veían idénticos: un botón mudo. Ahora
+                  el backend fuerza el ritmo (nunca la ventana) y devuelve quién
+                  corrió y quién quedó afuera por la rueda — y eso se dice acá,
+                  sin sumar nada en el navegador. */}
               <button
-                onClick={() => void d.escribir("/api/agente/correr", {}, ["vista"])}
-                className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
+                disabled={mirando}
+                onClick={() => void mirarAhora()}
+                className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-40"
               >
-                ↻ mirar ahora
+                {mirando ? "mirando…" : "↻ mirar ahora"}
               </button>
+              {pasada && !mirando && (
+                <span className="text-[9px] text-[var(--t-text-dim)]">{pasada}</span>
+              )}
               <button onClick={() => setAbierto(false)}
                       className="ml-auto text-[11px] text-[var(--t-text-dim)] hover:text-[var(--t-text)]">
                 ✕
