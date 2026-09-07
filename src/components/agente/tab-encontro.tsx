@@ -29,7 +29,8 @@ type Preview = {
   porque?: string; antes?: unknown; veredicto?: string;
   puede_aplicar?: boolean; pasos?: Paso[]; flujos?: Flujo[];
   escala?: string; rama?: string; vencimiento?: string; simbolo?: string;
-  tea?: number | null; precio?: number | null;
+  tea?: number | null; tna?: number | null; precio?: number | null;
+  dolar?: string; dolar_valor?: number | null;
   ejes?: Record<string, string>;
   // Solo los arreglos que PIDEN DATOS: el listado que se despliega. Cuál se
   // dibuja lo dice el backend (`listado`), no una lista de ids acá.
@@ -298,8 +299,20 @@ export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: 
                           ["vence", p.vencimiento],
                           ["cupones", p.flujos?.length],
                           ["precio", p.precio != null ? n2(p.precio) : null],
+                          // ⚠️ **LA TASA VIENE CON SU DÓLAR, Y NO ES ADORNO.**
+                          // El motor divide el precio en pesos por MEP y 1816
+                          // por CCL: 4,2% de diferencia que entra entera en la
+                          // tasa. Un «TEA 8,59%» sin decir en qué dólar está no
+                          // es un número (AGENT.md §0.ec). Y la TNA es la que
+                          // mira la mesa — la calcula el backend, acá no se
+                          // deriva nada.
                           ["TEA que daría", p.tea != null
                             ? `${(p.tea * 100).toFixed(2)}%` : null],
+                          ["TNA", p.tna != null
+                            ? `${(p.tna * 100).toFixed(2)}%` : null],
+                          ["dólar usado", p.dolar
+                            ? `${p.dolar}${p.dolar_valor != null
+                                ? ` ${n2(p.dolar_valor)}` : ""}` : null],
                         ] as [string, string | number | null | undefined][])
                           .filter(([, v]) => v != null && v !== "")
                           .map(([k, v]) => (
