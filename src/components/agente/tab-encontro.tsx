@@ -18,7 +18,7 @@ import { ListadoCedears, type FilaCedear } from "@/components/agente/listado-ced
 import { ListadoOns, type FilaON } from "@/components/agente/listado-ons";
 import { ListadoFicha, type FilaFicha } from "@/components/agente/listado-ficha";
 import { COLOR, fechaHora, type Hallazgo } from "@/components/agente/tipos";
-import { Recurrencia, Confirmado, Evidencia } from "./evidencia";
+import { Recurrencia, Confirmado, Evidencia, Detalle } from "./evidencia";
 
 type Paso = { titulo?: string; estado?: string; detalle?: string;
               tabla?: string; aviso?: string };
@@ -197,11 +197,7 @@ export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: 
                   <p className="text-[10px] text-[var(--t-text-muted)] mt-0.5">
                     {f.problema}
                   </p>
-                  {f.detalle && (
-                    <pre className="text-[9px] text-[var(--t-text)] mt-0.5 px-1.5 py-1 border-l-2 border-[var(--t-accent)] bg-[var(--t-surface)] whitespace-pre-wrap break-all font-mono">
-                      {f.detalle}
-                    </pre>
-                  )}
+                  <Detalle texto={f.detalle} />
                   {/* ⚠️ **EL `que_hacer` NO SE DIBUJA ACÁ: el botón lo dice.**
                       En ENCONTRÓ todo tiene arreglo (es la definición de la
                       tab), así que el texto y el botón contestan la misma

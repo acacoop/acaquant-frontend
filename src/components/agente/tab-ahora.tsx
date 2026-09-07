@@ -18,7 +18,7 @@
 import { useState } from "react";
 
 import { COLOR, fechaHora, type Hallazgo } from "@/components/agente/tipos";
-import { Recurrencia, Confirmado, Evidencia } from "./evidencia";
+import { Recurrencia, Confirmado, Evidencia, Detalle } from "./evidencia";
 
 export function TabAhora({ filas, marcarLeidos, investigar, ignorar }: {
   filas: Hallazgo[];
@@ -122,11 +122,7 @@ export function TabAhora({ filas, marcarLeidos, investigar, ignorar }: {
                   Antes se calculaba y quedaba enterrado en `evidencia`, que
                   esta pantalla ni leía, y en su lugar se veía una frase de
                   molde idéntica para los cuatro proveedores. */}
-              {f.detalle && (
-                <pre className="text-[9px] text-[var(--t-text)] mt-0.5 px-1.5 py-1 border-l-2 border-[var(--t-accent)] bg-[var(--t-surface)] whitespace-pre-wrap break-all font-mono">
-                  {f.detalle}
-                </pre>
-              )}
+              <Detalle texto={f.detalle} />
               {/* ⚠️ **EL TEXTO DEL MODELO, CON EL PISO ATRÁS.**
                   La mayoría de estas filas son AVISOS: no tienen botón, así
                   que el TEXTO es el entregable entero. Escrito a mano en el

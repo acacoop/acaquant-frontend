@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { fechaHora } from "./tipos";
 
 /**
@@ -95,5 +97,39 @@ export function Confirmado({ desde, ultima }: { desde: string; ultima?: string |
     <span className="text-[9px] tabular-nums text-[var(--t-text-dim)] whitespace-nowrap">
       · confirmado {fechaHora(ultima)}
     </span>
+  );
+}
+
+/** El `detalle` de un hallazgo. Corto: como siempre. Largo (más de LINEAS_A_LA_VISTA
+ *  líneas): plegado, con la primera línea a la vista —en una tabla es la cabecera—
+ *  y un botón para desplegar. Plegar es presentación, no dato: el backend manda
+ *  el texto entero y acá solo se decide cuánto se ve a la vez. */
+export const LINEAS_A_LA_VISTA = 6;
+
+export function Detalle({ texto }: { texto?: string | null }) {
+  const [abierto, setAbierto] = useState(false);
+
+  if (!texto) return null;
+
+  const lineas = texto.split("\n");
+  const pre =
+    "text-[9px] text-[var(--t-text)] mt-0.5 px-1.5 py-1 border-l-2 border-[var(--t-accent)] "
+    + "bg-[var(--t-surface)] whitespace-pre-wrap break-all font-mono";
+
+  if (lineas.length <= LINEAS_A_LA_VISTA) {
+    return <pre className={pre}>{texto}</pre>;
+  }
+
+  return (
+    <>
+      <pre className={pre}>{abierto ? texto : lineas[0]}</pre>
+      <button
+        type="button"
+        onClick={() => setAbierto((v) => !v)}
+        className="text-[8px] uppercase tracking-widest text-[var(--t-accent)] hover:underline"
+      >
+        {abierto ? "▾ plegar" : `▸ ver las ${lineas.length} líneas`}
+      </button>
+    </>
   );
 }
