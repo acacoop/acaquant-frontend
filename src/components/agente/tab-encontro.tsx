@@ -59,13 +59,18 @@ const PASO: Record<string, string> = {
   no_se_puede_saber: "var(--t-text-dim)",
 };
 
-export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: {
+export function TabEncontro({
+  filas, porHabilidad, preview, aplicar, noInteresanOns, ignorar,
+}: {
   filas: Hallazgo[];
   porHabilidad: Record<string, number>;
   preview: (id: number) => Promise<Preview>;
   aplicar: (id: number, datos?: Datos)
     => Promise<{ ok: boolean; error?: string; detalle?: string; aviso?: string;
                  pasos?: Paso[] }>;
+  noInteresanOns: (id: number, tickers: string[], todas: boolean)
+    => Promise<{ ok: boolean; descartadas?: string[]; quedan?: number;
+                 detalle?: string; error?: string }>;
   ignorar: (id: number) => Promise<void>;
 }) {
   const [filtro, setFiltro] = useState("");
@@ -108,6 +113,19 @@ export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: 
         const p = await preview(id);
         setPreviews((prev) => ({ ...prev, [id]: p }));
       }
+    } finally { setOcupado(null); }
+  }
+
+  // Descarta ONs por ticker (o todas): no es «aplicar», así que no pasa por
+  // `hacer`. Igual que `hacer`, vuelve a pedir `preview` para que el listado
+  // se recalcule con lo que de verdad quedó afuera.
+  async function descartar(id: number, tickers: string[], todas: boolean) {
+    setOcupado(id);
+    try {
+      const r = await noInteresanOns(id, tickers, todas);
+      setResultado((x) => ({ ...x, [id]: r.detalle || r.error || "" }));
+      const p = await preview(id);
+      setPreviews((prev) => ({ ...prev, [id]: p }));
     } finally { setOcupado(null); }
   }
 
@@ -351,6 +369,7 @@ export function TabEncontro({ filas, porHabilidad, preview, aplicar, ignorar }: 
                           filas={p.ons}
                           ocupado={ocupado === f.id}
                           onAplicar={(datos) => hacer(f.id, datos)}
+                          onNoInteresan={(t, todas) => descartar(f.id, t, todas)}
                         />
                       )}
 

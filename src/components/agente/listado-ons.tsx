@@ -5,16 +5,19 @@
 // la mesa quiere seguir, así que el sistema sabe darlas de alta a todas y **no
 // puede decidir cuáles**. La lista la tilda una persona.
 //
-// Lo que se manda es `{unidad: ticker, valor: ""}`. La curva de 1816 NO viaja
-// desde acá: el backend la toma de lo que guardó el detector, que es la
-// clasificación con la que se decidió que faltaba. Esta lista elige, no autoriza:
-// cada ticker vuelve a pasar por el pre-flight entero (baja el cuadro, lo
-// convierte, coteja el cronograma contra el de 1816) y la que no cierra no se
-// escribe ni frena a las demás.
+// Lo que se manda para dar de alta es `{unidad: ticker, valor: ""}`. La curva
+// de 1816 NO viaja desde acá: el backend la toma de lo que guardó el detector,
+// que es la clasificación con la que se decidió que faltaba. Esta lista elige,
+// no autoriza: cada ticker vuelve a pasar por el pre-flight entero (baja el
+// cuadro, lo convierte, coteja el cronograma contra el de 1816) y la que no
+// cierra no se escribe ni frena a las demás.
+//
+// Ahora manda DOS cosas: los tildados para dar de alta, y los tickers a
+// descartar (por ticker, o todas). Sigue sin llamar a la red.
 //
 // ⚠️ **ESTE ARCHIVO NO LLAMA A LA RED.** La red vive UNA sola vez, en
 // `datos.tsx`, y el lint lo hace estructural.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export type FilaON = {
   ticker: string;
@@ -24,13 +27,33 @@ export type FilaON = {
   denominacion?: string;
 };
 
-export function ListadoOns({ filas, ocupado, onAplicar }: {
+export function ListadoOns({ filas, ocupado, onAplicar, onNoInteresan }: {
   filas: FilaON[];
   ocupado: boolean;
   onAplicar: (datos: { unidad: string; valor: string }[]) => Promise<void>;
+  onNoInteresan: (tickers: string[], todas: boolean) => Promise<void>;
 }) {
   const [busca, setBusca] = useState("");
   const [tildados, setTildados] = useState<Record<string, boolean>>({});
+  const [confirmando, setConfirmando] = useState(false);
+
+  // Cualquier cambio de tildados cancela la confirmación de «ninguna me
+  // interesa» en curso: no queremos que un segundo clic tardío dispare el
+  // descarte total sobre un tilde distinto al que el usuario tenía en mente.
+  // Ajuste durante el render (no en un efecto): React lo admite para resetear
+  // estado ante un cambio, sin el round-trip de un efecto.
+  const [tildadosVisto, setTildadosVisto] = useState(tildados);
+  if (tildadosVisto !== tildados) {
+    setTildadosVisto(tildados);
+    setConfirmando(false);
+  }
+
+  // La confirmación tiene techo: 5s sin el segundo clic y vuelve a pedirlo.
+  useEffect(() => {
+    if (!confirmando) return;
+    const id = setTimeout(() => setConfirmando(false), 5_000);
+    return () => clearTimeout(id);
+  }, [confirmando]);
 
   const vistas = useMemo(() => {
     const q = busca.trim().toUpperCase();
@@ -103,9 +126,33 @@ export function ListadoOns({ filas, ocupado, onAplicar }: {
         >
           {ocupado ? "dando de alta…" : `dar de alta ${elegidos.length}`}
         </button>
+        <button
+          type="button"
+          disabled={ocupado || !elegidos.length}
+          onClick={() => void onNoInteresan(elegidos.map((e) => e.unidad), false)}
+          className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:text-[var(--t-text)] disabled:opacity-40"
+        >
+          no me interesan las {elegidos.length} tildadas
+        </button>
+        <button
+          type="button"
+          disabled={ocupado}
+          onClick={() => {
+            if (!confirmando) { setConfirmando(true); return; }
+            setConfirmando(false);
+            void onNoInteresan([], true);
+          }}
+          className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:text-[var(--t-text)] disabled:opacity-40"
+        >
+          {confirmando
+            ? `¿descartar las ${filas.length}? · sí, ninguna`
+            : "ninguna me interesa · avisar solo las nuevas"}
+        </button>
         <span className="text-[var(--t-text-dim)]">
-          cada una baja su cronograma de 1816 y se coteja contra el de ellos:{" "}
-          <b className="text-[var(--t-text-muted)]">la que no cierra no se escribe</b>
+          dar de alta: baja el cronograma de 1816 y lo coteja; la que no
+          cierra no se escribe · no me interesan: se descartan por ticker y el
+          aviso vuelve solo con las nuevas (se restauran desde Manager → ONs →
+          ignoradas)
         </span>
       </div>
     </div>

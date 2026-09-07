@@ -24,6 +24,11 @@ export const URLS = {
 
 export type Recurso = keyof typeof URLS;
 
+export type ResultadoNoInteresanOns = {
+  ok: boolean; descartadas?: string[]; quedan?: number;
+  detalle?: string; error?: string;
+};
+
 export type Datos = {
   vista: Vista | null;
   historial: Historial | null;
@@ -33,6 +38,8 @@ export type Datos = {
   leer: <T>(url: string) => Promise<T>;
   calcular: <T>(url: string, body?: unknown) => Promise<T>;
   escribir: <T>(url: string, body: unknown, relee: Recurso[]) => Promise<T>;
+  noInteresanOns: (id: number, tickers: string[], todas: boolean)
+    => Promise<ResultadoNoInteresanOns>;
 };
 
 export function useAgente(abierto: boolean): Datos {
@@ -94,6 +101,16 @@ export function useAgente(abierto: boolean): Datos {
     await releer(...relee);
     return r;
   }, [releer]);
+
+  // Descarta ONs por ticker (no el aviso `alta_on` entero): el backend recorta
+  // a lo que el detector ofreció y vuelve a correr el detector.
+  const noInteresanOns = useCallback(
+    (id: number, tickers: string[], todas: boolean) =>
+      escribir<ResultadoNoInteresanOns>(
+        "/api/agente/ons/no-interesan", { id, tickers, todas }, ["vista"],
+      ),
+    [escribir],
+  );
 
   // ⚠️⚠️ **EL AGENTE CARGA SIEMPRE, ESTÉ EL MODAL ABIERTO O NO.**
   //
@@ -158,6 +175,6 @@ export function useAgente(abierto: boolean): Datos {
   }, [abierto, releer]);
 
   return useMemo(() => ({
-    vista, historial, error, cargando, releer, leer, calcular, escribir,
-  }), [vista, historial, error, cargando, releer, leer, calcular, escribir]);
+    vista, historial, error, cargando, releer, leer, calcular, escribir, noInteresanOns,
+  }), [vista, historial, error, cargando, releer, leer, calcular, escribir, noInteresanOns]);
 }
