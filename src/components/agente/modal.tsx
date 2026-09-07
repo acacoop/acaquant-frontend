@@ -59,15 +59,22 @@ export default function AgenteModal() {
     try {
       const r = await d.escribir<{
         corridas?: unknown[]; fuera_de_ventana?: { nombre: string }[];
+        faltaron?: number;
       }>("/api/agente/correr", {}, ["vista"]);
       const n = r.corridas?.length ?? 0;
       const fuera = r.fuera_de_ventana?.length ?? 0;
+      // ⚠️ `faltaron` NO es `fuera_de_ventana`: a esas SÍ les tocaba y la pasada
+      // se cortó por tiempo (el proxy corta a los 30 s). Apretar de nuevo las
+      // corre — por eso se dice, en vez de dejar una pasada a medias que se ve
+      // igual que una completa.
+      const faltan = r.faltaron ?? 0;
       setPasada(
         `miró ${n}` +
+        (faltan ? ` · faltan ${faltan}, apretá de nuevo` : "") +
         (fuera ? ` · ${fuera} esperan a que abra la rueda` : "") +
         (!n && !fuera ? " — no había nada que mirar" : ""));
     } catch {
-      setPasada("no pude correr la pasada");
+      setPasada("no pude correr la pasada — probá de nuevo");
     } finally { setMirando(false); }
   }
 
