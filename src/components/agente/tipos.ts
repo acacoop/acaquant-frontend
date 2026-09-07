@@ -62,6 +62,8 @@ export type Habilidad = {
   activa: boolean;
   clase: "aviso" | "trabajo";
   arreglos: Record<string, string>;
+  // Regla → por qué ESE arreglo puede aplicarse solo, sin que nadie apriete.
+  automatico?: Record<string, string>;
   ultima_corrida_at: string | null;
   ultimo_resultado: "ok" | "sin_datos" | "error" | null;
   ultimo_error: string;
@@ -97,6 +99,9 @@ export type Vista = {
   // sólo crece deja el cartel rojo prendido para siempre y enseña a ignorarlo.
   reincidencias: { total: number; filas: Reincidencia[]; historicas?: number };
   habilidades: Habilidad[];
+  // Cuánto hizo el agente SOLO, sin que nadie apretara. `null` es «no pude
+  // contar» — distinto de 0, que es «contó y no hubo ninguna».
+  solo?: { hoy: number | null; fallidas_hoy: number | null; ultima_at: string | null };
   // LO QUE PASA SIEMPRE. `activos` = pasó en los últimos `dias_activo`;
   // `historicos` = fue crónico y se cortó. Los umbrales viajan en el payload a
   // propósito: si el front los hardcodeara, el día que cambien la leyenda
@@ -142,6 +147,9 @@ export type Accion = {
   ok: boolean;
   error: string;
   estado_hoy: string | null;
+  // Lo aplicó el agente solo, sin que nadie apretara. Viene resuelto del
+  // backend — acá no se deriva comparando `por` contra ningún string.
+  automatico?: boolean;
 };
 
 export type Historial = {

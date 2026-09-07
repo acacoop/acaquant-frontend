@@ -194,7 +194,10 @@ export default function AgenteModal() {
                 // El badge cuenta los ACTIVOS: lo que ya se cortó no es trabajo.
                 ["patrones", "PATRONES", v?.cronicos?.total ?? null,
                  "lo que pasa siempre → mejorar"],
-                ["historial", "HISTORIAL", null, "lo que el agente escribió"],
+                // El badge de HISTORIAL cuenta lo que el agente hizo SOLO
+                // hoy — es lo que hay que mirar cuando se le da autonomía.
+                ["historial", "HISTORIAL", v?.solo?.hoy || null,
+                 v?.solo?.hoy ? `${v.solo.hoy} hecha(s) sola(s) hoy` : "lo que el agente escribió"],
                 // HABILIDADES es una tab PROPIA, no un panel pegado al costado
                 // de las otras: lo que el agente sabe hacer y cuándo miró cada
                 // cosa no es un accesorio de la lista de hoy.

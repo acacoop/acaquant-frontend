@@ -137,6 +137,12 @@ export function PanelHabilidades({ habilidades, correr, explicar }: {
                 <span className="text-[9px] text-[var(--t-text-dim)]">
                   {h.clase === "trabajo" ? "tiene arreglo" : "solo avisa"}
                 </span>
+                {Object.keys(h.automatico ?? {}).length > 0 && (
+                  <span className="text-[9px] uppercase tracking-widest text-[var(--t-accent)]"
+                        title={Object.entries(h.automatico ?? {}).map(([r, m]) => `${r}: ${m}`).join("\n")}>
+                    aplica solo
+                  </span>
+                )}
                 {h.corridas_hoy > 0 && (
                   <span className="text-[9px] tabular-nums text-[var(--t-text-dim)]">
                     {h.corridas_hoy}× hoy

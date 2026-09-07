@@ -118,8 +118,20 @@ export function TabHistorial({ leer }: { leer: <T>(url: string) => Promise<T> })
               {a.donde && (
                 <span className="text-[8px] text-[var(--t-text-dim)]">→ {a.donde}</span>
               )}
-              {a.por && (
-                <span className="text-[8px] text-[var(--t-text-dim)]">{a.por}</span>
+              {/* La marca distingue lo que hizo una persona de lo que hizo el
+                  agente por su cuenta; el backend la resuelve (`automatico`) —
+                  acá no se compara `por` con ningún string. */}
+              {a.automatico ? (
+                <span
+                  className="text-[8px] font-bold uppercase tracking-widest px-1 border border-[var(--t-accent)] text-[var(--t-accent)]"
+                  title="lo aplicó el agente solo, sin que nadie apretara"
+                >
+                  solo
+                </span>
+              ) : (
+                a.por && (
+                  <span className="text-[8px] text-[var(--t-text-dim)]">{a.por}</span>
+                )
               )}
               {est && (
                 <span className="text-[9px] font-bold ml-auto whitespace-nowrap"
