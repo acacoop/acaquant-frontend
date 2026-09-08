@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 
 import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
 
@@ -182,6 +182,78 @@ function _statsDelPeriodo(boletos: BoletoDetalle[]) {
     }
   }
   return { compras, ventas, ajustes, neto: compras - ventas + ajustes, breakdownPasivo };
+}
+
+// ── Consolidado de boletos ────────────────────────────────────────────────
+// Los MISMOS boletos del stock actual, agrupados por TIPO de movimiento:
+// COMPRAS → VENTAS → un grupo por tipo de cobro (Interest payment,
+// Amortization, Dividend…) → AJUSTES. Es una re-presentación de las filas que
+// ya están en pantalla, no un cálculo nuevo: cada subtotal suma exactamente
+// los boletos que cuelgan de él.
+export interface GrupoBoletos {
+  key: string;
+  label: string;
+  orden: number;
+  boletos: BoletoDetalle[];
+  cantidad: number;           // compras/ventas: Σ|cant| · ajustes: Σ con signo
+  precioProm: number | null;  // ponderado por cantidad (null si no hay qty)
+  importe: number | null;     // null = el grupo mezcla monedas → no se suma
+  moneda: string;             // "MIX" si mezcla
+  importeArs: number;
+}
+
+// Σ importes en moneda ORIGINAL sólo si todos los boletos comparten moneda:
+// sumar USD con ARS daría un número sin unidad. IMP ARS siempre se puede
+// sumar — el backend lo pesifica boleto a boleto al MEP de su fecha.
+function _sumaMoneda(boletos: BoletoDetalle[]): { importe: number | null; moneda: string } {
+  const monedas = new Set(boletos.map((b) => b.moneda || ""));
+  const total = boletos.reduce((acc, b) => acc + (b.importe || 0), 0);
+  return monedas.size === 1
+    ? { importe: total, moneda: [...monedas][0] }
+    : { importe: null, moneda: "MIX" };
+}
+
+function _consolidarBoletos(boletos: BoletoDetalle[]): GrupoBoletos[] {
+  const acc = new Map<string, { label: string; orden: number; boletos: BoletoDetalle[] }>();
+  for (const b of boletos) {
+    let key: string, label: string, orden: number;
+    if (b.categoria === "compra" || b.categoria === "suscripcion_fci") {
+      key = "compras"; label = "COMPRAS"; orden = 0;
+    } else if (b.categoria === "venta" || b.categoria === "rescate_fci") {
+      key = "ventas"; label = "VENTAS"; orden = 1;
+    } else if (esAjuste(b.categoria)) {
+      key = "ajustes"; label = "AJUSTES"; orden = 3;
+    } else {
+      // Acreencias: un grupo por OP, que es la pregunta real («cuánto cobré
+      // de intereses» ≠ «cuánto me amortizaron»).
+      const op = (b.op || b.categoria || "otros").trim();
+      key = `cobro:${op}`; label = op.toUpperCase(); orden = 2;
+    }
+    const g = acc.get(key) ?? { label, orden, boletos: [] };
+    g.boletos.push(b);
+    acc.set(key, g);
+  }
+  return [...acc.entries()]
+    .map(([key, g]) => {
+      const esAj = key === "ajustes";
+      const cantAbs = g.boletos.reduce((a, b) => a + Math.abs(b.cantidad || 0), 0);
+      const pxPond  = g.boletos.reduce((a, b) => a + Math.abs(b.cantidad || 0) * (b.precio || 0), 0);
+      const { importe, moneda } = _sumaMoneda(g.boletos);
+      return {
+        key,
+        label: g.label,
+        orden: g.orden,
+        boletos: g.boletos,
+        // Los ajustes son deltas CON signo (un split 10:1 sobre 100 trae
+        // +900); compras y ventas viajan sin signo confiable → magnitud.
+        cantidad: esAj ? g.boletos.reduce((a, b) => a + (b.cantidad || 0), 0) : cantAbs,
+        precioProm: cantAbs > 0 && pxPond > 0 ? pxPond / cantAbs : null,
+        importe,
+        moneda,
+        importeArs: g.boletos.reduce((a, b) => a + (b.importe_ars || 0), 0),
+      };
+    })
+    .sort((a, b) => a.orden - b.orden || a.label.localeCompare(b.label));
 }
 
 // ── Component ─────────────────────────────────────────────────────────────
@@ -531,10 +603,31 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
 }
 
 // ── Panel detalle ────────────────────────────────────────────────────────
+// Cómo se leen los boletos del stock actual: DETALLE = cronológico, tal cual
+// vienen; CONSOLIDADO = agrupados por tipo con subtotal por grupo y neto abajo.
+type Modo = "detalle" | "consolidado";
+
 export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: boolean }) {
   const boletosPeriodo = _filtrarPeriodoActual(row.boletos);
   const stats = _statsDelPeriodo(boletosPeriodo);
   const tieneBreakdown = Object.keys(stats.breakdownPasivo).length > 0;
+  // El modo vive acá y NO se resetea al cambiar de ticker (el componente no
+  // se remonta): quien mira consolidado sigue mirando consolidado al saltar
+  // de posición. En CONSOLIDADO los grupos arrancan CERRADOS — la respuesta
+  // («cuánto compré, vendí y cobré») queda en 3 o 4 líneas, y el detalle de
+  // cada grupo se abre clickeándolo.
+  const [modo, setModo] = useState<Modo>("detalle");
+  const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
+  const grupos    = _consolidarBoletos(boletosPeriodo);
+  const totalCons = _sumaMoneda(boletosPeriodo);
+  const totalArs  = boletosPeriodo.reduce((a, b) => a + (b.importe_ars || 0), 0);
+  const toggleGrupo = (k: string) =>
+    setExpandidos((prev) => {
+      const next = new Set(prev);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
   // Vista moneda-aware. En USD: costo a MEP histórico, valor a MEP de hoy.
   // El realizado del día (intraday) entra al total/GAN% acá, igual que en ARS.
   const costo   = costoVista(row, esUSD);
@@ -574,6 +667,39 @@ export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: b
             { header: "Importe", key: "importe", format: "number", width: 16 },
             { header: "Moneda", key: "moneda", format: "text", width: 8 },
             { header: "MEP", key: "mep", format: "number", width: 10 },
+            { header: "Importe ARS", key: "importe_ars", format: "number", width: 16 },
+          ],
+        },
+        {
+          name: "Consolidado",
+          title: `Consolidado del stock actual · ${row.display_name || row.ticker} · ${row.unidad}`,
+          rows: [
+            ...grupos.map((g) => ({
+              grupo: g.label,
+              movimientos: g.boletos.length,
+              cantidad: g.cantidad,
+              precio_prom: g.precioProm,
+              importe: g.importe,
+              moneda: g.moneda,
+              importe_ars: g.importeArs,
+            })),
+            {
+              grupo: "NETO",
+              movimientos: boletosPeriodo.length,
+              cantidad: stats.neto,
+              precio_prom: null,
+              importe: totalCons.importe,
+              moneda: totalCons.moneda,
+              importe_ars: totalArs,
+            },
+          ],
+          columns: [
+            { header: "Grupo", key: "grupo", format: "text", width: 22 },
+            { header: "Movs", key: "movimientos", format: "integer", width: 8 },
+            { header: "Cantidad", key: "cantidad", format: "number", width: 14 },
+            { header: "Precio prom.", key: "precio_prom", format: "number", width: 14 },
+            { header: "Importe", key: "importe", format: "number", width: 16 },
+            { header: "Moneda", key: "moneda", format: "text", width: 8 },
             { header: "Importe ARS", key: "importe_ars", format: "number", width: 16 },
           ],
         },
@@ -654,10 +780,10 @@ export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: b
         </div>
       )}
 
-      {/* Tabla de boletos del período activo */}
+      {/* Boletos del período activo — dos lecturas del MISMO listado */}
       {boletosPeriodo.length > 0 && (
         <div className="mt-3 border-t border-[var(--t-border)] pt-2">
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center justify-between gap-2 mb-1">
             <div className="text-[var(--t-text-muted)] tracking-widest">
               BOLETOS DEL STOCK ACTUAL ({boletosPeriodo.length}
               {row.boletos.length > boletosPeriodo.length && (
@@ -665,7 +791,25 @@ export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: b
               )}
               ):
             </div>
-            <DownloadButton onClick={exportarBoletos} title="Descargar boletos (Excel)" />
+            <div className="flex items-center gap-1 shrink-0">
+              {(["detalle", "consolidado"] as Modo[]).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setModo(m)}
+                  title={m === "detalle"
+                    ? "Listado cronológico, un boleto abajo del otro"
+                    : "Agrupado: compras, ventas y cada tipo de cobro, con subtotales y neto"}
+                  className={`px-1.5 py-0.5 text-[9px] tracking-widest border transition-colors ${
+                    modo === m
+                      ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+                      : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+                  }`}
+                >
+                  {m.toUpperCase()}
+                </button>
+              ))}
+              <DownloadButton onClick={exportarBoletos} title="Descargar boletos (Excel: detalle + consolidado)" />
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-[10px] font-mono">
@@ -682,50 +826,113 @@ export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: b
                 </tr>
               </thead>
               <tbody>
-                {boletosPeriodo.map((b, i) => {
-                  const colorImporte =
-                    b.importe > 0 ? "text-[var(--t-pos)]"
-                    : b.importe < 0 ? "text-[var(--t-neg)]"
-                    : "text-[var(--t-text-dim)]";
-                  // Pseudo-boletos de ajuste (splits/canjes manuales) en ámbar:
-                  // no son boletos de Aunesa, son correcciones cargadas a mano.
-                  const ajuste = esAjuste(b.categoria);
-                  return (
-                    <tr
-                      key={i}
-                      className={`border-t border-[var(--t-border)] hover:bg-[var(--t-surface)] ${
-                        ajuste ? "bg-[var(--t-accent)]/10" : ""
-                      }`}
-                    >
-                      <td className="px-2 py-0.5 text-[var(--t-text)]">{b.fecha}</td>
-                      <td className={`px-2 py-0.5 ${ajuste ? "text-[var(--t-accent)]" : "text-[var(--t-text-dim)]"}`}>
-                        {b.op || b.categoria}
-                      </td>
-                      <td className="px-2 py-0.5 text-right text-[var(--t-text)]">
-                        {b.cantidad ? b.cantidad.toLocaleString("es-AR") : "—"}
-                      </td>
-                      <td className="px-2 py-0.5 text-right text-[var(--t-text-dim)]">
-                        {b.precio ? b.precio.toLocaleString("es-AR", { maximumFractionDigits: 4 }) : "—"}
-                      </td>
-                      <td className={`px-2 py-0.5 text-right ${colorImporte}`}>
-                        {b.importe ? b.importe.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}
-                      </td>
-                      <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{b.moneda}</td>
-                      <td className="px-2 py-0.5 text-right text-[var(--t-text-muted)]">
-                        {b.mep ? b.mep.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}
-                      </td>
-                      <td className={`px-2 py-0.5 text-right ${colorImporte}`}>
-                        {b.importe_ars ? fmtCompact(b.importe_ars) : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {modo === "detalle"
+                  ? boletosPeriodo.map((b, i) => <FilaBoleto key={i} b={b} />)
+                  : grupos.map((g) => {
+                      const abierto = expandidos.has(g.key);
+                      return (
+                        <Fragment key={g.key}>
+                          <tr
+                            onClick={() => toggleGrupo(g.key)}
+                            className="border-t border-[var(--t-border-2)] bg-[var(--t-surface)] cursor-pointer hover:bg-[var(--t-accent)]/5"
+                          >
+                            <td colSpan={2} className="px-2 py-1 text-[var(--t-text)] tracking-widest">
+                              <span className="text-[var(--t-text-muted)] mr-1">{abierto ? "▾" : "▸"}</span>
+                              {g.label}
+                              <span className="text-[var(--t-text-muted)]"> ({g.boletos.length})</span>
+                            </td>
+                            <td className="px-2 py-1 text-right text-[var(--t-text)] font-semibold">
+                              {g.cantidad ? g.cantidad.toLocaleString("es-AR") : "—"}
+                            </td>
+                            <td className="px-2 py-1 text-right text-[var(--t-text-muted)]">
+                              {g.precioProm != null ? g.precioProm.toLocaleString("es-AR", { maximumFractionDigits: 4 }) : "—"}
+                            </td>
+                            <td className={`px-2 py-1 text-right font-semibold ${pnlClass(g.importe)}`}>
+                              {g.importe != null ? g.importe.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}
+                            </td>
+                            <td className="px-2 py-1 text-[var(--t-text-dim)]">{g.moneda}</td>
+                            <td className="px-2 py-1" />
+                            <td className={`px-2 py-1 text-right font-semibold ${pnlClass(g.importeArs)}`}>
+                              {g.importeArs ? fmtCompact(g.importeArs) : "—"}
+                            </td>
+                          </tr>
+                          {abierto && g.boletos.map((b, i) => <FilaBoleto key={`${g.key}-${i}`} b={b} sangria />)}
+                        </Fragment>
+                      );
+                    })}
+                {modo === "consolidado" && (
+                  <tr className="border-t-2 border-[var(--t-accent)]/40 bg-[var(--t-accent)]/5">
+                    <td colSpan={2} className="px-2 py-1 text-[var(--t-text)] tracking-widest font-semibold">
+                      NETO
+                    </td>
+                    <td className="px-2 py-1 text-right text-[var(--t-text)] font-semibold">
+                      {stats.neto.toLocaleString("es-AR")}
+                    </td>
+                    <td className="px-2 py-1" />
+                    <td className={`px-2 py-1 text-right font-semibold ${pnlClass(totalCons.importe)}`}>
+                      {totalCons.importe != null ? totalCons.importe.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}
+                    </td>
+                    <td className="px-2 py-1 text-[var(--t-text-dim)]">{totalCons.moneda}</td>
+                    <td className="px-2 py-1" />
+                    <td className={`px-2 py-1 text-right font-semibold ${pnlClass(totalArs)}`}>
+                      {totalArs ? fmtCompact(totalArs) : "—"}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
+          {modo === "consolidado" && (
+            <div className="mt-1.5 text-[9px] text-[var(--t-text-muted)] leading-relaxed">
+              NETO de nominales = compras − ventas{stats.ajustes !== 0 ? " ± ajustes" : ""} (los cobros no mueven cantidad);
+              NETO de importes = plata neta del período (compras con signo negativo, ventas y cobros positivos).
+              El <span className="text-[var(--t-text-dim)]">COSTO</span> de los KPIs no es esta resta: cada venta libera
+              costo al PROMEDIO PONDERADO del stock en ese momento, no al precio de la compra que salió.
+            </div>
+          )}
         </div>
       )}
     </div>
+  );
+}
+
+// Una fila de boleto — la misma en DETALLE y adentro de cada grupo del
+// CONSOLIDADO (`sangria` la corre para que se lea colgando de su grupo).
+function FilaBoleto({ b, sangria = false }: { b: BoletoDetalle; sangria?: boolean }) {
+  const colorImporte =
+    b.importe > 0 ? "text-[var(--t-pos)]"
+    : b.importe < 0 ? "text-[var(--t-neg)]"
+    : "text-[var(--t-text-dim)]";
+  // Pseudo-boletos de ajuste (splits/canjes manuales) en ámbar: no son
+  // boletos de Aunesa, son correcciones cargadas a mano.
+  const ajuste = esAjuste(b.categoria);
+  return (
+    <tr
+      className={`border-t border-[var(--t-border)] hover:bg-[var(--t-surface)] ${
+        ajuste ? "bg-[var(--t-accent)]/10" : ""
+      }`}
+    >
+      <td className={`py-0.5 text-[var(--t-text)] ${sangria ? "pl-4 pr-2" : "px-2"}`}>{b.fecha}</td>
+      <td className={`px-2 py-0.5 ${ajuste ? "text-[var(--t-accent)]" : "text-[var(--t-text-dim)]"}`}>
+        {b.op || b.categoria}
+      </td>
+      <td className="px-2 py-0.5 text-right text-[var(--t-text)]">
+        {b.cantidad ? b.cantidad.toLocaleString("es-AR") : "—"}
+      </td>
+      <td className="px-2 py-0.5 text-right text-[var(--t-text-dim)]">
+        {b.precio ? b.precio.toLocaleString("es-AR", { maximumFractionDigits: 4 }) : "—"}
+      </td>
+      <td className={`px-2 py-0.5 text-right ${colorImporte}`}>
+        {b.importe ? b.importe.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}
+      </td>
+      <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{b.moneda}</td>
+      <td className="px-2 py-0.5 text-right text-[var(--t-text-muted)]">
+        {b.mep ? b.mep.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}
+      </td>
+      <td className={`px-2 py-0.5 text-right ${colorImporte}`}>
+        {b.importe_ars ? fmtCompact(b.importe_ars) : "—"}
+      </td>
+    </tr>
   );
 }
 
