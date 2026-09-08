@@ -29,6 +29,11 @@ export type ResultadoNoInteresanOns = {
   detalle?: string; error?: string;
 };
 
+export type ResultadoNoInteresanCedears = {
+  ok: boolean; descartados?: string[]; quedan?: number;
+  detalle?: string; error?: string;
+};
+
 export type Datos = {
   vista: Vista | null;
   historial: Historial | null;
@@ -40,6 +45,8 @@ export type Datos = {
   escribir: <T>(url: string, body: unknown, relee: Recurso[]) => Promise<T>;
   noInteresanOns: (id: number, tickers: string[], todas: boolean)
     => Promise<ResultadoNoInteresanOns>;
+  noInteresanCedears: (id: number, tickers: string[], todas: boolean)
+    => Promise<ResultadoNoInteresanCedears>;
 };
 
 export function useAgente(abierto: boolean): Datos {
@@ -112,6 +119,17 @@ export function useAgente(abierto: boolean): Datos {
     [escribir],
   );
 
+  // Descarta CEDEARs por ticker (no el aviso `alta_cedear` entero): mismo
+  // patrón que `noInteresanOns` — el backend recorta a lo que el detector
+  // ofreció y vuelve a correr el detector.
+  const noInteresanCedears = useCallback(
+    (id: number, tickers: string[], todas: boolean) =>
+      escribir<ResultadoNoInteresanCedears>(
+        "/api/agente/cedears/no-interesan", { id, tickers, todas }, ["vista"],
+      ),
+    [escribir],
+  );
+
   // ⚠️⚠️ **EL AGENTE CARGA SIEMPRE, ESTÉ EL MODAL ABIERTO O NO.**
   //
   // La primera versión sólo cargaba al abrir (`if (!abierto) return`), y con eso
@@ -175,6 +193,8 @@ export function useAgente(abierto: boolean): Datos {
   }, [abierto, releer]);
 
   return useMemo(() => ({
-    vista, historial, error, cargando, releer, leer, calcular, escribir, noInteresanOns,
-  }), [vista, historial, error, cargando, releer, leer, calcular, escribir, noInteresanOns]);
+    vista, historial, error, cargando, releer, leer, calcular, escribir,
+    noInteresanOns, noInteresanCedears,
+  }), [vista, historial, error, cargando, releer, leer, calcular, escribir,
+       noInteresanOns, noInteresanCedears]);
 }

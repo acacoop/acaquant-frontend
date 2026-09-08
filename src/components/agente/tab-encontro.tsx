@@ -60,7 +60,7 @@ const PASO: Record<string, string> = {
 };
 
 export function TabEncontro({
-  filas, porHabilidad, preview, aplicar, noInteresanOns, ignorar,
+  filas, porHabilidad, preview, aplicar, noInteresanOns, noInteresanCedears, ignorar,
 }: {
   filas: Hallazgo[];
   porHabilidad: Record<string, number>;
@@ -70,6 +70,9 @@ export function TabEncontro({
                  pasos?: Paso[] }>;
   noInteresanOns: (id: number, tickers: string[], todas: boolean)
     => Promise<{ ok: boolean; descartadas?: string[]; quedan?: number;
+                 detalle?: string; error?: string }>;
+  noInteresanCedears: (id: number, tickers: string[], todas: boolean)
+    => Promise<{ ok: boolean; descartados?: string[]; quedan?: number;
                  detalle?: string; error?: string }>;
   ignorar: (id: number) => Promise<void>;
 }) {
@@ -123,6 +126,17 @@ export function TabEncontro({
     setOcupado(id);
     try {
       const r = await noInteresanOns(id, tickers, todas);
+      setResultado((x) => ({ ...x, [id]: r.detalle || r.error || "" }));
+      const p = await preview(id);
+      setPreviews((prev) => ({ ...prev, [id]: p }));
+    } finally { setOcupado(null); }
+  }
+
+  // Mismo patrón que `descartar`, para CEDEARs.
+  async function descartarCedears(id: number, tickers: string[], todas: boolean) {
+    setOcupado(id);
+    try {
+      const r = await noInteresanCedears(id, tickers, todas);
       setResultado((x) => ({ ...x, [id]: r.detalle || r.error || "" }));
       const p = await preview(id);
       setPreviews((prev) => ({ ...prev, [id]: p }));
@@ -358,6 +372,7 @@ export function TabEncontro({
                           motor={p.motor}
                           ocupado={ocupado === f.id}
                           onAplicar={(datos) => hacer(f.id, datos)}
+                          onNoInteresan={(t, todas) => descartarCedears(f.id, t, todas)}
                         />
                       )}
 

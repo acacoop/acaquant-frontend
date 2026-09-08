@@ -252,6 +252,7 @@ export default function AgenteModal() {
                     await d.escribir("/api/agente/ignorar", { id }, ["vista"]);
                   }}
                   noInteresanOns={(id, tickers, todas) => d.noInteresanOns(id, tickers, todas)}
+                  noInteresanCedears={(id, tickers, todas) => d.noInteresanCedears(id, tickers, todas)}
                 />
               )}
               {v && tab === "patrones" && <TabCronicos v={v} />}
