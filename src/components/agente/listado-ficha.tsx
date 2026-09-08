@@ -46,7 +46,7 @@ export type FilaFicha = {
   // poder distinguirlos SIN abrir nada. Vacío = nadie supo, y la fila queda
   // como estaba: en blanco y tipeable.
   propuesto?: string;
-  fuente?: "regla" | "nombre" | "finnhub" | "modelo" | "primary" | "";
+  fuente?: "regla" | "nombre" | "finnhub" | "modelo" | "primary" | "curva" | "";
   // Por qué NO hay propuesta (o por qué la que hay conviene revisar), en texto
   // ya armado por el backend — p. ej. «la regla dice "PUT OPCIONES", pero ese
   // valor todavía no existe en clase_activo: cargalo una vez a mano». El front
@@ -58,8 +58,8 @@ export type FilaFicha = {
 // elige el dibujo — si el mapa viviera allá, la pantalla no podría cambiar una
 // etiqueta sin un deploy del backend, y si la clave viviera acá serían dos
 // listas para desincronizar (REGLA #9).
-// `regla` y `primary` son determinísticas: son las dos fuentes que el agente
-// puede escribir solo, sin que una persona confirme (AGENT.md §0.ei).
+// `regla`, `primary` y `curva` son determinísticas: son las fuentes que el
+// agente puede escribir solo, sin que una persona confirme (AGENT.md §0.ei).
 // `modelo` nunca — siempre necesita que alguien la confirme acá.
 const FUENTE: Record<string, { txt: string; ayuda: string }> = {
   regla: { txt: "regla", ayuda: "una regla fija del sistema, la misma que aplica el cron: FINANCIAMIENTO y DERIVADOS van a OTROS" },
@@ -67,6 +67,7 @@ const FUENTE: Record<string, { txt: string; ayuda: string }> = {
   finnhub: { txt: "finnhub", ayuda: "la ficha del subyacente, según Finnhub" },
   modelo: { txt: "IA", ayuda: "lo eligió el modelo, de los emisores que ya existen" },
   primary: { txt: "primary", ayuda: "el fondo está en la lista de instrumentos de Primary con su tipo (Mercado de Dinero / Renta Fija / Renta Variable) y su moneda: la clase sale de ahí" },
+  curva: { txt: "curva", ayuda: "el bono está en el master de renta fija y su ajuste dice la clase: CER, FIJA, TAMAR, o DUAL si tiene dos" },
 };
 
 export function ListadoFicha({ campo, filas, opciones, ocupado, onAplicar }: {
