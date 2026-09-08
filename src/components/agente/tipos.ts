@@ -183,6 +183,34 @@ export const COLOR: Record<Severidad, string> = {
   baja: "var(--t-text-muted)",
 };
 
+// ── SALUD DE UNA HABILIDAD ─────────────────────────────────────────────────
+//
+// CUATRO estados, no dos: la distinción que el agente viejo no hacía. Vive
+// acá y no en el panel porque **la dibujan dos pantallas** —el listado y el
+// mapa— y el criterio tiene que ser UNO. Con una copia en cada archivo, el
+// día que cambie un color el mapa y la lista pintarían la misma habilidad de
+// distinto y ninguno de los dos fallaría (REGLA #9).
+export const ESTADO_HABILIDAD: Record<string, { color: string; txt: string }> = {
+  ok: { color: "var(--t-pos)", txt: "miró y guardó lo que vio" },
+  sin_datos: { color: "var(--t-accent)", txt: "NO PUDO MIRAR — no cerró nada" },
+  error: { color: "var(--t-neg)", txt: "reventó — no cerró nada" },
+};
+export const NUNCA_CORRIO = {
+  color: "var(--t-text-dim)", txt: "todavía no le tocó",
+};
+
+export function saludDe(h: Habilidad): { color: string; txt: string } {
+  if (!h.ultima_corrida_at) return NUNCA_CORRIO;
+  return ESTADO_HABILIDAD[h.ultimo_resultado ?? ""] ?? NUNCA_CORRIO;
+}
+
+// El ritmo en la unidad que se lee. `cada_segundos` sale del catálogo.
+export function ritmo(segundos: number): string {
+  if (segundos < 3600) return `${Math.round(segundos / 60)}m`;
+  const h = segundos / 3600;
+  return `${Number.isInteger(h) ? h : h.toFixed(1)}h`;
+}
+
 // «Explicámelo» (AGENT.md §0.dh): lo que contesta POST /api/agente/explicar.
 export type Explicacion = {
   ok: boolean;

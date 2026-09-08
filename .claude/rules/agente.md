@@ -17,7 +17,7 @@ a **TRES pantallas de trabajo más tres de lectura**:
 | **ENCONTRÓ** | lo abierto que **tiene arreglo** | ver qué haría · aplicar · no me interesa |
 | **PATRONES** | **lo que pasa SIEMPRE**: el ranking de crónicos, activos e históricos aparte | ninguno |
 | **HISTORIAL** | el libro: qué escribió el agente, de qué valor a qué valor | ninguno |
-| **HABILIDADES** | qué sabe hacer y **cuándo miró cada cosa** | correr una · explicámelo |
+| **HABILIDADES** | qué sabe hacer y **cuándo miró cada cosa**, en tres lecturas: LISTA · MAPA·DOMINIO · MAPA·RITMO | correr una · explicámelo |
 | **LAB** | el INVESTIGADOR: pedir por qué pasó algo y seguir los pasos | investigar |
 
 ⚠️ **HABILIDADES es una TAB PROPIA, no un panel al costado.** Lo dice el
@@ -26,6 +26,19 @@ cuándo miró cada cosa no es un accesorio de la lista de hoy. **Cuántas son lo
 dice `agente/catalogo.py` del backend, no este archivo** — acá había un número
 escrito a mano y quedó viejo sin que nada fallara (del lado del backend eso lo
 congela `test_ningun_conteo_de_habilidades_quedo_viejo`).
+
+⚠️ **El MAPA no es un grafo, y no puede serlo** (backend `AGENT.md` §0.ev). El
+dibujo que hace Google ADK de un agente tiene flechas porque ahí hay FLUJO —
+uno le pasa la posta al siguiente. Las habilidades **no se hablan entre sí**:
+dibujarles flechas sería copiar la forma sin tener la estructura. Son dos
+lecturas de la misma tabla, con la misma llamada y sin un solo campo nuevo:
+agrupadas por dominio, o por ritmo. Contestan lo que la lista no —**qué NO se
+está mirando**— y para eso está la grilla dominio × ventana, donde una celda
+vacía es una combinación que hoy no cubre nadie. **El color significa UNA cosa:
+salud**; el dominio va por posición o etiqueta y la clase va en la FORMA
+(relleno = tiene arreglo, contorno = solo avisa). Los dominios y las ventanas
+salen de los datos: con la lista hardcodeada, una habilidad declarada podría no
+aparecer y el mapa mentiría en silencio.
 
 ⚠️ **«Cuándo miró» es el único dato del agente que NO se puede derivar.** Una
 corrida que no encontró nada no deja rastro en los hallazgos, así que sin esa
