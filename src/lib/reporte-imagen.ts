@@ -147,11 +147,16 @@ const AREA_MAX = 268435456; // 16384²
 /** La escala más alta que este lienzo aguanta, hasta `ESCALA_OBJETIVO`.
  *
  *  Importa cuando el reporte es MUY alto —las tres tabs apiladas del mail
- *  gerencial— porque ahí el alto por la escala es lo primero que se pasa. */
+ *  gerencial— porque ahí el alto por la escala es lo primero que se pasa.
+ *
+ *  ⚠️ **Puede devolver MENOS de 1, y eso NO se debe redondear para arriba.**
+ *  Un reporte que no entra ni dibujado 1:1 no se arregla bajando la escala:
+ *  forzar 1 devolvería un lienzo pasado de largo, o sea el PNG en blanco que
+ *  esta función existe para evitar. Quien llama tiene que tratar el `< 1` como
+ *  «no se puede dibujar». */
 function escalaSegura(w: number, h: number): number {
-  const e = Math.min(ESCALA_OBJETIVO, LADO_MAX / w, LADO_MAX / h,
-                     Math.sqrt(AREA_MAX / (w * h)));
-  return Math.max(1, e);
+  return Math.min(ESCALA_OBJETIVO, LADO_MAX / w, LADO_MAX / h,
+                  Math.sqrt(AREA_MAX / (w * h)));
 }
 
 // Paleta FIJA y clara. No sale de las variables del tema a propósito: la imagen
@@ -285,8 +290,14 @@ export async function reporteComoImagen(o: Opciones): Promise<Blob | null> {
   const W = Math.max(560, anchoCuerpo + PAD * 2);
   const H = BARRA_H + PAD + altoSeccion.reduce((a, h) => a + h, 0) + PAD;
 
-  const canvas = document.createElement("canvas");
   const escala = escalaSegura(W, H);
+  // Ni siquiera dibujado 1:1 entra en el lienzo del navegador. Devolver nada
+  // hace que la pantalla diga «no se pudo generar la imagen», que es la verdad;
+  // seguir adelante mandaría un PNG EN BLANCO al mail y nadie se enteraría
+  // hasta que el que lo abre viera un rectángulo vacío.
+  if (escala < 1) return null;
+
+  const canvas = document.createElement("canvas");
   canvas.width = Math.floor(W * escala);
   canvas.height = Math.floor(H * escala);
   const ctx = canvas.getContext("2d");
