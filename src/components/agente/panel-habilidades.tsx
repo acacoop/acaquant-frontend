@@ -22,15 +22,17 @@
 // no significa nada.
 import { useState } from "react";
 
-import { fechaHora, type Explicacion, type Habilidad } from "@/components/agente/tipos";
+import { MapaHabilidades, type ModoMapa } from "@/components/agente/mapa-habilidades";
+import { fechaHora, saludDe, type Explicacion, type Habilidad } from "@/components/agente/tipos";
 
-// CUATRO estados, no dos. La distinción que el agente viejo no hacía.
-const ESTADO: Record<string, { color: string; txt: string }> = {
-  ok: { color: "var(--t-pos)", txt: "miró y guardó lo que vio" },
-  sin_datos: { color: "var(--t-accent)", txt: "NO PUDO MIRAR — no cerró nada" },
-  error: { color: "var(--t-neg)", txt: "reventó — no cerró nada" },
-};
-const NUNCA = { color: "var(--t-text-dim)", txt: "todavía no le tocó" };
+// Las tres LECTURAS de la misma tabla. La lista contesta «¿qué pasó con cada
+// una?»; el mapa contesta «¿qué cubre el agente y qué no?». Es un solo control
+// de tres posiciones y no dos toggles anidados: son tres vistas hermanas.
+const MODOS: { id: "lista" | ModoMapa; txt: string; ayuda: string }[] = [
+  { id: "lista", txt: "lista", ayuda: "cada habilidad con su última corrida" },
+  { id: "dominio", txt: "mapa · dominio", ayuda: "qué cubre, agrupado por dominio" },
+  { id: "ritmo", txt: "mapa · ritmo", ayuda: "cada cuánto mira cada cosa" },
+];
 
 const DE_QUIEN: Record<string, string> = {
   nuestro: "es nuestro código", dato: "es un dato roto en origen",
@@ -44,6 +46,7 @@ export function PanelHabilidades({ habilidades, correr, explicar }: {
   explicar: (nombre: string) => Promise<Explicacion>;
 }) {
   const [corriendo, setCorriendo] = useState("");
+  const [modo, setModo] = useState<"lista" | ModoMapa>("lista");
   const orden = [...habilidades].sort((a, b) => {
     // Lo que NO pudo mirar va arriba: es una advertencia sobre el AGENTE, no
     // sobre el sistema, y es la que nadie sale a buscar.
@@ -78,7 +81,7 @@ export function PanelHabilidades({ habilidades, correr, explicar }: {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline gap-2 flex-wrap">
-        <p className="text-[10px] text-[var(--t-text-dim)]">
+        <p className="text-[10px] text-[var(--t-text-dim)] max-w-[70ch]">
           Lo que el agente sabe hacer, y <b>la última vez que miró cada cosa</b>.
           «Corrió y no encontró nada» y «no corrió» <b>no son lo mismo</b>: sin
           esta columna se ven idénticos.
@@ -90,11 +93,37 @@ export function PanelHabilidades({ habilidades, correr, explicar }: {
         )}
       </div>
 
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex border border-[var(--t-border)]" role="group"
+             aria-label="Cómo mirar las habilidades">
+          {MODOS.map((m) => (
+            <button
+              key={m.id}
+              onClick={() => setModo(m.id)}
+              aria-pressed={modo === m.id}
+              title={m.ayuda}
+              className={`text-[9px] uppercase tracking-widest px-2 py-0.5 border-l first:border-l-0 border-[var(--t-border)] ${
+                modo === m.id
+                  ? "text-[var(--t-accent)] bg-[var(--t-surface)]"
+                  : "text-[var(--t-text-dim)] hover:text-[var(--t-text-muted)]"}`}
+            >
+              {m.txt}
+            </button>
+          ))}
+        </div>
+        <span className="text-[9px] tabular-nums text-[var(--t-text-dim)]">
+          {habilidades.length} declaradas
+        </span>
+      </div>
+
+      {modo !== "lista" && (
+        <MapaHabilidades habilidades={habilidades} modo={modo} />
+      )}
+
+      {modo === "lista" && (
       <div className="flex flex-col divide-y divide-[var(--t-border)] border border-[var(--t-border)]">
         {orden.map((h) => {
-          const e = h.ultima_corrida_at
-            ? (ESTADO[h.ultimo_resultado ?? ""] ?? NUNCA)
-            : NUNCA;
+          const e = saludDe(h);
           return (
             <div key={h.nombre} className="px-2 py-1.5">
               <div className="flex items-baseline gap-2 flex-wrap">
@@ -210,6 +239,7 @@ export function PanelHabilidades({ habilidades, correr, explicar }: {
           );
         })}
       </div>
+      )}
     </div>
   );
 }
