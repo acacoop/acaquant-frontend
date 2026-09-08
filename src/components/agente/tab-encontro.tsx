@@ -17,6 +17,7 @@ import { useState } from "react";
 import { ListadoCedears, type FilaCedear } from "@/components/agente/listado-cedears";
 import { ListadoOns, type FilaON } from "@/components/agente/listado-ons";
 import { ListadoFicha, type FilaFicha } from "@/components/agente/listado-ficha";
+import { ListadoContrapartes, type FilaContraparte } from "@/components/agente/listado-contrapartes";
 import { COLOR, fechaHora, type Hallazgo } from "@/components/agente/tipos";
 import { Recurrencia, Confirmado, Evidencia, Detalle } from "./evidencia";
 
@@ -34,16 +35,23 @@ type Preview = {
   ejes?: Record<string, string>;
   // Solo los arreglos que PIDEN DATOS: el listado que se despliega. Cuál se
   // dibuja lo dice el backend (`listado`), no una lista de ids acá.
-  //   `completar_ficha` → `filas` para completar a mano + `opciones`
-  //   `alta_cedear`     → `cedears` para tildar (AGENT.md §0.dl)
-  //   `alta_on`         → `ons` para tildar (AGENT.md §0.dv)
+  //   `completar_ficha`  → `filas` para completar a mano + `opciones`
+  //   `alta_cedear`      → `cedears` para tildar (AGENT.md §0.dl)
+  //   `alta_on`          → `ons` para tildar (AGENT.md §0.dv)
+  //   `alta_contraparte` → `contrapartes` para tildar y completar
   listado?: string;
   campo?: string; filas?: FilaFicha[]; opciones?: string[];
   cedears?: FilaCedear[]; motor?: { estado?: string; detalle?: string } | null;
   ons?: FilaON[];
+  contrapartes?: FilaContraparte[]; segmentos?: string[]; nombres?: string[];
 };
 
-type Datos = { unidad: string; valor: string }[];
+// El shape ahora es DOS cosas —`completar_ficha` manda {unidad, valor} y
+// `alta_contraparte` manda {cuenta, contraparte, segmento}— y van con campos
+// opcionales, no unión: `datos` solo viaja de punta a punta hacia el backend
+// (nunca se lee campo por campo acá), así que discriminar no suma nada.
+type Datos = { unidad?: string; valor?: string;
+               cuenta?: string; contraparte?: string; segmento?: string }[];
 
 const n2 = (v: number | null | undefined, d = 2) =>
   v == null ? "—" : v.toLocaleString("es-AR",
@@ -256,7 +264,7 @@ export function TabEncontro({
                     escritura sale del listado, que no puede guardar nada hasta
                     que se cargue un valor. Un botón «aplicar» al lado de un
                     listado vacío promete escribir sin tener qué. */}
-                {!p?.filas && !p?.cedears && !p?.ons && (
+                {!p?.filas && !p?.cedears && !p?.ons && !p?.contrapartes && (
                   <button
                     disabled={ocupado === f.id || f.estado === "en_curso"}
                     onClick={() => void hacer(f.id)}
@@ -388,8 +396,23 @@ export function TabEncontro({
                         />
                       )}
 
+                      {/* EL LISTADO HÍBRIDO de `alta_contraparte`: se tilda
+                          como ONs/CEDEARs (el sistema no decide CUÁLES
+                          cuentas son contraparte) y se completa a mano como
+                          ficha (el nombre y el segmento no los sabe el
+                          sistema). */}
+                      {p.contrapartes && (
+                        <ListadoContrapartes
+                          filas={p.contrapartes}
+                          segmentos={p.segmentos ?? []}
+                          nombres={p.nombres ?? []}
+                          ocupado={ocupado === f.id}
+                          onAplicar={(datos) => hacer(f.id, datos)}
+                        />
+                      )}
+
                       {p.puede_aplicar === false && !p.filas && !p.cedears
-                        && !p.ons && (
+                        && !p.ons && !p.contrapartes && (
                         <div className="text-[var(--t-neg)]">
                           ✘ {p.veredicto || "la cadena FRENA: aplicar no va a escribir"}
                         </div>
