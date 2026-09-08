@@ -25,7 +25,7 @@ import { useCallback, useEffect, useState } from "react";
 import { fetchJson, getJSON } from "@/lib/fetch-json";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { fmt0, fmt2, Panel } from "./ui/informe";
-import { celdas, copiarTab } from "./ap5-captura";
+import { celdas, copiarTab, copiarTabs } from "./ap5-captura";
 import type { TablaImagen } from "@/lib/reporte-imagen";
 
 // ── Lo que devuelve el backend (espejo de api/services/ap5_posiciones.py) ────
@@ -236,6 +236,13 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "aca", label: "POSICIONES DE ACA" },
 ];
 
+/** Las tabs que van al mail gerencial de todos los días, EN ESTE ORDEN.
+ *
+ *  ⚠️ Es una lista propia, no `TABS.slice(0, 3)`: con el slice, agregar o
+ *  reordenar una tab de la pantalla cambiaría el mail sin que nadie lo decida —
+ *  y nadie se enteraría hasta que el mail saliera con otro contenido. */
+const TABS_MAIL: Tab[] = ["agro", "dolar", "consolidados"];
+
 // El cuadro POR INSTRUMENTO del mail: un bloque por (tab, moneda), con su TOTAL
 // ya sumado por el backend. Acá NO se suma nada — este cuadro se imprime.
 type ConsFila = {
@@ -408,14 +415,116 @@ export function Ap5PosicionesView() {
   // Los bloques de ESTA tab, ya ordenados por el backend (izq · der · el resto).
   const bloques = v.rankings.filter((r) => r.tab === tab);
 
-  // ── La tab actual como IMAGEN, para pegar en el mail ──────────────────────
+  // ── Las tabs como IMAGEN, para pegar en el mail ───────────────────────────
   // Se arma desde los MISMOS datos que dibuja la pantalla —no desde una segunda
   // consulta— para que la imagen no pueda decir otra cosa que lo que se ve.
-  async function copiar() {
-    if (!v) return;
+  //
+  // Está partido en dos a propósito: `tablasDeTab` arma UNA tab y no sabe cuál
+  // se está mirando, así el botón de la tab actual y el del mail (que junta
+  // tres) dibujan exactamente los mismos cuadros. Con dos armados separados, el
+  // día que uno cambie el otro sigue andando y el mail y la pantalla empiezan a
+  // mostrar cosas distintas sin que falle nada.
+  function tablasDeTab(t: Tab): TablaImagen[] {
+    if (!v) return [];
     // El MISMO formateador que la pantalla: formatear dos veces es como la
     // imagen y la vista terminan diciendo cosas distintas.
     const plata = (n: number) => fmt2(n, 0);
+
+    if (t === "aca") {
+      return LADOS_ACA.map((l) => {
+        const filas = (aca?.filas ?? []).filter((f) => f.familia === l.familia);
+        const totales = (aca?.totales ?? []).filter((x) => x.familia === l.familia);
+        const unaMoneda = totales.length <= 1;
+        return {
+          titulo: l.titulo,
+          // La MISMA banda de color que en pantalla, y centrada igual: es
+          // lo que separa agro de dólar de un vistazo —mismas columnas,
+          // unidades distintas— y si la imagen la dibujara gris, la captura
+          // y la vista se verían como dos informes distintos.
+          color: l.color,
+          centrado: true,
+          filas: [
+            { cuenta: "SÍMBOLO",
+              valor: celdas(["CANTIDAD", l.etiquetaNocional, "P. ENTRADA",
+                             "P. AJUSTE", "DIF PX", "DIF %", "DIFERENCIAS"],
+                            plata) },
+            ...(filas.length === 0
+              ? [{ cuenta: VACIO_ACA, valor: "" }]
+              : filas.map((f) => ({
+                  cuenta: f.symbol,
+                  valor: celdas(
+                    [f.cantidad, f.nocional, f.entrada, f.ajuste,
+                     f.dif_px, f.dif_pct, f.diferencias],
+                    FMT_ACA, TONO_DESDE_ACA),
+                }))),
+            // Un total por MONEDA, igual que en pantalla: dos monedas
+            // sumadas juntas dan un número que no existe.
+            // En el mail no hay tooltip que explique un hueco: si algún
+            // símbolo quedó sin nocional, el total lo dice en el rótulo.
+            ...totales.map((x) => ({
+              cuenta: `TOTAL${unaMoneda ? "" : ` ${x.moneda ?? "sin moneda"}`}`
+                + (x.sin_multiplicador > 0 ? ` · ${x.sin_multiplicador} sin nocional` : ""),
+              destacada: true,
+              valor: celdas(["", "", "", "", "", "", x.diferencias],
+                            FMT_ACA, TONO_DESDE_ACA),
+            })),
+          ],
+        };
+      });
+    }
+
+    if (t === "consolidados") {
+      return v.consolidado.map((b) => ({
+        titulo: `${b.tab === "agro" ? "FUTUROS AGRÍCOLAS" : "FUTUROS U$S"} · ${b.moneda}`,
+        filas: [
+          { cuenta: "INSTRUMENTO",
+            valor: celdas(["COMPRA", "VENTA", "NETA", "ACUM.", "DIARIA"], plata) },
+          ...b.filas.map((f) => ({
+            cuenta: f.etiqueta,
+            valor: celdas([f.compra, f.venta, f.neta, f.acum_hoy, f.diaria], plata,
+                          TONO_DESDE),
+          })),
+          { cuenta: "TOTAL", destacada: true,
+            valor: celdas([b.total.compra, b.total.venta, b.total.neta,
+                           b.total.acum_hoy, b.total.diaria], plata,
+                          TONO_DESDE) },
+        ],
+      })).filter((x) => x.filas.length > 1);
+    }
+
+    return v.rankings.filter((r) => r.tab === t).flatMap((r) => [
+      // `filasMinimas` = el MISMO tope para todas: un Top 10 con 8
+      // cuentas reserva las 10 igual, así las cuatro tablas quedan
+      // alineadas en vez de cortarse a distinta altura.
+      { titulo: `${r.grupo} · Top ${r.top} +`,
+        filasMinimas: r.top,
+        filas: r.positivos.map((i, n) => ({
+          cuenta: `${n + 1}. ${i.nombre}`,
+          valor: fmt2(i.importe, 0),
+          tono: "pos" as const,
+        })) },
+      { titulo: `${r.grupo} · Top ${r.top} −`,
+        filasMinimas: r.top,
+        filas: r.negativos.map((i, n) => ({
+          cuenta: `${n + 1}. ${i.nombre}`,
+          valor: fmt2(i.importe, 0),
+          tono: "neg" as const,
+        })) },
+    ]);
+  }
+
+  /** Lo que dice la pantalla cuando la imagen ya está. El plan B NO es un
+   *  error: el objetivo es que la imagen llegue al mail, y Firefox (y cualquier
+   *  origen sin HTTPS) no implementan copiar imágenes. */
+  function avisar(r: "copiado" | "descargado" | "error") {
+    setAviso(r === "copiado" ? "Copiado · pegalo en el mail"
+      : r === "descargado" ? "Tu navegador no deja copiar imágenes: se descargó"
+      : "No se pudo generar la imagen");
+    window.setTimeout(() => setAviso(null), 6000);
+  }
+
+  async function copiar() {
+    if (!v) return;
     // POSICIONES DE ACA habla de UNA cuenta, así que la imagen no se puede
     // generar hasta que estén las filas de la cuenta ELEGIDA: con las de la
     // anterior saldría un cuadro creíble y de otra cuenta.
@@ -425,111 +534,62 @@ export function Ap5PosicionesView() {
       return;
     }
     setCopiando(true);
-    const tablas: TablaImagen[] =
-      tab === "aca"
-        ? LADOS_ACA.map((l) => {
-            const filas = (aca?.filas ?? []).filter((f) => f.familia === l.familia);
-            const totales = (aca?.totales ?? []).filter((t) => t.familia === l.familia);
-            const unaMoneda = totales.length <= 1;
-            return {
-              titulo: l.titulo,
-              // La MISMA banda de color que en pantalla, y centrada igual: es
-              // lo que separa agro de dólar de un vistazo —mismas columnas,
-              // unidades distintas— y si la imagen la dibujara gris, la captura
-              // y la vista se verían como dos informes distintos.
-              color: l.color,
-              centrado: true,
-              filas: [
-                { cuenta: "SÍMBOLO",
-                  valor: celdas(["CANTIDAD", l.etiquetaNocional, "P. ENTRADA",
-                                 "P. AJUSTE", "DIF PX", "DIF %", "DIFERENCIAS"],
-                                plata) },
-                ...(filas.length === 0
-                  ? [{ cuenta: VACIO_ACA, valor: "" }]
-                  : filas.map((f) => ({
-                      cuenta: f.symbol,
-                      valor: celdas(
-                        [f.cantidad, f.nocional, f.entrada, f.ajuste,
-                         f.dif_px, f.dif_pct, f.diferencias],
-                        FMT_ACA, TONO_DESDE_ACA),
-                    }))),
-                // Un total por MONEDA, igual que en pantalla: dos monedas
-                // sumadas juntas dan un número que no existe.
-                // En el mail no hay tooltip que explique un hueco: si algún
-                // símbolo quedó sin nocional, el total lo dice en el rótulo.
-                ...totales.map((t) => ({
-                  cuenta: `TOTAL${unaMoneda ? "" : ` ${t.moneda ?? "sin moneda"}`}`
-                    + (t.sin_multiplicador > 0 ? ` · ${t.sin_multiplicador} sin nocional` : ""),
-                  destacada: true,
-                  valor: celdas(["", "", "", "", "", "", t.diferencias],
-                                FMT_ACA, TONO_DESDE_ACA),
-                })),
-              ],
-            };
-          })
-      : tab === "consolidados"
-        ? v.consolidado.map((b) => ({
-            titulo: `${b.tab === "agro" ? "FUTUROS AGRÍCOLAS" : "FUTUROS U$S"} · ${b.moneda}`,
-            filas: [
-              { cuenta: "INSTRUMENTO",
-                valor: celdas(["COMPRA", "VENTA", "NETA", "ACUM.", "DIARIA"], plata) },
-              ...b.filas.map((f) => ({
-                cuenta: f.etiqueta,
-                valor: celdas([f.compra, f.venta, f.neta, f.acum_hoy, f.diaria], plata,
-                              TONO_DESDE),
-              })),
-              { cuenta: "TOTAL", destacada: true,
-                valor: celdas([b.total.compra, b.total.venta, b.total.neta,
-                               b.total.acum_hoy, b.total.diaria], plata,
-                              TONO_DESDE) },
-            ],
-          }))
-        : bloques.flatMap((r) => [
-            // `filasMinimas` = el MISMO tope para todas: un Top 10 con 8
-            // cuentas reserva las 10 igual, así las cuatro tablas quedan
-            // alineadas en vez de cortarse a distinta altura.
-            { titulo: `${r.grupo} · Top ${r.top} +`,
-              filasMinimas: r.top,
-              filas: r.positivos.map((i, n) => ({
-                cuenta: `${n + 1}. ${i.nombre}`,
-                valor: fmt2(i.importe, 0),
-                tono: "pos" as const,
-              })) },
-            { titulo: `${r.grupo} · Top ${r.top} −`,
-              filasMinimas: r.top,
-              filas: r.negativos.map((i, n) => ({
-                cuenta: `${n + 1}. ${i.nombre}`,
-                valor: fmt2(i.importe, 0),
-                tono: "neg" as const,
-              })) },
-          ]);
-
     const nombre = TABS.find((x) => x.id === tab)?.label ?? "";
     // En POSICIONES DE ACA el título lleva la CUENTA: la imagen se va a un mail
     // y ahí ya no está el desplegable que dice de cuál es.
     const cuentaNombre = cuentasAca.find((c) => c.cuenta === cuentaAca)?.nombre ?? cuentaAca;
     const r = await copiarTab({
-      tablas: tablas.filter((t) => t.filas.length > 1 || tab !== "consolidados"),
+      tablas: tablasDeTab(tab),
       // En POSICIONES DE ACA el título es SÓLO la cuenta: el nombre de la tab
       // no le dice nada al que abre el mail, y la cuenta sí — es lo único que
       // distingue una captura de otra. En las demás tabs el título sigue
       // nombrando el reporte, que ahí es lo que identifica la imagen.
       titulo: tab === "aca" ? cuentaNombre : `Posiciones y diferencias · ${nombre}`,
       fecha: fmtFecha(v.fecha),
-      // Siete columnas numéricas por tabla: apiladas entran en el ancho de un
-      // mail, al lado se van al doble.
-      unaColumna: tab === "aca",
+      // ⚠️ Las tablas ANCHAS van apiladas, y es una decisión MEDIDA, no de
+      // gusto: POSICIONES DE ACA tiene siete columnas numéricas y el
+      // CONSOLIDADO cinco, así que dos al lado se van a ~1.700 px de dibujo —
+      // el doble de lo que muestra un mail sin achicar, que es por qué la
+      // imagen «se veía chica». Los rankings entran de a dos y aprovechan el
+      // alto.
+      unaColumna: tab === "aca" || tab === "consolidados",
       archivo: tab === "aca"
         ? `ap5-aca-${cuentaAca}-${v.fecha ?? "hoy"}.png`
         : `ap5-${tab}-${v.fecha ?? "hoy"}.png`,
     });
     setCopiando(false);
-    // El plan B NO es un error: el objetivo es que la imagen llegue al mail, y
-    // Firefox (y cualquier origen sin HTTPS) no implementan copiar imágenes.
-    setAviso(r === "copiado" ? "Copiado · pegalo en el mail"
-      : r === "descargado" ? "Tu navegador no deja copiar imágenes: se descargó"
-      : "No se pudo generar la imagen");
-    window.setTimeout(() => setAviso(null), 6000);
+    avisar(r);
+  }
+
+  /** El MAIL de todos los días: las tres tabs de la mesa en UNA imagen.
+   *
+   *  ⚠️ Deja afuera POSICIONES DE ACA a propósito, y no por ser la cuarta:
+   *  esa tab habla de UNA cuenta elegida a mano, mientras las tres primeras
+   *  hablan de la mesa entera. Mezclarlas pondría el detalle de una cuenta
+   *  debajo de los totales de todas, que es la lectura equivocada. */
+  async function copiarMail() {
+    if (!v) return;
+    setCopiando(true);
+    const r = await copiarTabs({
+      tabs: TABS_MAIL.map((id) => ({
+        titulo: TABS.find((x) => x.id === id)?.label ?? id,
+        tablas: tablasDeTab(id),
+        // ⚠️ **El CONSOLIDADO va apilado, y es lo que decide si el mail se lee.**
+        // El ancho de la imagen lo fija el cuadro más ancho, y el cliente de
+        // correo la achica hasta que entre: con los dos consolidados uno al
+        // lado del otro la imagen se iba a ~1.700 px de dibujo y el mail la
+        // mostraba a la mitad de tamaño — que es, textualmente, «queda muy
+        // chica». Apilados, la imagen mide la mitad de ancho y todo se ve al
+        // doble. Los rankings sí van en dos columnas: son angostos y apilarlos
+        // sólo agregaría alto sin ganar tamaño de letra.
+        unaColumna: id === "consolidados",
+      })),
+      titulo: "Posiciones y diferencias",
+      fecha: fmtFecha(v.fecha),
+      archivo: `ap5-mail-${v.fecha ?? "hoy"}.png`,
+    });
+    setCopiando(false);
+    avisar(r);
   }
 
   return (
@@ -584,6 +644,18 @@ export function Ap5PosicionesView() {
           className="ml-auto px-2 py-1 text-[10px] font-semibold tracking-wide border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] disabled:opacity-50"
         >
           {copiando ? "GENERANDO…" : "COPIAR IMAGEN"}
+        </button>
+        {/* El botón del mail de todos los días. Va SIEMPRE, en todas las tabs:
+            el que arma el mail no tiene por qué acordarse de pararse en una tab
+            en particular para que salga completo. */}
+        <button
+          onClick={copiarMail}
+          disabled={copiando}
+          title={"Una sola imagen con FUTUROS AGRO, FUTUROS DÓLAR y CONSOLIDADOS, "
+            + "una debajo de la otra — la del mail diario"}
+          className="px-2 py-1 text-[10px] font-semibold tracking-wide border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] disabled:opacity-50"
+        >
+          {copiando ? "GENERANDO…" : "COPIAR MAIL (3 TABS)"}
         </button>
         {aviso && <span className="text-[10px] text-[var(--t-accent)]">{aviso}</span>}
         <div><Sello a={v.actualizado} f={v.faltantes} /></div>
