@@ -68,7 +68,8 @@ const PASO: Record<string, string> = {
 };
 
 export function TabEncontro({
-  filas, porHabilidad, preview, aplicar, noInteresanOns, noInteresanCedears, ignorar,
+  filas, porHabilidad, preview, aplicar, noInteresanOns, noInteresanCedears,
+  noInteresanContrapartes, ignorar,
 }: {
   filas: Hallazgo[];
   porHabilidad: Record<string, number>;
@@ -79,6 +80,8 @@ export function TabEncontro({
   noInteresanOns: (id: number, tickers: string[], todas: boolean)
     => Promise<{ ok: boolean; descartadas?: string[]; quedan?: number;
                  detalle?: string; error?: string }>;
+  noInteresanContrapartes: (id: number, cuentas: string[], todas: boolean)
+    => Promise<{ detalle?: string; error?: string }>;
   noInteresanCedears: (id: number, tickers: string[], todas: boolean)
     => Promise<{ ok: boolean; descartados?: string[]; quedan?: number;
                  detalle?: string; error?: string }>;
@@ -145,6 +148,17 @@ export function TabEncontro({
     setOcupado(id);
     try {
       const r = await noInteresanCedears(id, tickers, todas);
+      setResultado((x) => ({ ...x, [id]: r.detalle || r.error || "" }));
+      const p = await preview(id);
+      setPreviews((prev) => ({ ...prev, [id]: p }));
+    } finally { setOcupado(null); }
+  }
+
+  // Mismo patrón que `descartar`, para cuentas que NO son contraparte (§0.es).
+  async function descartarContrapartes(id: number, cuentas: string[], todas: boolean) {
+    setOcupado(id);
+    try {
+      const r = await noInteresanContrapartes(id, cuentas, todas);
       setResultado((x) => ({ ...x, [id]: r.detalle || r.error || "" }));
       const p = await preview(id);
       setPreviews((prev) => ({ ...prev, [id]: p }));
@@ -408,6 +422,8 @@ export function TabEncontro({
                           nombres={p.nombres ?? []}
                           ocupado={ocupado === f.id}
                           onAplicar={(datos) => hacer(f.id, datos)}
+                          onNoInteresan={(c, todas) =>
+                            descartarContrapartes(f.id, c, todas)}
                         />
                       )}
 

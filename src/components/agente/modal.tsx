@@ -253,6 +253,7 @@ export default function AgenteModal() {
                   }}
                   noInteresanOns={(id, tickers, todas) => d.noInteresanOns(id, tickers, todas)}
                   noInteresanCedears={(id, tickers, todas) => d.noInteresanCedears(id, tickers, todas)}
+                  noInteresanContrapartes={(id, cuentas, todas) => d.noInteresanContrapartes(id, cuentas, todas)}
                 />
               )}
               {v && tab === "patrones" && <TabCronicos v={v} />}

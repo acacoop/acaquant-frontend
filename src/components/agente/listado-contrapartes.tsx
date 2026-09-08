@@ -14,13 +14,10 @@
 // REGLA #9, no hay una copia acá). El nombre de la contraparte arranca
 // SIEMPRE vacío: el backend no tiene de dónde sugerirlo.
 //
-// ⚠️ **EL AVISO DEL AuM NO ES UN DETALLE DE COPY.** Dar de alta una cuenta acá
-// la SACA del cálculo de AuM y le pone `nivel_3 = PJ GRANDE`
-// (`agente/arreglos.py::AltaContraparte`): es lo correcto cuando la cuenta es
-// de verdad una contraparte (sus tenencias son cuotapartes, no plata de un
-// cliente) y es un error para cualquier otra cosa — tildar de más no falla
-// visiblemente, solo hace que el AuM cuente de menos. Por eso el cartel va
-// fijo arriba del listado y no adentro de un tooltip que hay que abrir.
+// El cartel que explicaba el efecto sobre el AuM se sacó a pedido del user
+// (§0.es): el efecto sigue existiendo —dar de alta saca la cuenta del AuM— y
+// está escrito donde importa, en `preview.porque` del backend y en el diario.
+// Una advertencia fija que se lee todos los días deja de leerse.
 //
 // ⚠️ **ESTE ARCHIVO NO LLAMA A LA RED.** Recibe las filas ya calculadas y
 // devuelve lo cargado por `onAplicar`. La red vive UNA sola vez, en
@@ -33,6 +30,15 @@ export type FilaContraparte = {
   tipo_cliente: string;
   segmento_sugerido?: string;
   fuente?: "tipo_cliente" | "nombre" | "";
+  // ⚠️ **LA CONTRAPARTE PROPUESTA SALE DE LAS QUE YA ESTÁN CARGADAS, no del
+  // nombre de la cuenta** (§0.es). «FCI Consultatio Estrategia IV» parece
+  // Consultatio y en la tabla esas cuentas son ONE618: la propuesta ingenua
+  // suena razonable y por eso se acepta. `porque` trae la evidencia —«CONSULTATIO
+  // está en 3 cuenta(s) de ONE618»— para poder rechazarla sin abrir nada.
+  // Vacías las dos = el backend no tuvo evidencia limpia; la fila queda para
+  // escribir a mano, igual que antes.
+  contraparte_sugerida?: string;
+  porque?: string;
 };
 
 // Qué dice cada fuente, en una palabra. El backend manda la clave; acá solo
@@ -51,12 +57,18 @@ const FUENTE: Record<string, { txt: string; ayuda: string }> = {
   },
 };
 
-export function ListadoContrapartes({ filas, segmentos, nombres, ocupado, onAplicar }: {
+export function ListadoContrapartes({
+  filas, segmentos, nombres, ocupado, onAplicar, onNoInteresan,
+}: {
   filas: FilaContraparte[];
   segmentos: string[];
   nombres: string[];
   ocupado: boolean;
   onAplicar: (datos: { cuenta: string; contraparte: string; segmento: string }[]) => void;
+  // «Estas NO son contraparte» — mismo patrón que ONs y CEDEARs (§0.eh): se
+  // silencian por CUENTA y el aviso vuelve solo con las institucionales nuevas.
+  // Es lo único que permite que esta lista llegue a cero.
+  onNoInteresan: (cuentas: string[], todas: boolean) => Promise<void>;
 }) {
   // ⚠️⚠️ **LOS ID DE LOS DESPLEGABLES TIENEN QUE SER ÚNICOS EN TODO EL
   // DOCUMENTO.** `listado-ficha.tsx` lo explica con el bug que costó: un id
@@ -70,6 +82,9 @@ export function ListadoContrapartes({ filas, segmentos, nombres, ocupado, onApli
   const nombresId = `${base}-contraparte`;
 
   const [tildados, setTildados] = useState<Record<string, boolean>>({});
+  // Dos pasos para «ninguna me interesa»: descarta las 53 de una y no hay
+  // pantalla para restaurarlas — el mismo recaudo que toma `listado-ons`.
+  const [confirmando, setConfirmando] = useState(false);
   const [contraparte, setContraparte] = useState<Record<string, string>>({});
   // Sólo lo que una PERSONA escribió. La sugerencia del backend no se copia
   // acá: se resuelve al leer, en `segDe` — así una fila que aparece después
@@ -93,9 +108,12 @@ export function ListadoContrapartes({ filas, segmentos, nombres, ocupado, onApli
   // así que borrar el campo a mano sigue borrándolo.
   const segDe = (f: FilaContraparte) =>
     segmento[f.cuenta] ?? f.segmento_sugerido ?? "";
+  const cpDe = (f: FilaContraparte) =>
+    contraparte[f.cuenta] ?? f.contraparte_sugerida ?? "";
 
   const sinNombre = useMemo(
-    () => tildadas.filter((f) => !(contraparte[f.cuenta] ?? "").trim()),
+    () => tildadas.filter(
+      (f) => !(contraparte[f.cuenta] ?? f.contraparte_sugerida ?? "").trim()),
     [tildadas, contraparte]);
 
   const todasTildadas = filas.length > 0 && filas.every((f) => tildados[f.cuenta]);
@@ -107,21 +125,13 @@ export function ListadoContrapartes({ filas, segmentos, nombres, ocupado, onApli
   function guardar() {
     onAplicar(tildadas.map((f) => ({
       cuenta: f.cuenta,
-      contraparte: (contraparte[f.cuenta] ?? "").trim(),
+      contraparte: cpDe(f).trim(),
       segmento: segDe(f).trim(),
     })));
   }
 
   return (
     <div className="flex flex-col gap-1.5">
-      {/* EL AVISO fijo arriba de todo: dar de alta acá tiene un efecto que no
-          se ve en la pantalla (saca la cuenta del AuM), así que no puede
-          quedar escondido en un tooltip. */}
-      <p className="px-1.5 py-1 border border-[var(--t-neg)] bg-[var(--t-surface)] text-[9px] font-bold text-[var(--t-neg)]">
-        ⚠ Dar de alta una cuenta la SACA del AuM y le pone nivel_3 = PJ GRANDE.
-        Es lo correcto para una contraparte y está mal para cualquier otra cosa.
-      </p>
-
       {/* UN `<datalist>` por listado, no uno por fila. */}
       {segmentos.length > 0 && (
         <datalist id={segmentosId}>
@@ -179,15 +189,26 @@ export function ListadoContrapartes({ filas, segmentos, nombres, ocupado, onApli
                     {f.tipo_cliente || "—"}
                   </td>
                   <td className="px-1.5 py-0.5">
-                    <input
-                      list={nombresId}
-                      value={contraparte[f.cuenta] ?? ""}
-                      disabled={!on}
-                      onChange={(e) =>
-                        setContraparte((x) => ({ ...x, [f.cuenta]: e.target.value }))}
-                      placeholder="—"
-                      className="text-[9px] px-1.5 py-0.5 bg-[var(--t-surface)] border border-[var(--t-border)] text-[var(--t-text)] w-32 disabled:opacity-40"
-                    />
+                    <div className="flex items-center gap-1">
+                      <input
+                        list={nombresId}
+                        value={cpDe(f)}
+                        disabled={!on}
+                        onChange={(e) =>
+                          setContraparte((x) => ({ ...x, [f.cuenta]: e.target.value }))}
+                        placeholder="—"
+                        className="text-[9px] px-1.5 py-0.5 bg-[var(--t-surface)] border border-[var(--t-border)] text-[var(--t-text)] w-32 disabled:opacity-40"
+                      />
+                      {/* Por qué se propuso ESA. Se apaga en cuanto alguien la
+                          corrige: dejarla prendida diría que la tabla propuso
+                          algo que en realidad escribió una persona. */}
+                      {f.porque && cpDe(f) === (f.contraparte_sugerida ?? "") && (
+                        <span title={f.porque}
+                              className="shrink-0 text-[8px] uppercase tracking-wider px-1 border border-[var(--t-border)] text-[var(--t-text-dim)]">
+                          histórico
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-1.5 py-0.5">
                     <div className="flex items-center gap-1">
@@ -236,9 +257,32 @@ export function ListadoContrapartes({ filas, segmentos, nombres, ocupado, onApli
         >
           {ocupado ? "escribiendo…" : `guardar ${tildadas.length}`}
         </button>
+        <button
+          type="button"
+          disabled={ocupado || !tildadas.length}
+          onClick={() => void onNoInteresan(tildadas.map((f) => f.cuenta), false)}
+          className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:text-[var(--t-text)] disabled:opacity-40"
+        >
+          no son contraparte · {tildadas.length}
+        </button>
+        <button
+          type="button"
+          disabled={ocupado}
+          onClick={() => {
+            if (!confirmando) { setConfirmando(true); return; }
+            setConfirmando(false);
+            void onNoInteresan([], true);
+          }}
+          className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:text-[var(--t-text)] disabled:opacity-40"
+        >
+          {confirmando
+            ? `¿descartar las ${filas.length}? · sí, ninguna`
+            : "ninguna es contraparte · avisar solo las nuevas"}
+        </button>
         <span className="text-[9px] text-[var(--t-text-dim)]">
           {tildadas.length} tildada(s)
           {sinNombre.length > 0 ? ` · ${sinNombre.length} sin nombre` : ""}
+          {" · descartar es por cuenta y el aviso vuelve solo con las nuevas"}
         </span>
       </div>
     </div>

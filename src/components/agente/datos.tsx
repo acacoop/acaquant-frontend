@@ -47,6 +47,8 @@ export type Datos = {
     => Promise<ResultadoNoInteresanOns>;
   noInteresanCedears: (id: number, tickers: string[], todas: boolean)
     => Promise<ResultadoNoInteresanCedears>;
+  noInteresanContrapartes: (id: number, cuentas: string[], todas: boolean)
+    => Promise<ResultadoNoInteresanOns>;
 };
 
 export function useAgente(abierto: boolean): Datos {
@@ -130,6 +132,16 @@ export function useAgente(abierto: boolean): Datos {
     [escribir],
   );
 
+  // «Estas NO son contraparte», por cuenta (§0.es). El backend recorta a lo que
+  // el detector ofreció en ESA fila y vuelve a correr el detector.
+  const noInteresanContrapartes = useCallback(
+    (id: number, cuentas: string[], todas: boolean) =>
+      escribir<ResultadoNoInteresanOns>(
+        "/api/agente/contrapartes/no-interesan", { id, cuentas, todas }, ["vista"],
+      ),
+    [escribir],
+  );
+
   // ⚠️⚠️ **EL AGENTE CARGA SIEMPRE, ESTÉ EL MODAL ABIERTO O NO.**
   //
   // La primera versión sólo cargaba al abrir (`if (!abierto) return`), y con eso
@@ -194,7 +206,7 @@ export function useAgente(abierto: boolean): Datos {
 
   return useMemo(() => ({
     vista, historial, error, cargando, releer, leer, calcular, escribir,
-    noInteresanOns, noInteresanCedears,
+    noInteresanOns, noInteresanCedears, noInteresanContrapartes,
   }), [vista, historial, error, cargando, releer, leer, calcular, escribir,
-       noInteresanOns, noInteresanCedears]);
+       noInteresanOns, noInteresanCedears, noInteresanContrapartes]);
 }
