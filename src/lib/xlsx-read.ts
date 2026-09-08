@@ -35,14 +35,6 @@ export async function readSheetRows(
   return rows;
 }
 
-/** Primera hoja → texto tabulado (para parsers que reciben "pegar desde
- * Excel"). cellDates + dateNF ISO: sin esto SheetJS formatea fechas como US
- * (M/D/Y) y un parser DMY lee "6/8" como junio en vez de agosto. */
-export async function readSheetTsv(file: File): Promise<string> {
-  const { XLSX, ws } = await readWorkbook(file, true);
-  return XLSX.utils.sheet_to_csv(ws, { FS: "\t", dateNF: "yyyy-mm-dd" });
-}
-
 /** Primera hoja → GRILLA CRUDA (filas × celdas), sin interpretar nada.
  *
  * A diferencia de `readSheetRows`, no usa la primera fila como encabezado: el
