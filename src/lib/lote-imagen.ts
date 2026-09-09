@@ -259,7 +259,10 @@ export async function loteComoImagen(o: LoteImagen): Promise<Blob | null> {
   ctx.textAlign = "left";
 
   // ── Fila TOTAL ──────────────────────────────────────────────────────────
-  ctx.fillStyle = BANDA;
+  // En ÁMBAR, como las filas «fuertes» de los cuadros de abajo: el total de la
+  // grilla es uno de los números que el cliente busca, y con la banda gris se
+  // leía como la cabecera.
+  ctx.fillStyle = AMBAR;
   ctx.fillRect(PAD, y, anchoCuerpo, H_FILA);
   ctx.font = F_TOTAL;
   ctx.fillStyle = TINTA;
