@@ -602,23 +602,23 @@ export function CalculadoraLote({ datos }: { datos: Datos }) {
       {/* ── GRILLA ─────────────────────────────────────────────────────────── */}
       <Caja titulo="Cheques" extra={`${completas} de ${filas.length}`} cargando={calculando}>
         <div className="overflow-x-auto">
-          <table className="w-full text-[10px] font-mono whitespace-nowrap">
+          <table className="mx-auto min-w-full text-[10px] font-mono whitespace-nowrap">
             <thead>
               <tr className="text-[9px] uppercase tracking-wider text-[var(--t-text-muted)]">
-                <th className="text-left px-2 py-1 font-normal">#</th>
-                <th className="text-right px-1 py-1 font-normal">Monto</th>
-                <th className="text-right px-1 py-1 font-normal">Tasa %</th>
-                <th className="text-right px-1 py-1 font-normal">Días</th>
-                <th className="text-right px-1 py-1 font-normal">Vto</th>
-                <th className="text-right px-1 py-1 font-normal">Descuento</th>
-                <th className="text-right px-1 py-1 font-normal">Monto bruto</th>
-                <th className="text-right px-1 py-1 font-normal">Arancel ACA</th>
-                <th className="text-right px-1 py-1 font-normal">IVA aranc.</th>
-                <th className="text-right px-1 py-1 font-normal">Derecho</th>
-                <th className="text-right px-1 py-1 font-normal">IVA der.</th>
-                <th className="text-right px-1 py-1 font-normal">A recibir (s/aval)</th>
-                <th className="text-right px-1 py-1 font-normal">Comisión SGR</th>
-                <th className="text-right px-1 py-1 font-normal">Neto final</th>
+                <th className="text-center px-2 py-1 font-normal">#</th>
+                <th className="text-center px-1 py-1 font-normal">Monto</th>
+                <th className="text-center px-1 py-1 font-normal">Tasa %</th>
+                <th className="text-center px-1 py-1 font-normal">Días</th>
+                <th className="text-center px-1 py-1 font-normal">Vto</th>
+                <th className="text-center px-1 py-1 font-normal">Descuento</th>
+                <th className="text-center px-1 py-1 font-normal">Monto bruto</th>
+                <th className="text-center px-1 py-1 font-normal">Arancel ACA</th>
+                <th className="text-center px-1 py-1 font-normal">IVA aranc.</th>
+                <th className="text-center px-1 py-1 font-normal">Derecho</th>
+                <th className="text-center px-1 py-1 font-normal">IVA der.</th>
+                <th className="text-center px-1 py-1 font-normal">A recibir (s/aval)</th>
+                <th className="text-center px-1 py-1 font-normal">Comisión SGR</th>
+                <th className="text-center px-1 py-1 font-normal">Neto final</th>
                 <th className="w-6" />
               </tr>
             </thead>
@@ -627,12 +627,12 @@ export function CalculadoraLote({ datos }: { datos: Datos }) {
                 const r = filaPorId.get(f.id);
                 return (
                   <tr key={f.id} className="border-t border-[var(--t-border)]">
-                    <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{idx + 1}</td>
+                    <td className="px-2 py-0.5 text-center text-[var(--t-text-dim)]">{idx + 1}</td>
                     <td className="px-1 py-0.5">
                       <MontoInput
                         value={f.monto}
                         onChange={(v) => actualizarFila(f.id, { monto: v })}
-                        className="w-[110px] text-right"
+                        className="w-[110px] text-center"
                         autoFocus={focoEn === f.id}
                       />
                     </td>
@@ -641,7 +641,7 @@ export function CalculadoraLote({ datos }: { datos: Datos }) {
                         value={f.tasa}
                         onChange={(e) => actualizarFila(f.id, { tasa: e.target.value })}
                         inputMode="decimal"
-                        className={INPUT + " w-[52px] text-right"}
+                        className={INPUT + " w-[52px] text-center"}
                       />
                     </td>
                     <td className="px-1 py-0.5">
@@ -654,49 +654,49 @@ export function CalculadoraLote({ datos }: { datos: Datos }) {
                           agregarFila();
                         }}
                         inputMode="numeric"
-                        className={INPUT + " w-[46px] text-right"}
+                        className={INPUT + " w-[46px] text-center"}
                       />
                     </td>
-                    <td className="px-1 py-0.5 text-right">
+                    <td className="px-1 py-0.5 text-center">
                       {r ? fmtFecha(r.vencimiento) : <span className="text-[var(--t-text-muted)]">—</span>}
                     </td>
-                    <td className="px-1 py-0.5 text-right">
+                    <td className="px-1 py-0.5 text-center">
                       {r ? fmtPlata(r.descuento) : <span className="text-[var(--t-text-muted)]">—</span>}
                     </td>
-                    <td className="px-1 py-0.5 text-right">
+                    <td className="px-1 py-0.5 text-center">
                       {r ? (
                         fmtPlata(r.monto_descontado)
                       ) : (
                         <span className="text-[var(--t-text-muted)]">—</span>
                       )}
                     </td>
-                    <td className="px-1 py-0.5 text-right">
+                    <td className="px-1 py-0.5 text-center">
                       {r ? fmtPlata(r.arancel_aca) : <span className="text-[var(--t-text-muted)]">—</span>}
                     </td>
-                    <td className="px-1 py-0.5 text-right">
+                    <td className="px-1 py-0.5 text-center">
                       {r ? fmtPlata(r.iva_aranceles) : <span className="text-[var(--t-text-muted)]">—</span>}
                     </td>
-                    <td className="px-1 py-0.5 text-right">
+                    <td className="px-1 py-0.5 text-center">
                       {r ? (
                         fmtPlata(r.derecho_mercado)
                       ) : (
                         <span className="text-[var(--t-text-muted)]">—</span>
                       )}
                     </td>
-                    <td className="px-1 py-0.5 text-right">
+                    <td className="px-1 py-0.5 text-center">
                       {r ? fmtPlata(r.iva_derecho) : <span className="text-[var(--t-text-muted)]">—</span>}
                     </td>
-                    <td className="px-1 py-0.5 text-right">
+                    <td className="px-1 py-0.5 text-center">
                       {r ? (
                         fmtPlata(r.a_recibir_cliente)
                       ) : (
                         <span className="text-[var(--t-text-muted)]">—</span>
                       )}
                     </td>
-                    <td className="px-1 py-0.5 text-right">
+                    <td className="px-1 py-0.5 text-center">
                       {r ? fmtPlata(r.comision_sgr) : <span className="text-[var(--t-text-muted)]">—</span>}
                     </td>
-                    <td className="px-1 py-0.5 text-right font-semibold text-[var(--t-accent)]">
+                    <td className="px-1 py-0.5 text-center font-semibold text-[var(--t-accent)]">
                       {r ? fmtPlata(r.neto_final) : <span className="text-[var(--t-text-muted)]">—</span>}
                     </td>
                     <td className="px-1 py-0.5 text-center">
@@ -713,20 +713,20 @@ export function CalculadoraLote({ datos }: { datos: Datos }) {
               })}
               {res && (
                 <tr className="bg-[var(--t-tint-amber)]/60 font-semibold border-t border-[var(--t-border)]">
-                  <td className="px-2 py-0.5">TOTAL</td>
-                  <td className="px-1 py-0.5 text-right">{fmtPlata(res.totales.monto)}</td>
+                  <td className="px-2 py-0.5 text-center">TOTAL</td>
+                  <td className="px-1 py-0.5 text-center">{fmtPlata(res.totales.monto)}</td>
                   <td className="px-1 py-0.5" />
                   <td className="px-1 py-0.5" />
                   <td className="px-1 py-0.5" />
-                  <td className="px-1 py-0.5 text-right">{fmtPlata(res.totales.descuento)}</td>
-                  <td className="px-1 py-0.5 text-right">{fmtPlata(res.totales.monto_descontado)}</td>
-                  <td className="px-1 py-0.5 text-right">{fmtPlata(res.totales.arancel_aca)}</td>
-                  <td className="px-1 py-0.5 text-right">{fmtPlata(res.totales.iva_aranceles)}</td>
-                  <td className="px-1 py-0.5 text-right">{fmtPlata(res.totales.derecho_mercado)}</td>
-                  <td className="px-1 py-0.5 text-right">{fmtPlata(res.totales.iva_derecho)}</td>
-                  <td className="px-1 py-0.5 text-right">{fmtPlata(res.totales.a_recibir_cliente)}</td>
-                  <td className="px-1 py-0.5 text-right">{fmtPlata(res.totales.comision_sgr)}</td>
-                  <td className="px-1 py-0.5 text-right text-[var(--t-accent)]">
+                  <td className="px-1 py-0.5 text-center">{fmtPlata(res.totales.descuento)}</td>
+                  <td className="px-1 py-0.5 text-center">{fmtPlata(res.totales.monto_descontado)}</td>
+                  <td className="px-1 py-0.5 text-center">{fmtPlata(res.totales.arancel_aca)}</td>
+                  <td className="px-1 py-0.5 text-center">{fmtPlata(res.totales.iva_aranceles)}</td>
+                  <td className="px-1 py-0.5 text-center">{fmtPlata(res.totales.derecho_mercado)}</td>
+                  <td className="px-1 py-0.5 text-center">{fmtPlata(res.totales.iva_derecho)}</td>
+                  <td className="px-1 py-0.5 text-center">{fmtPlata(res.totales.a_recibir_cliente)}</td>
+                  <td className="px-1 py-0.5 text-center">{fmtPlata(res.totales.comision_sgr)}</td>
+                  <td className="px-1 py-0.5 text-center text-[var(--t-accent)]">
                     {fmtPlata(res.totales.neto_final)}
                   </td>
                   <td className="px-1 py-0.5" />
