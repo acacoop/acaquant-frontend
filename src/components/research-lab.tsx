@@ -10,7 +10,14 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 
-interface Bono { ticker: string; denominacion?: string | null; moneda?: string | null; vencimiento?: string | null }
+// `dolar` = a qué tipo de cambio está calculada la serie de ESE bono, tal como
+// lo resuelve el backend (`api/services/research_1816_sql.py`): MEP para los que
+// pagan en dólares, ARS para los que pagan en pesos, y CCL mientras a un hard
+// dollar todavía no se le rebajó la serie en MEP. Se muestra al lado del ticker
+// porque no saberlo fue exactamente el problema: 1816 calcula los indicadores de
+// un bono en dólares a SU CCL si no se le pide otra cosa, y esa TEA no es
+// comparable con la del resto de la plataforma (medido: 481 bps en BPOB7).
+interface Bono { ticker: string; denominacion?: string | null; moneda?: string | null; dolar?: string | null; vencimiento?: string | null }
 interface Universo { curvas: { curva: string; bonos: Bono[] }[]; total: number; campos: string[] }
 interface SpreadStats { actual: number; min: number; max: number; media: number; z: number; percentil: number; n: number }
 
@@ -41,15 +48,25 @@ function desdeISO(dias: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+// El rótulo del dólar solo aparece cuando dice algo: un bono en pesos no tiene
+// tipo de cambio que aclarar, y llenar la lista de "ARS" tapa a los dos que sí
+// importan (MEP y, mientras dure el rebajado, CCL).
+const etiquetaDolar = (b: Bono) => (b.dolar && b.dolar !== "ARS" ? b.dolar : "");
+
 function BonoSelect({ universo, value, onChange, label }: {
   universo: Universo; value: string; onChange: (v: string) => void; label?: string;
 }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className={`${SEL} max-w-[128px] font-semibold`}>
+    <select value={value} onChange={(e) => onChange(e.target.value)}
+      title="MEP / CCL = a qué tipo de cambio calcula 1816 los indicadores de ese bono. Los que pagan en pesos no llevan rótulo."
+      className={`${SEL} max-w-[160px] font-semibold`}>
       {label && <option value="">{label}</option>}
       {universo.curvas.map((g) => (
         <optgroup key={g.curva} label={g.curva}>
-          {g.bonos.map((b) => <option key={b.ticker} value={b.ticker}>{b.ticker}</option>)}
+          {g.bonos.map((b) => {
+            const d = etiquetaDolar(b);
+            return <option key={b.ticker} value={b.ticker}>{d ? `${b.ticker} · ${d}` : b.ticker}</option>;
+          })}
         </optgroup>
       ))}
     </select>
@@ -127,6 +144,14 @@ export function ResearchLab({ modoFijo }: { modoFijo?: "spread" | "overlay" } = 
     setTickers((prev) => prev.includes(t) ? prev.filter((x) => x !== t) : (prev.length >= 8 ? prev : [...prev, t]));
   };
 
+  // {ticker: "MEP" | "CCL" | ""} para rotular los chips de COMPARAR, que no
+  // pasan por `BonoSelect` y si no quedarían sin decir a qué dólar están.
+  const dolarPorTicker = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const g of uni?.curvas || []) for (const b of g.bonos) m[b.ticker] = etiquetaDolar(b);
+    return m;
+  }, [uni]);
+
   const spreadUp = esFraccion(campo);
   const titulo = modo === "spread" ? `${a || "?"} − ${b || "?"}` : "comparación";
   const pctColor = (p: number) => p >= 80 ? "var(--t-neg)" : p <= 20 ? "var(--t-pos)" : "var(--t-text)";
@@ -192,6 +217,9 @@ export function ResearchLab({ modoFijo }: { modoFijo?: "spread" | "overlay" } = 
                 style={{ borderColor: COLORES[i % COLORES.length], color: "var(--t-text)" }}>
                 <span className="w-1.5 h-1.5 rounded-full" style={{ background: COLORES[i % COLORES.length] }} />
                 {t}
+                {dolarPorTicker[t] && (
+                  <span className="text-[8.5px] font-bold text-[var(--t-text-muted)]">{dolarPorTicker[t]}</span>
+                )}
                 <button type="button" onClick={() => toggleTicker(t)} className="text-[var(--t-text-dim)] hover:text-[var(--t-neg)]">×</button>
               </span>
             ))}
