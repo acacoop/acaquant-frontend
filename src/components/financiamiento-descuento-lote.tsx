@@ -428,13 +428,8 @@ export function CalculadoraLote({ datos }: { datos: Datos }) {
       {
         // Los flujos van en el cuadro de la derecha, en lista, para que el CFT
         // sea lo último que se lee abajo de todo.
-        titulo: "Plazo y flujos",
+        titulo: "Flujos",
         filas: [
-          {
-            label: "Plazo promedio ponderado",
-            valor: `${res.plazo_ponderado_dias.toLocaleString("es-AR", { maximumFractionDigits: 1 })} días`,
-          },
-          { label: "Cantidad de cheques", valor: String(res.filas.length) },
           ...res.flujos.map((f) => ({
             label: fmtFecha(f.fecha),
             valor: fmtPlata(f.importe),
