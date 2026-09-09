@@ -236,7 +236,11 @@ export function FinanciamientoDescuento() {
   // así que se acota a 880px para que la imagen no salga con espacio muerto.
   // La LOTE es una grilla de 14 columnas — necesita mucho más ancho o se pierde
   // en scroll horizontal incluso maximizada.
-  const anchoModal = modo === "lote" ? "w-[min(1400px,96vw)]" : "w-[min(880px,92vw)]";
+  // En LOTE no hay tope: la grilla ocupa la pantalla entera (menos el margen
+  // del backdrop), igual que el maximizar de los otros paneles de la vista.
+  const tamanoModal = modo === "lote"
+    ? "w-full h-full"
+    : "w-[min(880px,92vw)] max-h-[88vh]";
   return (
     <>
       {/* La caja de la grilla queda con la cabecera sola mientras el modal está
@@ -245,11 +249,11 @@ export function FinanciamientoDescuento() {
       {typeof document !== "undefined" &&
         createPortal(
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            className={"fixed inset-0 z-50 flex items-center justify-center bg-black/50 " + (modo === "lote" ? "p-3" : "p-4")}
             onClick={() => setMax(false)}
           >
             <div
-              className={anchoModal + " max-h-[88vh] flex flex-col shadow-2xl"}
+              className={tamanoModal + " flex flex-col shadow-2xl"}
               // El clic adentro NO cierra: si no, tipear en un campo del
               // simulador cerraría el modal en el primer clic.
               onClick={(e) => e.stopPropagation()}
