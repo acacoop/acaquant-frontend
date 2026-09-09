@@ -439,21 +439,21 @@ export function CalculadoraLote({ datos }: { datos: Datos }) {
       },
     ];
     const r = await copiarLote({
-      titulo: "Simulación de descuento · lote",
-      fecha: fmtFecha(res.params.hoy),
+      // Todo lo que identifica la simulación va en la BARRA (fecha, SGR,
+      // instrumento, cliente si lo cargaron): un renglón, sin robarle alto al
+      // cuadro. Los parámetros con los que se calculó van al pie, con la nota.
+      titulo: [
+        "Simulación de descuento",
+        fmtFecha(res.params.hoy),
+        res.params.aval ? `${res.params.aval} (${fmtPct(res.params.costo_aval_pct)})` : "sin aval",
+        instrumento === "pagare" ? "Pagaré" : "Cheque",
+        ...(cliente.trim() ? [cliente.trim()] : []),
+      ].join(" · "),
+      fecha: "",
       firma: "Hecho en ACAQuant",
       logoUrl: "/logo-login.png",
       archivo: `descuento-lote-${res.params.hoy}.png`,
-      subtitulo: [
-        `Cliente: ${cliente || "—"} · ${instrumento === "pagare" ? "PAGARÉ" : "CHEQUE"} · Aval: ${
-          res.params.aval
-            ? `${res.params.aval} (${fmtPct(res.params.costo_aval_pct)})`
-            : "sin aval (directo)"
-        }`,
-        `Arancel ACA ${fmtPct(res.params.arancel_aca_pct)} · Derecho de mercado ${fmtPct(
-          res.params.derecho_mercado_pct,
-        )} · IVA ${fmtPct(res.params.iva_pct, 0)} · Base ${res.params.base_anual} días`,
-      ],
+      subtitulo: [],
       columnas,
       filas: filasImg,
       total,
@@ -464,7 +464,10 @@ export function CalculadoraLote({ datos }: { datos: Datos }) {
       },
       flujos: [],
       nota:
-        "Simulador estimativo. Aranceles según los parámetros vigentes de la mesa; el costo del " +
+        `Arancel ACA ${fmtPct(res.params.arancel_aca_pct)} · Derecho de mercado ${fmtPct(
+          res.params.derecho_mercado_pct,
+        )} · IVA ${fmtPct(res.params.iva_pct, 0)} · Base ${res.params.base_anual} días. ` +
+        "Simulador estimativo: aranceles según los parámetros vigentes de la mesa; el costo del " +
         "aval es el indicativo de cada SGR y puede variar. Vencimientos en días corridos desde la " +
         "fecha de la simulación.",
     });

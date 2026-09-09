@@ -176,7 +176,7 @@ export async function loteComoImagen(o: LoteImagen): Promise<Blob | null> {
   const lineasNota = o.nota ? partirEnLineas(medidor, o.nota, F_NOTA, anchoCuerpo) : [];
 
   const H = BARRA_H + PAD
-    + o.subtitulo.length * H_SUB + GAP_Y
+    + (o.subtitulo.length ? o.subtitulo.length * H_SUB + GAP_Y : 0)
     + H_CAB + o.filas.length * H_FILA + H_FILA + GAP_Y
     + altoResumen + GAP_Y
     + H_DESTACADO
@@ -212,7 +212,7 @@ export async function loteComoImagen(o: LoteImagen): Promise<Blob | null> {
     ctx.fillText(linea, PAD, y + H_SUB / 2);
     y += H_SUB;
   }
-  y += GAP_Y;
+  if (o.subtitulo.length) y += GAP_Y;
 
   // ── Cabecera de la tabla ────────────────────────────────────────────────
   ctx.fillStyle = BANDA;
