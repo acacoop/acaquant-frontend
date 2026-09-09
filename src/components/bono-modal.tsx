@@ -27,15 +27,19 @@ import { fmtFechaCorta } from "@/lib/fmt";
 // porque depende de con qué fórmula se valúa el bono — y un monto por 100 VN sin
 // unidad no se puede leer, o peor, se lee mal.
 //
-// **Layout: mitad y mitad, sin scroll de página.** Antes los cuatro bloques iban
-// apilados a todo el ancho y la FICHA quedaba al pie: para leer la ficha había
-// que scrollear, y al scrollear se perdía de vista el cronograma — o sea que las
-// dos cosas que se comparan (qué bono es / cuándo paga) nunca estaban juntas en
-// pantalla. Ahora las TASAS quedan arriba, a todo el ancho (es el titular), y
-// abajo el cuerpo se parte 50/50: la FICHA ocupa toda la altura de la mitad
-// izquierda en filas verticales label→valor, con el rótulo FICHA escrito en
-// vertical sobre el lomo; a la derecha el gráfico arriba y el cronograma abajo.
-// Cada mitad scrollea por dentro, así el modal entero no se mueve.
+// **Layout: texto a la izquierda, gráficos a la derecha, sin scroll de página.**
+// Las TASAS van arriba a todo el ancho (es el titular) y abajo el cuerpo se
+// parte en dos columnas: a la izquierda la FICHA (filas label→valor, con el
+// rótulo FICHA en vertical sobre el lomo) y DEBAJO el CRONOGRAMA; a la derecha,
+// a toda la altura, los dos gráficos del flujo, uno por panel.
+//
+// El criterio es agrupar por CÓMO se lee, no por qué bloque es. Ficha y
+// cronograma son texto y contestan lo mismo —qué bono es, qué paga— así que
+// comparten columna: la ficha tiene un alto fijo por su cantidad de campos y lo
+// que sobra se lo lleva la tabla. Antes la ficha ocupaba sola toda la columna
+// izquierda (media columna vacía en cualquier bono) y el cronograma se repartía
+// la derecha con el gráfico: las barras quedaban aplastadas contra la tabla, y
+// la tabla estirada. Cada columna scrollea por dentro; el modal no se mueve.
 
 interface Props {
   ticker: string;             // el CORTO (AL30) — el mismo que muestra la tabla
@@ -323,36 +327,88 @@ export function BonoModal({ ticker, onClose }: Props) {
                 </div>
               ))}
 
-              {/* ── EL CUERPO, mitad y mitad ── izquierda la FICHA a todo lo
-                  alto; derecha el gráfico arriba y el cronograma abajo. En
-                  pantallas chicas se apila y scrollea el modal, como antes. */}
-              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,37fr)_minmax(0,63fr)] lg:grid-rows-[minmax(0,1fr)] gap-3 lg:flex-1 lg:min-h-0">
+              {/* ── EL CUERPO ── a la izquierda la FICHA y, DEBAJO, el
+                  CRONOGRAMA: los dos son texto y contestan lo mismo (qué bono
+                  es / qué paga), así que se leen juntos y se reparten una sola
+                  columna. A la derecha, a toda la altura, los dos gráficos del
+                  flujo, cada uno en su panel. Antes la FICHA ocupaba sola toda
+                  la mitad izquierda —sobraba media columna vacía— y el
+                  cronograma le comía la mitad de la altura a los gráficos: las
+                  barras quedaban aplastadas y la tabla, estirada al pedo. */}
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,38fr)_minmax(0,62fr)] lg:grid-rows-[minmax(0,1fr)] gap-3 lg:flex-1 lg:min-h-0">
 
-              {/* ── FICHA ── el lomo con el rótulo en vertical y las filas
-                  label→valor. Ocupa toda la altura de su mitad. */}
-              {ficha && (
-                <div className="flex min-h-0 border border-[var(--t-border-2)] order-2 lg:order-1">
-                  <div className="shrink-0 flex items-start justify-center px-1.5 pt-2 border-r border-[var(--t-border-2)] bg-[var(--t-surface)]">
-                    <span
-                      className="text-[10px] tracking-[0.35em] text-[var(--t-accent)]"
-                      style={{ writingMode: "vertical-rl" }}
-                    >
-                      FICHA
-                    </span>
+              {/* ── COLUMNA IZQUIERDA: ficha arriba, cronograma abajo ── */}
+              <div className="flex flex-col gap-3 min-h-0 order-2 lg:order-1">
+
+                {/* ── FICHA ── el lomo con el rótulo en vertical y las filas
+                    label→valor. Los dos paneles de esta columna van a su ALTO
+                    NATURAL —así un bono de 8 pagos no deja una tabla estirada
+                    con la mitad vacía— y el que se achica cuando no entran es
+                    el CRONOGRAMA, que ya se lee scrolleando. La ficha no: son
+                    quince renglones distintos y recortarla a seis esconde
+                    justo el dato que se vino a buscar. El tope del 60% es para
+                    que un CER con todas sus filas opcionales no se coma la
+                    columna entera. */}
+                {ficha && (
+                  <div className="flex shrink-0 min-h-0 lg:max-h-[60%] border border-[var(--t-border-2)]">
+                    <div className="shrink-0 flex items-start justify-center px-1.5 pt-2 border-r border-[var(--t-border-2)] bg-[var(--t-surface)]">
+                      <span
+                        className="text-[10px] tracking-[0.35em] text-[var(--t-accent)]"
+                        style={{ writingMode: "vertical-rl" }}
+                      >
+                        FICHA
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0 min-h-0 overflow-y-auto">
+                      {filasFicha.map((f) => (
+                        <Fila key={f.label} label={f.label} valor={f.valor} tip={f.tip} />
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0 min-h-0 overflow-y-auto">
-                    {filasFicha.map((f) => (
-                      <Fila key={f.label} label={f.label} valor={f.valor} tip={f.tip} />
-                    ))}
+                )}
+
+                {/* ── CRONOGRAMA ── el dato duro que respalda los gráficos ── */}
+                {flujos.length > 0 && (
+                  <div className="border border-[var(--t-border-2)] p-2 flex flex-col min-h-0">
+                    <div className="shrink-0 text-[10px] tracking-wide text-[var(--t-accent)] mb-2">
+                      CRONOGRAMA
+                      <span className="ml-2 text-[var(--t-text-muted)]">{flujos.length}</span>
+                    </div>
+                    <div className="max-h-[240px] lg:max-h-none lg:min-h-0 overflow-y-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr>
+                            <th className="!px-1 text-left">Fecha</th>
+                            <th className="!px-1 text-right">Amortización</th>
+                            <th className="!px-1 text-right">Interés</th>
+                            <th className="!px-1 text-right">Total</th>
+                            <th className="!px-1 text-right" title="Nominal que quedaba vivo antes de este pago">
+                              Residual
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {flujos.map((f) => (
+                            <tr key={f.fecha} className={f.futuro ? "" : "opacity-45"}>
+                              <td className="!px-1 text-left">{fmtFechaCorta(f.fecha)}</td>
+                              <td className="!px-1 text-right">{fmt2(f.amortizacion, 3)}</td>
+                              <td className="!px-1 text-right">{fmt2(f.interes, 3)}</td>
+                              <td className="!px-1 text-right font-medium">{fmt2(f.monto, 3)}</td>
+                              <td className="!px-1 text-right">
+                                {f.residual_previo_pct == null ? "--" : fmt2(f.residual_previo_pct, 2)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* ── la mitad derecha: gráfico arriba, cronograma abajo ── */}
-              <div className="flex flex-col gap-3 min-h-0 order-1 lg:order-2">
+              </div>{/* /columna izquierda */}
 
-              {/* ── FLUJO DE FONDOS ── */}
-              <div className="border border-[var(--t-border-2)] p-2 flex flex-col min-h-0 lg:flex-1">
+              {/* ── COLUMNA DERECHA: FLUJO DE FONDOS a toda la altura ── */}
+              <div className="border border-[var(--t-border-2)] p-2 flex flex-col min-h-0 order-1 lg:order-2 lg:flex-1">
                 <div className="flex items-center gap-2 mb-1.5 flex-wrap shrink-0">
                   <span className="text-[10px] tracking-wide text-[var(--t-accent)]">
                     FLUJO DE FONDOS
@@ -396,59 +452,78 @@ export function BonoModal({ ticker, onClose }: Props) {
                      al cupón (0,50) y la renta se dibuja pegada al cero: parece
                      que el bono no paga nada hasta el vencimiento. El doble eje
                      Y no es la salida (misma unidad en dos escalas: el ojo
-                     compara alturas que no son comparables). */
-                  <div className="flex-1 min-h-0 flex flex-col gap-1">
-                    <SubtituloFlujo color="var(--t-accent)" texto="CAPITAL — amortización" />
-                    <div className="flex-1 min-h-[70px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chart} margin={{ top: 4, right: 12, bottom: 0, left: 4 }} syncId="flujo-bono">
-                          <XAxis dataKey="fecha" tick={false} axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false} height={4} />
-                          <YAxis
-                            tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
-                            axisLine={{ stroke: "var(--t-border-2)" }}
-                            tickLine={false}
-                            width={52}
-                            tickFormatter={(v: number) => v.toFixed(0)}
-                          />
-                          <Tooltip {...tooltipFlujo("Amortización")} />
-                          <Bar dataKey="amortizacion" isAnimationActive={false}>
-                            {chart.map((c, i) => (
-                              <Cell key={i} fill={c.futuro ? "var(--t-accent)" : "#5a6470"} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
+                     compara alturas que no son comparables).
+                     Cada uno va en su propio recuadro y con SU eje de fechas:
+                     separados, un eje que se dibuja una sola vez abajo se lee
+                     como si el de arriba no tuviera fechas. El `syncId` los
+                     mantiene atados en el hover. */
+                  <div className="flex-1 min-h-0 flex flex-col gap-2">
+                    <div className="flex-1 min-h-0 flex flex-col border border-[var(--t-border-2)] pt-1 pb-0.5">
+                      <SubtituloFlujo color="var(--t-accent)" texto="CAPITAL — amortización" />
+                      <div className="flex-1 min-h-[150px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={chart} margin={{ top: 6, right: 12, bottom: 24, left: 4 }} syncId="flujo-bono">
+                            <XAxis
+                              dataKey="fecha"
+                              tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                              axisLine={{ stroke: "var(--t-border-2)" }}
+                              tickLine={false}
+                              angle={-35}
+                              textAnchor="end"
+                              height={40}
+                              tickFormatter={fmtFechaCorta}
+                              interval={Math.max(0, Math.floor(chart.length / 10))}
+                            />
+                            <YAxis
+                              tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                              axisLine={{ stroke: "var(--t-border-2)" }}
+                              tickLine={false}
+                              width={52}
+                              tickFormatter={(v: number) => v.toFixed(0)}
+                            />
+                            <Tooltip {...tooltipFlujo("Amortización")} />
+                            <Bar dataKey="amortizacion" isAnimationActive={false}>
+                              {chart.map((c, i) => (
+                                <Cell key={i} fill={c.futuro ? "var(--t-accent)" : "#5a6470"} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
                     </div>
-                    <SubtituloFlujo color="#33ccaa" texto="RENTA — interés (en su propia escala)" />
-                    <div className="flex-1 min-h-[80px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chart} margin={{ top: 4, right: 12, bottom: 24, left: 4 }} syncId="flujo-bono">
-                          <XAxis
-                            dataKey="fecha"
-                            tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
-                            axisLine={{ stroke: "var(--t-border-2)" }}
-                            tickLine={false}
-                            angle={-35}
-                            textAnchor="end"
-                            height={40}
-                            tickFormatter={fmtFechaCorta}
-                            interval={Math.max(0, Math.floor(chart.length / 10))}
-                          />
-                          <YAxis
-                            tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
-                            axisLine={{ stroke: "var(--t-border-2)" }}
-                            tickLine={false}
-                            width={52}
-                            tickFormatter={(v: number) => fmt2(v, v >= 10 ? 0 : 2)}
-                          />
-                          <Tooltip {...tooltipFlujo("Interés")} />
-                          <Bar dataKey="interes" isAnimationActive={false}>
-                            {chart.map((c, i) => (
-                              <Cell key={i} fill={c.futuro ? "#33ccaa" : "#3e4650"} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
+
+                    <div className="flex-1 min-h-0 flex flex-col border border-[var(--t-border-2)] pt-1 pb-0.5">
+                      <SubtituloFlujo color="#33ccaa" texto="RENTA — interés (en su propia escala)" />
+                      <div className="flex-1 min-h-[150px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={chart} margin={{ top: 6, right: 12, bottom: 24, left: 4 }} syncId="flujo-bono">
+                            <XAxis
+                              dataKey="fecha"
+                              tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                              axisLine={{ stroke: "var(--t-border-2)" }}
+                              tickLine={false}
+                              angle={-35}
+                              textAnchor="end"
+                              height={40}
+                              tickFormatter={fmtFechaCorta}
+                              interval={Math.max(0, Math.floor(chart.length / 10))}
+                            />
+                            <YAxis
+                              tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                              axisLine={{ stroke: "var(--t-border-2)" }}
+                              tickLine={false}
+                              width={52}
+                              tickFormatter={(v: number) => fmt2(v, v >= 10 ? 0 : 2)}
+                            />
+                            <Tooltip {...tooltipFlujo("Interés")} />
+                            <Bar dataKey="interes" isAnimationActive={false}>
+                              {chart.map((c, i) => (
+                                <Cell key={i} fill={c.futuro ? "#33ccaa" : "#3e4650"} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -479,48 +554,9 @@ export function BonoModal({ ticker, onClose }: Props) {
                     />
                   </div>
                 )}
-              </div>
+              </div>{/* /columna derecha */}
 
-              {/* ── CRONOGRAMA ── el dato duro que respalda el gráfico ── */}
-              {flujos.length > 0 && (
-                <div className="border border-[var(--t-border-2)] p-2 flex flex-col min-h-0 lg:flex-1">
-                  <div className="shrink-0 text-[10px] tracking-wide text-[var(--t-accent)] mb-2">
-                    CRONOGRAMA
-                    <span className="ml-2 text-[var(--t-text-muted)]">{flujos.length}</span>
-                  </div>
-                  <div className="max-h-[240px] lg:max-h-none lg:flex-1 lg:min-h-0 overflow-y-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr>
-                          <th className="!px-1 text-left">Fecha</th>
-                          <th className="!px-1 text-right">Amortización</th>
-                          <th className="!px-1 text-right">Interés</th>
-                          <th className="!px-1 text-right">Total</th>
-                          <th className="!px-1 text-right" title="Nominal que quedaba vivo antes de este pago">
-                            Residual
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {flujos.map((f) => (
-                          <tr key={f.fecha} className={f.futuro ? "" : "opacity-45"}>
-                            <td className="!px-1 text-left">{fmtFechaCorta(f.fecha)}</td>
-                            <td className="!px-1 text-right">{fmt2(f.amortizacion, 3)}</td>
-                            <td className="!px-1 text-right">{fmt2(f.interes, 3)}</td>
-                            <td className="!px-1 text-right font-medium">{fmt2(f.monto, 3)}</td>
-                            <td className="!px-1 text-right">
-                              {f.residual_previo_pct == null ? "--" : fmt2(f.residual_previo_pct, 2)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              </div>{/* /mitad derecha */}
-              </div>{/* /grilla 50-50 */}
+              </div>{/* /grilla ficha+cronograma | gráficos */}
             </>
           )}
         </div>
