@@ -1,6 +1,5 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
 // Imports estáticos: la carga diferida (next/dynamic) hacía que cada tab trajera
 // su chunk al entrar → se sentía lento (sobre todo Clientes). Con imports
@@ -10,14 +9,12 @@ import { AunesaExplorarPanel } from "./aunesa-explorar-panel";
 import { AunesaAumPanel } from "./aunesa-aum-panel";
 import { AunesaPosicionPanel } from "./aunesa-posicion-panel";
 import { AunesaBoletosPanel } from "./aunesa-boletos-panel";
-import { JobsGroup } from "./manager-jobs-panel";
 import { GruposPanel } from "./grupos-panel";
 import { TabContrapartes } from "./manager-contrapartes-view";
 import { TabAcaValores } from "./manager-aca-valores-view";
 import { TabMesa } from "./manager-mesa-panel";
 import { TabAca } from "./manager-aca-panel";
 import { TabDocumentos } from "./manager-documentos-view";
-import { LogsPanel } from "./logs-panel";
 import { ManagerDebugXirrPanel } from "./manager-debug-xirr";
 import { ManagerDebugTeaPanel } from "./manager-debug-tea";
 import { RolesPanel } from "./roles-panel";
@@ -28,145 +25,9 @@ import { TabClientes } from "./manager-clientes-panel";
 import { TitulosGroup } from "./manager-titulos-panel";
 import { ImportTenenciaPanel, OperacionesBackfillPanel } from "./manager-operaciones-panel";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-interface DiagPieza {
-  label: string; tipo: "motor" | "job" | "api"; cadencia: string;
-  estado: string; ultima: string | null; hace: string;
-  umbral_s: number; run_status?: string | null;
-}
-interface DiagGrupo { grupo: string | null; piezas: DiagPieza[] }
-interface DiagVista {
-  vista: string; resumen: { ok: number; total: number; alertas: number };
-  grupos: DiagGrupo[];
-}
-interface DiagData { ahora_ar: string; en_rueda: boolean; vistas: DiagVista[] }
-
-const _VISTA_META: Record<string, { icon: string; label: string }> = {
-  HOME:        { icon: "🏠", label: "HOME" },
-  OPERAR:      { icon: "💱", label: "OPERAR" },
-  MERCADOS:    { icon: "📈", label: "MERCADOS" },
-  NEGOCIO:     { icon: "💼", label: "NEGOCIO" },
-  BACK_OFFICE: { icon: "📦", label: "BACK OFFICE" },
-  PORTFOLIOS:  { icon: "📊", label: "PORTFOLIOS / AuM" },
-};
-const _TIPO_ICON: Record<string, string> = { motor: "⚙", job: "⏱", api: "🔌" };
-interface Job { status: "running" | "done" | "error"; tipo: string; result?: string; started_at?: string; finished_at?: string }
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-const ESTADO_COLOR: Record<string, string> = {
-  ok:          "var(--t-pos)",
-  lento:       "#ff9900",
-  atrasado:    "#ff9900",
-  critico:     "var(--t-neg)",
-  error:       "var(--t-neg)",
-  fuera_rueda: "#555555",
-  sin_datos:   "#555555",
-  error_parse: "#555555",
-};
-const ESTADO_LABEL: Record<string, string> = {
-  ok: "OK", lento: "LENTO", atrasado: "ATRASADO", error: "ERROR",
-  critico: "CRÍTICO", fuera_rueda: "FUERA RUEDA", sin_datos: "SIN DATOS", error_parse: "ERR PARSE",
-};
-
-function Badge({ estado }: { estado: string }) {
-  const color = ESTADO_COLOR[estado] ?? "#555555";
-  return (
-    <span className="text-[10px] font-semibold px-1.5 py-0.5 font-mono"
-      style={{ color, border: `1px solid ${color}40`, backgroundColor: `${color}12` }}>
-      {ESTADO_LABEL[estado] ?? estado.toUpperCase()}
-    </span>
-  );
-}
-
-function TabDiagnostico() {
-  const [data, setData] = useState<DiagData | null>(null);
-  const [lastCheck, setLastCheck] = useState<string>("");
-  const [colapsadas, setColapsadas] = usePersistedState<string[]>("manager.diag.arbol.colapsadas", []);
-
-  const refresh = useCallback(() => {
-    fetch("/api/manager/diagnostico", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d: DiagData) => { setData(d); setLastCheck(new Date().toLocaleTimeString("es-AR")); })
-      .catch(console.error);
-  }, []);
-
-  useEffect(() => { refresh(); const id = setInterval(refresh, 10000); return () => clearInterval(id); }, [refresh]);
-
-  const toggle = (v: string) =>
-    setColapsadas((c) => (c.includes(v) ? c.filter((x) => x !== v) : [...c, v]));
-
-  return (
-    <div className="h-full flex flex-col gap-2 p-3 min-h-0">
-      <div className="flex items-center gap-3 shrink-0">
-        <span className={`text-[11px] font-semibold ${data?.en_rueda ? "text-[var(--t-pos)]" : "text-[var(--t-text-muted)]"}`}>
-          {data ? (data.en_rueda ? "● EN RUEDA" : "● FUERA DE RUEDA") : "—"}
-        </span>
-        <span className="text-[10px] text-[var(--t-text-muted)] font-mono">{data?.ahora_ar ?? ""}</span>
-        <span className="ml-auto text-[10px] text-[var(--t-text-muted)]">Chequeado: {lastCheck} · auto 10s</span>
-      </div>
-
-      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-2">
-        {!data && <div className="text-[10px] text-[var(--t-text-muted)] font-mono p-2">Cargando…</div>}
-        {(data?.vistas ?? []).map((v) => {
-          const meta = _VISTA_META[v.vista] ?? { icon: "•", label: v.vista };
-          const colapsada = colapsadas.includes(v.vista);
-          const hasCrit = v.grupos.some((g) =>
-            g.piezas.some((p) => ["critico", "error", "sin_datos"].includes(p.estado)));
-          const dot = v.resumen.alertas === 0 ? "var(--t-pos)" : hasCrit ? "var(--t-neg)" : "#ff9900";
-          return (
-            <div key={v.vista} className="border border-[var(--t-border)] bg-[var(--t-panel)]">
-              <button onClick={() => toggle(v.vista)}
-                className="w-full flex items-center gap-2 px-3 py-1.5 bg-[var(--t-accent)]/10 hover:bg-[var(--t-accent)]/20 transition-colors">
-                <span className="text-[10px] text-[var(--t-text-muted)] w-3">{colapsada ? "▸" : "▾"}</span>
-                <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
-                  {meta.icon} {meta.label}
-                </span>
-                <span className="ml-auto text-[10px] text-[var(--t-text-muted)] font-mono">
-                  {v.resumen.ok}/{v.resumen.total}{v.resumen.alertas > 0 ? ` · ${v.resumen.alertas} alerta` : ""}
-                </span>
-                <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: dot }} />
-              </button>
-              {!colapsada && (
-                <div className="px-2 py-1">
-                  {v.grupos.map((g, gi) => (
-                    <div key={gi} className="mb-1">
-                      {g.grupo && (
-                        <div className="text-[9px] text-[var(--t-text-muted)] tracking-widest px-1 pt-1 pb-0.5 uppercase">
-                          {g.grupo}
-                        </div>
-                      )}
-                      <table className="w-full text-[11px]">
-                        <tbody>
-                          {g.piezas.map((p, pi) => (
-                            <tr key={pi} className="border-b border-[var(--t-border)]/40">
-                              <td className="px-1 py-0.5 text-[var(--t-text-dim)] w-4">{_TIPO_ICON[p.tipo] ?? "•"}</td>
-                              <td className="px-1 py-0.5 text-[var(--t-text)] whitespace-nowrap">{p.label}</td>
-                              <td className="px-1 py-0.5 text-[10px] text-[var(--t-text-muted)] whitespace-nowrap">{p.cadencia}</td>
-                              <td className="px-1 py-0.5 font-mono text-[var(--t-text-dim)] text-right whitespace-nowrap">{p.hace}</td>
-                              <td className="px-1 py-0.5 font-mono text-[9px] text-[var(--t-text-muted)] text-right whitespace-nowrap">{p.ultima ?? "—"}</td>
-                              <td className="px-1 py-0.5 text-right"><Badge estado={p.estado} /></td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // ── Panel: Opciones → elegir vencimientos a trackear ───────────────────────
 
 type Tab =
-  | "observabilidad"
   | "validaciones"
   | "titulos"
   | "clientes"
@@ -187,207 +48,23 @@ type Tab =
 // ── Grupos consolidados (sub-tabs con Pill, patrón AunesaGroup) ───────────────
 
 
-// (2026-08-19) Acá vivía LatenciaPanel — el ranking de endpoints por latencia.
-// Se dio de baja. El user: *«la verdad tengo eso en observabilidad, jamás lo
-// usé… ni siquiera se actualiza, puede haber cosas nuevas y no se entera»*.
+// (2026-09-09) Acá vivían OBSERVABILIDAD (DIAGNÓSTICO → ÁRBOL + LOGS, y BASE) y
+// antes LatenciaPanel. **Se dieron de baja las PANTALLAS, no los motores.**
 //
-// El diagnóstico es el correcto y vale dejarlo escrito: **un ranking muestra lo
-// LENTO, no lo ANORMAL**. Arriba de esa tabla estaban `/salud/diagnostico`
-// (11.724 ms — es una llamada al LLM) y `/tesoreria/dia` (726 ms — es Aunesa):
-// los dos BIEN, y los dos ahí mañana también. Una lista que no cambia nunca deja
-// de mirarse, y no tiene con qué "enterarse" de nada.
+// El user: *«no quiero más estas vistas dentro de MANAGER, ni DIAGNÓSTICO ni
+// BASE»*. Es el mismo argumento que ya se aplicó a SALUD (2026-08-19), a IA y a
+// LATENCIA: tener el estado del sistema en dos lugares —una pantalla que hay que
+// acordarse de abrir y el AV AGENT que te busca— es tener dos verdades sin
+// árbitro (REGLA #9). Gana el agente, que es el que avisa solo.
 //
-// Lo que sí es información —un endpoint peor que SÍ MISMO ayer— ahora lo detecta
-// el AV AGENT (`api/services/av_agent_latencia.py`) y lo canta sin que nadie
-// abra nada. `manager.latencia_endpoints` y el middleware NO se tocaron: se
-// eliminó la pantalla, no el dato.
-
-// OBSERVABILIDAD: DIAGNÓSTICO (frescura de motores/jobs + logs) + BASE.
-//
-// **SALUD ya no vive acá** (2026-08-19). El user: *«eliminar SALUD del front de
-// observabilidad… toda la salud, y esto pasa 100% por el agent»*. El motor no se
-// tocó: lo lee el AV AGENT, que pasa a ser la ÚNICA puerta — con el diagnóstico
-// razonado paso por paso, el re-chequeo en el momento y las acciones. Tener el
-// mismo estado en dos pantallas era el problema original de SALUD, repetido.
-function ObservabilidadGroup() {
-  const [subRaw, setSub] = usePersistedState<"salud" | "controles" | "diagnostico" | "jobs" | "base" | "ia" | "latencia" | "uso">(
-    "manager.obs.sub.v2", "diagnostico");
-  // (2026-08-19) La pill IA se eliminó. El user: *«¿qué sentido tiene toda esta
-  // parte de IA ahora? Más allá del crédito disponible —que tampoco es
-  // relevante— el resto ocupa espacio nada más»*. Y tenía razón: el historial de
-  // 874 llamadas no se abrió nunca. Lo único que importaba de ese panel —que el
-  // gasto no se dispare y que las llamadas no fallen— es ahora un CHEQUEO del
-  // AV AGENT (`ia:gateway`), o sea una señal que te busca en vez de una pantalla
-  // que hay que ir a abrir. Que es, otra vez, el argumento que fundó SALUD.
-  // "uso" y "controles" quedan en el union SOLO para migrar el estado
-  // persistido viejo: la telemetría de USO se decomisó del backend y el
-  // auto-control de calidad de datos se dio de baja entero (2026-08-27,
-  // sus dieciséis controles eran el AV AGENT o se dieron de baja). A quien
-  // los tenga guardados hay que llevarlo a una tab que exista, o la
-  // pantalla le abre vacía y parece rota.
-  // Migración del estado guardado: quien tenía CONTROLES o JOBS elegidos cae a
-  // SALUD, que es donde vive ese contenido ahora.
-  // Migración del estado guardado: los que quedaron con una tab que ya no existe
-  // (SALUD se fue al agente; CONTROLES/JOBS/USO se habían fusionado en SALUD)
-  // caen a DIAGNÓSTICO. Sin esto la pantalla les abre vacía y parece rota.
-  const sub = ["ia", "uso", "salud", "controles", "jobs", "latencia"].includes(subRaw)
-    ? "diagnostico" : subRaw;
-  return (
-    <div className="h-full flex flex-col min-h-0">
-      <div className={GROUP_HEADER}>
-        <span className={GROUP_TITLE}>OBSERVABILIDAD</span>
-        <Pill label="DIAGNÓSTICO" active={sub === "diagnostico"} onClick={() => setSub("diagnostico")} />
-        <Pill label="BASE" active={sub === "base"} onClick={() => setSub("base")} />
-      </div>
-      <div className="flex-1 min-h-0 overflow-hidden">
-        {sub === "diagnostico" && <DiagnosticoGroup />}
-        {sub === "base"        && <DbBasePanel />}
-      </div>
-    </div>
-  );
-}
-
-// BASE: espacio/salud de la base — tamaño total vs límite del plan, por schema,
-// y top tablas con bloat (dead tuples) + último dato. Fuente:
-// /api/manager/db-observabilidad (cache 2 min en el backend).
-type DbTablaObs = {
-  schema: string; tabla: string;
-  total_bytes: number; tabla_bytes: number; indices_bytes: number;
-  filas_vivas: number; filas_muertas: number; dead_pct: number;
-  ultimo_dato: string | null; last_autovacuum: string | null;
-};
-type DbObs = {
-  total_bytes: number; limit_bytes: number; usado_pct: number | null;
-  schemas: { schema: string; bytes: number; tablas: number }[];
-  tablas: DbTablaObs[];
-};
-
-function fmtBytesDb(n: number | null | undefined): string {
-  if (n == null) return "—";
-  let v = n;
-  for (const u of ["B", "KB", "MB", "GB", "TB"]) {
-    if (Math.abs(v) < 1024) return `${v.toFixed(1)}${u}`;
-    v /= 1024;
-  }
-  return `${v.toFixed(1)}PB`;
-}
-
-function DbBasePanel() {
-  const [data, setData] = useState<DbObs | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  useEffect(() => {
-    let alive = true;
-    const load = () => {
-      fetch("/api/manager/db-observabilidad", { cache: "no-store" })
-        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-        .then((j: DbObs) => { if (alive) { setData(j); setErr(null); } })
-        .catch((e) => { if (alive) setErr(e instanceof Error ? e.message : "error"); });
-    };
-    load();
-    const id = setInterval(load, 60_000);
-    return () => { alive = false; clearInterval(id); };
-  }, []);
-
-  if (err) return <p className="p-3 text-[11px] text-[var(--t-neg)]">Error: {err}</p>;
-  if (!data) return <p className="p-3 text-[11px] text-[var(--t-text-dim)]">cargando…</p>;
-
-  const pct = data.usado_pct ?? 0;
-  const pctColor = pct >= 85 ? "var(--t-neg)" : pct >= 65 ? "#ff9900" : "var(--t-pos)";
-  const maxSchema = Math.max(1, ...data.schemas.map((s) => s.bytes));
-
-  return (
-    <div className="h-full min-h-0 overflow-auto p-3 flex flex-col gap-4">
-      {/* Gauge total vs límite del plan */}
-      <div>
-        <div className="flex items-baseline gap-2 mb-1 flex-wrap">
-          <span className="text-[11px] uppercase tracking-widest text-[var(--t-accent)]">Espacio de la base</span>
-          <span className="text-[11px] font-mono">{fmtBytesDb(data.total_bytes)} / {fmtBytesDb(data.limit_bytes)}</span>
-          <span className="ml-auto text-[14px] font-bold font-mono" style={{ color: pctColor }}>{pct}%</span>
-        </div>
-        <div className="h-2.5 w-full bg-[var(--t-border)] rounded-sm overflow-hidden">
-          <div style={{ width: `${Math.min(100, pct)}%`, background: pctColor }} className="h-full" />
-        </div>
-        <div className="text-[9px] text-[var(--t-text-muted)] mt-1">
-          Límite del plan configurable (env <span className="font-mono">DB_DISK_LIMIT_GB</span>, default 8 = Supabase Pro).
-        </div>
-      </div>
-
-      {/* Por schema */}
-      <div>
-        <div className="text-[10px] uppercase tracking-widest text-[var(--t-text-dim)] mb-1">Por schema</div>
-        <div className="flex flex-col gap-0.5">
-          {data.schemas.map((s) => (
-            <div key={s.schema} className="flex items-center gap-2 text-[10px]">
-              <span className="w-28 font-mono text-[var(--t-text)] truncate">{s.schema}</span>
-              <div className="flex-1 h-2.5 bg-[var(--t-border)] rounded-sm overflow-hidden">
-                <div style={{ width: `${(s.bytes / maxSchema) * 100}%` }} className="h-full bg-[var(--t-accent)]" />
-              </div>
-              <span className="w-16 text-right font-mono text-[var(--t-text-dim)]">{fmtBytesDb(s.bytes)}</span>
-              <span className="w-16 text-right text-[9px] text-[var(--t-text-muted)]">{s.tablas} tablas</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Top tablas */}
-      <div>
-        <div className="text-[10px] uppercase tracking-widest text-[var(--t-text-dim)] mb-1">Top tablas por tamaño</div>
-        <table className="w-full text-[10px] tabular-nums">
-          <thead className="text-[9px] uppercase text-[var(--t-text-muted)]">
-            <tr>
-              <th className="text-left px-2 py-1">Tabla</th>
-              <th className="text-right px-2 py-1">Total</th>
-              <th className="text-right px-2 py-1">Índices</th>
-              <th className="text-right px-2 py-1">Filas</th>
-              <th className="text-right px-2 py-1">Muertas</th>
-              <th className="text-right px-2 py-1">Dead%</th>
-              <th className="text-right px-2 py-1">Últ. dato</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.tablas.map((t) => {
-              const bloat = t.dead_pct > 20 && t.filas_muertas > 10_000;
-              return (
-                <tr key={`${t.schema}.${t.tabla}`} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]">
-                  <td className="px-2 py-1 font-mono text-[var(--t-text-dim)]">{t.schema}.<span className="text-[var(--t-text)]">{t.tabla}</span></td>
-                  <td className="px-2 py-1 text-right font-mono font-semibold">{fmtBytesDb(t.total_bytes)}</td>
-                  <td className="px-2 py-1 text-right font-mono text-[var(--t-text-dim)]">{fmtBytesDb(t.indices_bytes)}</td>
-                  <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">{t.filas_vivas.toLocaleString("es-AR")}</td>
-                  <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">{t.filas_muertas.toLocaleString("es-AR")}</td>
-                  <td className="px-2 py-1 text-right font-semibold" style={{ color: bloat ? "var(--t-neg)" : "var(--t-text-dim)" }}>{t.dead_pct}%</td>
-                  <td className="px-2 py-1 text-right text-[9px] text-[var(--t-text-muted)]">{t.ultimo_dato ?? "—"}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// DIAGNÓSTICO: Motores (rediseñado 50/50) + Logs.
-// RECURSOS (CPU/RAM/swap/disk del Droplet) se ELIMINÓ: era un tablero de métricas
-// crudas que no respondía si el sistema estaba sano — esa pregunta la contesta
-// OBSERVABILIDAD → SALUD. Se fue también el sampler de fondo del backend.
-function DiagnosticoGroup() {
-  const [subRaw, setSub] = usePersistedState<"motores" | "logs">("manager.diag.sub", "motores");
-  // Guard sobre el estado persistido: quien tenía RECURSOS elegido cae a ÁRBOL.
-  const sub = subRaw === "motores" || subRaw === "logs" ? subRaw : "motores";
-  return (
-    <div className="h-full flex flex-col min-h-0">
-      <div className={GROUP_HEADER}>
-        <span className={GROUP_TITLE}>DIAGNÓSTICO</span>
-        <Pill label="ÁRBOL" active={sub === "motores"} onClick={() => setSub("motores")} />
-        <Pill label="LOGS" active={sub === "logs"} onClick={() => setSub("logs")} />
-      </div>
-      <div className="flex-1 min-h-0 overflow-hidden">
-        {sub === "motores"  && <TabDiagnostico />}
-        {sub === "logs"     && <LogsPanel />}
-      </div>
-    </div>
-  );
-}
+// Lo que NO se tocó, porque es del agente y no de la pantalla:
+//   · `api/services/diagnostico.py::arbol()`  → lo lee el detector `motor_caido`.
+//   · `api/services/diagnostico_registry.py`  → el registro de motores/jobs.
+//   · `api/services/salud.py`                 → el motor de chequeos (detector `salud`).
+//   · `api/services/logs_sistema.py`          → la lectura de journalctl (AGENT.md §0.ac).
+// Se fueron los endpoints `/api/manager/diagnostico`, `/db-observabilidad`,
+// `/logs` y `/logs/services`, y con ellos `api/services/db_obs.py`, que no tenía
+// otro cliente. El peso de las tablas ya lo mide el agente en `agente/peso.py`.
 
 // VALIDACIONES: checks + Opciones Vto (relocalizado de Backfills) + Debug XIRR.
 function ValidacionesGroup() {
@@ -464,7 +141,6 @@ function AunesaGroup({ modules }: { modules?: string[] | null }) {
 // `manager`. Mantener sincronizado con el gating server-side en
 // api/routers/manager/__init__.py — la API es la fuente de verdad.
 const TAB_MODULES: Record<Tab, string[]> = {
-  observabilidad: ["manager"],
   validaciones: ["manager"],
   titulos:      ["manager", "manager_titulos", "manager_instrumentos"],
   clientes:     ["manager", "manager_clientes"],
@@ -486,7 +162,6 @@ const TAB_MODULES: Record<Tab, string[]> = {
 
 export function ManagerView({ modules = null }: { modules?: string[] | null }) {
   const allTabs: { id: Tab; label: string }[] = [
-    { id: "observabilidad", label: "OBSERVABILIDAD" },
     { id: "validaciones", label: "VALIDACIONES" },
     { id: "titulos",      label: "TÍTULOS"      },
     { id: "clientes",     label: "CLIENTES"     },
@@ -515,8 +190,10 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
     modules.includes("manager") ||
     modules.includes("manager_clientes_bulk");
   const [tabRaw, setTab] = usePersistedState<Tab>("manager.tab", tabs[0]?.id ?? "clientes");
-  // Migración de tabs viejas persistidas: diagnostico/controles/jobs se
-  // consolidaron en observabilidad — sin este guard quedaba contenido vacío.
+  // Migración de tabs viejas persistidas: diagnostico/controles/jobs se habían
+  // consolidado en observabilidad, y observabilidad se dio de baja entera
+  // (2026-09-09). Sin este guard, a quien la tenía elegida la pantalla le abre
+  // VACÍA y parece rota — cae a la primera tab que su rol sí tiene.
   const tab: Tab = tabs.some((t) => t.id === tabRaw)
     ? tabRaw
     : (tabs[0]?.id ?? "clientes");
@@ -533,7 +210,6 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
 
       {/* Tab content */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        {tab === "observabilidad" && <ObservabilidadGroup />}
         {tab === "validaciones" && <ValidacionesGroup />}
         {tab === "titulos"      && <TitulosGroup modules={modules} />}
         {tab === "clientes"     && <TabClientes canBulk={canBulk} />}

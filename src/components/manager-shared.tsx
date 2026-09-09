@@ -4,7 +4,7 @@ import { useState } from "react";
 
 // Piezas compartidas de los paneles de Manager (extraídas de manager-view
 // al partir el monolito — mismo patrón de archivos hermanos con import
-// estático que manager-jobs-panel / aunesa-*-panel).
+// estático que aunesa-*-panel / manager-clientes-panel).
 
 export function Pill({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
