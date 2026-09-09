@@ -154,7 +154,7 @@ const AREA_MAX = 268435456; // 16384²
  *  forzar 1 devolvería un lienzo pasado de largo, o sea el PNG en blanco que
  *  esta función existe para evitar. Quien llama tiene que tratar el `< 1` como
  *  «no se puede dibujar». */
-function escalaSegura(w: number, h: number): number {
+export function escalaSegura(w: number, h: number): number {
   return Math.min(ESCALA_OBJETIVO, LADO_MAX / w, LADO_MAX / h,
                   Math.sqrt(AREA_MAX / (w * h)));
 }
@@ -174,6 +174,12 @@ const VERDE = "#15803d";
 const ROJO = "#b91c1c";
 
 const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+
+// Empaquetadas para que `lote-imagen.ts` (y cualquier otro reporte que se
+// sume) tome la MISMA paleta por objeto en vez de reimportar constante por
+// constante. Los usos de acá abajo siguen con las sueltas: cambiar esa firma
+// hubiera sido tocar código que ya funciona sin necesidad.
+export const PALETA = { AZUL, TINTA, TENUE, LINEA, BANDA, FONDO, VERDE, ROJO, MONO } as const;
 const F_CUENTA = `15px ${MONO}`;
 const F_SUB = `11px ${MONO}`;
 const F_TITULO_TABLA = `bold 14px ${MONO}`;
@@ -185,8 +191,8 @@ const F_TOTAL = `bold 15px ${MONO}`;
 const F_BARRA = `bold 17px ${MONO}`;
 const F_FIRMA = `12px ${MONO}`;
 
-const PAD = 20;          // margen del lienzo
-const BARRA_H = 50;      // la barra azul
+export const PAD = 20;          // margen del lienzo
+export const BARRA_H = 50;      // la barra azul
 const GAP_X = 26;        // entre columnas
 const GAP_Y = 16;        // entre tablas de una misma columna
 const CELDA_X = 9;       // padding horizontal de cada celda
@@ -214,13 +220,60 @@ const altoTabla = (t: TablaImagen) =>
 
 /** Carga el logo. Si falla, el reporte sale igual: un mail sin logo es mejor que
  *  un botón que no hace nada. */
-function cargarLogo(url: string): Promise<HTMLImageElement | null> {
+export function cargarLogo(url: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => resolve(img);
     img.onerror = () => resolve(null);
     img.src = url;
   });
+}
+
+/** La barra azul de arriba de TODO reporte: logo + separador, título en
+ *  mayúsculas, fecha y la firma chiquita a la derecha. Se separó de
+ *  `reporteComoImagen` para que `lote-imagen.ts` la dibuje igual sin
+ *  reimplementarla — dos barras que se desvían de a poco es peor que
+ *  compartir una función.
+ *
+ *  ⚠️ Deja `ctx.textAlign = "left"`: la firma la pone en "right" y quien
+ *  sigue dibujando después de la barra asume que arranca en "left". */
+export function dibujarBarra(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  o: { titulo: string; fecha: string; firma: string; logo: HTMLImageElement | null },
+): void {
+  ctx.fillStyle = AZUL;
+  ctx.fillRect(0, 0, W, BARRA_H);
+
+  let x = PAD;
+  const logo = o.logo;
+  if (logo && logo.width && logo.height) {
+    const h = 26;
+    const w = (logo.width / logo.height) * h;
+    ctx.drawImage(logo, x, (BARRA_H - h) / 2, w, h);
+    x += w + 14;
+    ctx.strokeStyle = "rgba(255,255,255,.35)";
+    ctx.beginPath();
+    ctx.moveTo(x - 7, 14);
+    ctx.lineTo(x - 7, BARRA_H - 14);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = "#ffffff";
+  ctx.font = F_BARRA;
+  ctx.textAlign = "left";
+  ctx.fillText(o.titulo.toUpperCase(), x, BARRA_H / 2);
+  x += ctx.measureText(o.titulo.toUpperCase()).width + 14;
+  ctx.fillStyle = "rgba(255,255,255,.85)";
+  ctx.fillText(o.fecha, x, BARRA_H / 2);
+
+  // La firma va chica y a la derecha: dice de dónde salió el reporte sin
+  // competir con el título.
+  ctx.font = F_FIRMA;
+  ctx.fillStyle = "rgba(255,255,255,.7)";
+  ctx.textAlign = "right";
+  ctx.fillText(o.firma, W - PAD, BARRA_H / 2);
+  ctx.textAlign = "left";
 }
 
 export async function reporteComoImagen(o: Opciones): Promise<Blob | null> {
@@ -309,37 +362,7 @@ export async function reporteComoImagen(o: Opciones): Promise<Blob | null> {
   ctx.fillRect(0, 0, W, H);
 
   // ── La barra azul ─────────────────────────────────────────────────────────
-  ctx.fillStyle = AZUL;
-  ctx.fillRect(0, 0, W, BARRA_H);
-
-  let x = PAD;
-  const logo = await cargarLogo(o.logoUrl);
-  if (logo && logo.width && logo.height) {
-    const h = 26;
-    const w = (logo.width / logo.height) * h;
-    ctx.drawImage(logo, x, (BARRA_H - h) / 2, w, h);
-    x += w + 14;
-    ctx.strokeStyle = "rgba(255,255,255,.35)";
-    ctx.beginPath();
-    ctx.moveTo(x - 7, 14);
-    ctx.lineTo(x - 7, BARRA_H - 14);
-    ctx.stroke();
-  }
-
-  ctx.fillStyle = "#ffffff";
-  ctx.font = F_BARRA;
-  ctx.textAlign = "left";
-  ctx.fillText(o.titulo.toUpperCase(), x, BARRA_H / 2);
-  x += ctx.measureText(o.titulo.toUpperCase()).width + 14;
-  ctx.fillStyle = "rgba(255,255,255,.85)";
-  ctx.fillText(o.fecha, x, BARRA_H / 2);
-
-  // La firma va chica y a la derecha: dice de dónde salió el reporte sin
-  // competir con el título.
-  ctx.font = F_FIRMA;
-  ctx.fillStyle = "rgba(255,255,255,.7)";
-  ctx.textAlign = "right";
-  ctx.fillText(o.firma, W - PAD, BARRA_H / 2);
+  dibujarBarra(ctx, W, { titulo: o.titulo, fecha: o.fecha, firma: o.firma, logo: await cargarLogo(o.logoUrl) });
 
   // ── Las secciones, una debajo de la otra ──────────────────────────────────
   let yTope = BARRA_H + PAD;
@@ -442,6 +465,35 @@ export async function reporteComoImagen(o: Opciones): Promise<Blob | null> {
 }
 
 /**
+ * Copia un blob de imagen al portapapeles. Si el navegador no deja (Firefox y
+ * cualquier origen sin HTTPS no implementan copiar imágenes), **lo descarga**:
+ * el objetivo es que la imagen llegue al mail, y quedarse en un error no la
+ * lleva a ningún lado.
+ *
+ * Se separó de `copiarReporte` para que `copiarLote` (y cualquier otro
+ * reporte que se sume) comparta el mismo camino a portapapeles/descarga en
+ * vez de reimplementarlo blob por blob.
+ */
+export async function entregarImagen(blob: Blob, archivo: string): Promise<"copiado" | "descargado"> {
+  try {
+    const Item = window.ClipboardItem;
+    if (Item && navigator.clipboard?.write) {
+      await navigator.clipboard.write([new Item({ "image/png": blob })]);
+      return "copiado";
+    }
+  } catch {
+    // Sigue al plan B: descargar.
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = archivo;
+  a.click();
+  URL.revokeObjectURL(url);
+  return "descargado";
+}
+
+/**
  * Copia el reporte al portapapeles. Si el navegador no deja (Firefox y cualquier
  * origen sin HTTPS no implementan copiar imágenes), **lo descarga**: el objetivo
  * es que la imagen llegue al mail, y quedarse en un error no la lleva a ningún
@@ -451,22 +503,7 @@ export async function copiarReporte(o: Opciones): Promise<"copiado" | "descargad
   try {
     const blob = await reporteComoImagen(o);
     if (!blob) return "error";
-    try {
-      const Item = window.ClipboardItem;
-      if (Item && navigator.clipboard?.write) {
-        await navigator.clipboard.write([new Item({ "image/png": blob })]);
-        return "copiado";
-      }
-    } catch {
-      // Sigue al plan B: descargar.
-    }
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = o.archivo;
-    a.click();
-    URL.revokeObjectURL(url);
-    return "descargado";
+    return await entregarImagen(blob, o.archivo);
   } catch {
     return "error";
   }
