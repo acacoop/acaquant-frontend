@@ -426,13 +426,20 @@ export function CalculadoraLote({ datos }: { datos: Datos }) {
           ]
         : []),
       {
-        titulo: "Plazo",
+        // Los flujos van en el cuadro de la derecha, en lista, para que el CFT
+        // sea lo último que se lee abajo de todo.
+        titulo: "Plazo y flujos",
         filas: [
           {
             label: "Plazo promedio ponderado",
             valor: `${res.plazo_ponderado_dias.toLocaleString("es-AR", { maximumFractionDigits: 1 })} días`,
           },
           { label: "Cantidad de cheques", valor: String(res.filas.length) },
+          ...res.flujos.map((f) => ({
+            label: fmtFecha(f.fecha),
+            valor: fmtPlata(f.importe),
+            negativo: f.importe < 0,
+          })),
         ],
       },
     ];
@@ -460,11 +467,7 @@ export function CalculadoraLote({ datos }: { datos: Datos }) {
         label: "CFT efectiva anual (lote, plazo ponderado)",
         valor: fmtPct(res.cft_pct),
       },
-      flujos: res.flujos.map((f) => ({
-        fecha: fmtFecha(f.fecha),
-        importe: fmtPlata(f.importe),
-        negativo: f.importe < 0,
-      })),
+      flujos: [],
       nota:
         "Simulador estimativo. Aranceles según los parámetros vigentes de la mesa; el costo del " +
         "aval es el indicativo de cada SGR y puede variar. Vencimientos en días corridos desde la " +

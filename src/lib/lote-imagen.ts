@@ -34,10 +34,11 @@ export type LoteImagen = {
   /** Fila TOTAL, misma longitud que `columnas` ("" en las celdas sin total). */
   total: string[];
   /** Cuadros de resumen, uno al lado del otro debajo de la tabla. */
-  resumen: { titulo: string; filas: { label: string; valor: string; fuerte?: boolean }[] }[];
+  resumen: { titulo: string; filas: { label: string; valor: string; fuerte?: boolean; negativo?: boolean }[] }[];
   /** La línea grande: CFT. */
   destacado: { label: string; valor: string };
-  /** Flujos: fecha + importe ya formateado; `negativo` pinta en rojo. */
+  /** Flujos sueltos debajo del CFT. Vacío = no se dibuja nada (el lote los
+   *  lleva adentro de un cuadro de resumen, para que el CFT cierre la imagen). */
   flujos: { fecha: string; importe: string; negativo: boolean }[];
   /** Pie chiquito (aclaraciones). Puede venir vacío. */
   nota: string;
@@ -178,8 +179,8 @@ export async function loteComoImagen(o: LoteImagen): Promise<Blob | null> {
     + o.subtitulo.length * H_SUB + GAP_Y
     + H_CAB + o.filas.length * H_FILA + H_FILA + GAP_Y
     + altoResumen + GAP_Y
-    + H_DESTACADO + GAP_Y
-    + altoFlujos
+    + H_DESTACADO
+    + (altoFlujos ? GAP_Y + altoFlujos : 0)
     + (lineasNota.length ? GAP_Y + lineasNota.length * H_NOTA : 0)
     + PAD;
 
@@ -308,6 +309,7 @@ export async function loteComoImagen(o: LoteImagen): Promise<Blob | null> {
           ctx.textAlign = "left";
           ctx.fillText(fila.label, cx + CELDA_X, fy + H_RESUMEN_FILA / 2);
           ctx.textAlign = "right";
+          ctx.fillStyle = fila.negativo ? ROJO : TINTA;
           ctx.fillText(fila.valor, cx + w - CELDA_X, fy + H_RESUMEN_FILA / 2);
         } else {
           // Fila de relleno: el mismo borde que las reales (como
@@ -338,7 +340,8 @@ export async function loteComoImagen(o: LoteImagen): Promise<Blob | null> {
   ctx.textAlign = "right";
   ctx.fillText(o.destacado.valor, PAD + anchoCuerpo - CELDA_X, y + H_DESTACADO / 2);
   ctx.textAlign = "left";
-  y += H_DESTACADO + GAP_Y;
+  y += H_DESTACADO;
+  if (altoFlujos) y += GAP_Y;
 
   // ── Flujos, en lista ────────────────────────────────────────────────────
   ctx.font = F_FLUJO;
