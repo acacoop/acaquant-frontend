@@ -199,7 +199,23 @@ export const NUNCA_CORRIO = {
   color: "var(--t-text-dim)", txt: "todavía no le tocó",
 };
 
+// ⚠️⚠️ **UNA HABILIDAD DADA DE BAJA NO SE PINTA CON EL COLOR DE SU ÚLTIMA
+// CORRIDA.** Cuando una habilidad se saca del código, su fila queda
+// `activa = false` para que los hallazgos históricos que la nombran se puedan
+// leer — pero `ultimo_resultado` se congela en el `ok` de la última vez que
+// corrió de verdad. Sin mirar `activa`, el panel la dibujaba VERDE, con el
+// texto «miró y guardó lo que vio» y una fecha de hace una semana, en una
+// lista donde todo lo demás decía hoy: **una luz verde sobre algo que no
+// corre** (§0.ey).
+//
+// Va PRIMERO, antes de leer el resultado: la baja gana sobre cualquier estado.
+export const DADA_DE_BAJA = {
+  color: "var(--t-text-dim)",
+  txt: "DADA DE BAJA — ya no está en el catálogo, no corre",
+};
+
 export function saludDe(h: Habilidad): { color: string; txt: string } {
+  if (!h.activa) return DADA_DE_BAJA;
   if (!h.ultima_corrida_at) return NUNCA_CORRIO;
   return ESTADO_HABILIDAD[h.ultimo_resultado ?? ""] ?? NUNCA_CORRIO;
 }
