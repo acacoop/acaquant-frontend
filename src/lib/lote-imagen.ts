@@ -71,7 +71,7 @@ const H_NOTA = 16;
 const CELDA_X = 8;    // padding horizontal de cada celda
 const GAP_Y = 14;      // entre bloques (subtítulo/tabla/resumen/destacado/flujos/nota)
 const GAP_X = 16;      // entre cuadros de resumen
-const GAP_FLUJO = 28;  // separación entre un flujo y el siguiente, en la misma línea
+const GAP_FLUJO = 28;  // entre la fecha y el importe de un flujo
 
 const ANCHO_MIN = 900; // ancho mínimo del lienzo
 
@@ -122,28 +122,15 @@ function repartirCuadros(anchoCuerpo: number, n: number): number[] {
 
 type FlujoUbicado = LoteImagen["flujos"][number] & { linea: number; x: number };
 
-/** Acomoda los flujos en línea, cortando a la siguiente cuando no entran en
- *  `anchoCuerpo`. Se calcula UNA sola vez y se reusa para medir el alto y
- *  para dibujar: dos cálculos separados podían desincronizarse y cortar la
- *  imagen a mitad de un flujo. */
+/** Un flujo por renglón, a lo ancho: el cliente tiene que leer fecha e importe
+ *  de un vistazo, y cuatro vencimientos seguidos en una línea se confunden. Se
+ *  mide la fecha para que los importes queden alineados en columna. */
 function armarFlujos(
   medidor: CanvasRenderingContext2D,
   flujos: LoteImagen["flujos"],
-  anchoCuerpo: number,
 ): FlujoUbicado[] {
   medidor.font = F_FLUJO;
-  let x = 0;
-  let linea = 0;
-  return flujos.map((f) => {
-    const ancho = medidor.measureText(`${f.fecha} ${f.importe}`).width;
-    if (x !== 0 && x + ancho > anchoCuerpo) {
-      linea += 1;
-      x = 0;
-    }
-    const ubicado = { ...f, linea, x };
-    x += ancho + GAP_FLUJO;
-    return ubicado;
-  });
+  return flujos.map((f, i) => ({ ...f, linea: i, x: 0 }));
 }
 
 /** Parte `texto` en líneas que entren en `anchoMax`, cortando por palabra
@@ -181,7 +168,7 @@ export async function loteComoImagen(o: LoteImagen): Promise<Blob | null> {
   const filasResumen = Math.max(0, ...o.resumen.map((r) => r.filas.length));
   const altoResumen = H_RESUMEN_TIT + filasResumen * H_RESUMEN_FILA;
 
-  const flujosUbicados = armarFlujos(medidor, o.flujos, anchoCuerpo);
+  const flujosUbicados = armarFlujos(medidor, o.flujos);
   const maxLineaFlujo = flujosUbicados.length ? Math.max(...flujosUbicados.map((f) => f.linea)) : -1;
   const altoFlujos = (maxLineaFlujo + 1) * H_FLUJO;
 
@@ -353,17 +340,22 @@ export async function loteComoImagen(o: LoteImagen): Promise<Blob | null> {
   ctx.textAlign = "left";
   y += H_DESTACADO + GAP_Y;
 
-  // ── Flujos, en línea ────────────────────────────────────────────────────
+  // ── Flujos, en lista ────────────────────────────────────────────────────
   ctx.font = F_FLUJO;
-  for (const f of flujosUbicados) {
-    const px = PAD + f.x;
-    const py = y + f.linea * H_FLUJO;
+  {
+    const anchoFecha = Math.max(0, ...flujosUbicados.map((f) => ctx.measureText(f.fecha).width));
+    const anchoImporte = Math.max(0, ...flujosUbicados.map((f) => ctx.measureText(f.importe).width));
+    const xImporte = PAD + anchoFecha + GAP_FLUJO + anchoImporte;
+    for (const f of flujosUbicados) {
+      const py = y + f.linea * H_FLUJO + H_FLUJO / 2;
+      ctx.textAlign = "left";
+      ctx.fillStyle = TENUE;
+      ctx.fillText(f.fecha, PAD, py);
+      ctx.textAlign = "right";
+      ctx.fillStyle = f.negativo ? ROJO : TINTA;
+      ctx.fillText(f.importe, xImporte, py);
+    }
     ctx.textAlign = "left";
-    ctx.fillStyle = TENUE;
-    ctx.fillText(`${f.fecha} `, px, py + H_FLUJO / 2);
-    const anchoFecha = ctx.measureText(`${f.fecha} `).width;
-    ctx.fillStyle = f.negativo ? ROJO : TINTA;
-    ctx.fillText(f.importe, px + anchoFecha, py + H_FLUJO / 2);
   }
   y += altoFlujos;
 

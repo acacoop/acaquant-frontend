@@ -108,16 +108,20 @@ export function Caja({
   extra,
   destacada = false,
   cargando = false,
+  className = "",
   children,
 }: {
   titulo: string;
   extra?: string;
   destacada?: boolean;
   cargando?: boolean;
+  /** Para estirarla a la altura del grid (`h-full`): tres cajas una al lado
+   *  de la otra con distinto alto dejan huecos cortados abajo. */
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="border border-[var(--t-border)]">
+    <div className={"border border-[var(--t-border)] " + className}>
       <div
         className={
           "px-2 py-1 flex items-center gap-2 text-[9px] uppercase tracking-widest " +

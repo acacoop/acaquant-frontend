@@ -750,8 +750,8 @@ export function CalculadoraLote({ datos }: { datos: Datos }) {
       </Caja>
 
       {/* ── TOTALES + CFT ─────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-1.5 items-start">
-        <Caja titulo="Neto sin aval — total lote" cargando={calculando}>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-1.5 items-stretch">
+        <Caja titulo="Neto sin aval — total lote" cargando={calculando} className="h-full">
           <Fila label="Monto bruto" valor={fmtPlata(res?.totales.monto_descontado)} />
           <Fila label="Descuento" valor={fmtPlata(res?.totales.descuento)} />
           <Fila label="Arancel ACA Valores" valor={fmtPlata(res?.totales.arancel_aca)} />
@@ -764,7 +764,7 @@ export function CalculadoraLote({ datos }: { datos: Datos }) {
           </p>
         </Caja>
 
-        <Caja titulo="Neto con aval — total lote" cargando={calculando}>
+        <Caja titulo="Neto con aval — total lote" cargando={calculando} className="h-full">
           {res && !res.params.aval ? (
             <p className="p-2 text-[10px] text-[var(--t-text-dim)]">
               Sin aval: el neto final es lo que recibe el cliente.
@@ -789,40 +789,41 @@ export function CalculadoraLote({ datos }: { datos: Datos }) {
           )}
         </Caja>
 
-        <Caja titulo="Costo financiero total" cargando={calculando}>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-2 py-1">
-            <div className="flex flex-col gap-0.5">
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-[9px] uppercase tracking-wider text-[var(--t-text-muted)]">
-                  CFT efectiva anual
-                </span>
-                <span className="text-[13px] font-mono text-[var(--t-accent)]">
-                  {fmtPct(res?.cft_pct)}
-                </span>
-              </div>
-              <span className="text-[9px] text-[var(--t-text-muted)]">
-                Plazo ponderado:{" "}
-                {res
-                  ? `${res.plazo_ponderado_dias.toLocaleString("es-AR", { maximumFractionDigits: 1 })} días`
-                  : "—"}
-              </span>
-            </div>
-            {res && res.flujos.length > 0 && (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-                <span className="text-[9px] uppercase tracking-wider text-[var(--t-text-muted)]">
-                  Flujos
-                </span>
-                {res.flujos.map((f, i) => (
-                  <span key={`${f.fecha}-${i}`} className="text-[10px] font-mono">
-                    <span className="text-[var(--t-text-dim)]">{fmtFecha(f.fecha)}</span>{" "}
-                    <span className={f.importe < 0 ? "text-[#ff7777]" : "text-[var(--t-text)]"}>
-                      {fmtPlata(f.importe)}
-                    </span>
-                  </span>
-                ))}
-              </div>
-            )}
+        <Caja titulo="Costo financiero total" cargando={calculando} className="h-full">
+          <div className="flex items-baseline gap-1.5 px-2 py-1">
+            <span className="text-[9px] uppercase tracking-wider text-[var(--t-text-muted)]">
+              CFT efectiva anual
+            </span>
+            <span className="text-[13px] font-mono text-[var(--t-accent)]">
+              {fmtPct(res?.cft_pct)}
+            </span>
           </div>
+          <Fila
+            label="Plazo promedio ponderado"
+            valor={
+              res
+                ? `${res.plazo_ponderado_dias.toLocaleString("es-AR", { maximumFractionDigits: 1 })} días`
+                : "—"
+            }
+          />
+          {/* Los flujos van en LISTA, una fecha por renglón: esto se lo lee el
+              cliente, y cuatro fechas con sus importes en una sola línea no se
+              entienden. Entra hoy (positivo) y salen los nominales por vencimiento. */}
+          {res && res.flujos.length > 0 && (
+            <>
+              <div className="px-2 py-0.5 border-t border-[var(--t-border)] text-[9px] uppercase tracking-wider text-[var(--t-text-muted)]">
+                Flujos
+              </div>
+              {res.flujos.map((f, i) => (
+                <Fila
+                  key={`${f.fecha}-${i}`}
+                  label={fmtFecha(f.fecha)}
+                  valor={fmtPlata(f.importe)}
+                  negativo={f.importe < 0}
+                />
+              ))}
+            </>
+          )}
         </Caja>
       </div>
     </div>
