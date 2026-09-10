@@ -36,6 +36,7 @@ export function CedearsScannerTable({
   selectedTicker,
   onSelect,
   ccl,
+  query: queryExterna,
   hideTicker = false,
   compact = false,
   headerLeading,
@@ -44,6 +45,10 @@ export function CedearsScannerTable({
   selectedTicker?: string | null;
   onSelect?: (ticker: string) => void;
   ccl?: CclLive;
+  // Buscador CONTROLADO desde afuera (la vista CEDEARS lo pone en la barra del
+  // título del panel para no gastar una fila). Si viene, la tabla no dibuja el
+  // suyo; si no viene (radar de TRADING), lo maneja ella.
+  query?: string;
   // TRADING radar: oculta la columna TICKER (queda solo NOMBRE) — el ticker se
   // ve al hacer click y cargar el papel en una card.
   hideTicker?: boolean;
@@ -57,7 +62,10 @@ export function CedearsScannerTable({
 }) {
   const [sortKey, setSortKey] = useState<SortKey>("intraday_pct");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [query, setQuery] = useState("");
+  const [queryLocal, setQuery] = useState("");
+  const query = queryExterna ?? queryLocal;
+  const buscadorPropio = !compact && queryExterna === undefined;
+  const conToolbar = Boolean(headerLeading) || buscadorPropio || Boolean(ccl);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -97,9 +105,10 @@ export function CedearsScannerTable({
 
   return (
     <div className="h-full flex flex-col min-h-0">
+      {conToolbar && (
       <div className="flex flex-wrap items-center gap-1 mb-1 shrink-0 px-1 py-1 border-b border-[var(--t-border)]">
         {headerLeading}
-        {!compact && (
+        {buscadorPropio && (
           <>
             <input
               value={query}
@@ -118,33 +127,9 @@ export function CedearsScannerTable({
             )}
           </>
         )}
-        {ccl && (
-          <div
-            className="ml-auto flex items-center gap-2 pr-1 text-[10px] tabular-nums"
-            title="CCL live + variación vs cierre día previo"
-          >
-            <span className="text-[var(--t-text-dim)] tracking-wide uppercase">CCL</span>
-            <span className="text-[var(--t-text)] font-mono">
-              {ccl.value !== null
-                ? `$${ccl.value.toLocaleString("es-AR", { maximumFractionDigits: 2 })}`
-                : "--"}
-            </span>
-            <span
-              className={
-                ccl.vs_1d_pct === null
-                  ? "text-[var(--t-text-muted)]"
-                  : ccl.vs_1d_pct >= 0
-                  ? "text-[var(--t-pos)]"
-                  : "text-[var(--t-neg)]"
-              }
-            >
-              {ccl.vs_1d_pct !== null
-                ? `${ccl.vs_1d_pct >= 0 ? "+" : ""}${ccl.vs_1d_pct.toFixed(2)}%`
-                : "--"}
-            </span>
-          </div>
-        )}
+        {ccl && <div className="ml-auto pr-1"><CclKpi ccl={ccl} /></div>}
       </div>
+      )}
 
       <div className="flex-1 min-h-0 overflow-y-auto">
         <table className="w-full text-[10px]">
@@ -227,6 +212,37 @@ export function CedearsScannerTable({
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+/** KPI de CCL live + variación vs cierre previo. Lo usa la barra de la tabla
+ *  (radar de TRADING) y la barra del título del panel CEDEARS. */
+export function CclKpi({ ccl }: { ccl: CclLive }) {
+  return (
+    <div
+      className="flex items-center gap-2 text-[10px] tabular-nums"
+      title="CCL live + variación vs cierre día previo"
+    >
+      <span className="text-[var(--t-text-dim)] tracking-wide uppercase">CCL</span>
+      <span className="text-[var(--t-text)] font-mono">
+        {ccl.value !== null
+          ? `$${ccl.value.toLocaleString("es-AR", { maximumFractionDigits: 2 })}`
+          : "--"}
+      </span>
+      <span
+        className={
+          ccl.vs_1d_pct === null
+            ? "text-[var(--t-text-muted)]"
+            : ccl.vs_1d_pct >= 0
+            ? "text-[var(--t-pos)]"
+            : "text-[var(--t-neg)]"
+        }
+      >
+        {ccl.vs_1d_pct !== null
+          ? `${ccl.vs_1d_pct >= 0 ? "+" : ""}${ccl.vs_1d_pct.toFixed(2)}%`
+          : "--"}
+      </span>
     </div>
   );
 }

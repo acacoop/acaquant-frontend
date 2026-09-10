@@ -3,15 +3,16 @@
 import { useState } from "react";
 import { usePoll } from "@/lib/use-poll";
 import { Panel } from "./panel";
-import { CedearsScannerTable } from "./cedears-scanner-table";
+import { CclKpi, CedearsScannerTable } from "./cedears-scanner-table";
 import type { CedearScannerRow, CclLive } from "@/lib/types-scanner";
 
 /**
  * Vista CEDEARS — es toda la pantalla de /renta-variable.
  *
  * Refactor 2026-09-10. Layout 50/50:
- *   - IZQUIERDA: panel CEDEARS = la tabla en ARS (buscador + KPI CCL en su
- *     barra). Sin switch ADR, sin RUBRO/SPREAD/VWAP, con $ OPERADO.
+ *   - IZQUIERDA: panel CEDEARS = la tabla en ARS. El buscador y el KPI CCL van
+ *     en la MISMA fila que el título del panel (no gastan una fila propia).
+ *     Sin switch ADR, sin RUBRO/SPREAD/VWAP, con $ OPERADO.
  *   - DERECHA: vacía a propósito. Se fueron MÉTRICAS (PULSO / PIVOTS / VOL /
  *     RETORNOS) y CHART & RETORNOS; lo que va acá se decide después, primero
  *     se cierra el lado izquierdo.
@@ -42,16 +43,43 @@ export function ScannerView({
     CCL_POLL_MS,
   );
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+
+  const buscador = (
+    <>
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Buscar ticker…"
+        className="w-[150px] bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none placeholder:text-[var(--t-text-muted)]"
+      />
+      {query && (
+        <button
+          onClick={() => setQuery("")}
+          className="text-[var(--t-text-muted)] hover:text-[var(--t-accent)] text-[12px] px-1"
+          title="Limpiar búsqueda"
+        >
+          ✕
+        </button>
+      )}
+    </>
+  );
 
   return (
     <div className="h-full min-h-0 p-3">
       <div className="grid grid-cols-2 gap-3 h-full min-h-0">
-        <Panel title="CEDEARS" count={rows.length} fill>
+        <Panel
+          title="CEDEARS"
+          count={rows.length}
+          actions={buscador}
+          rightActions={<CclKpi ccl={ccl} />}
+          fill
+        >
           <CedearsScannerTable
             data={rows}
             selectedTicker={selectedTicker}
             onSelect={setSelectedTicker}
-            ccl={ccl}
+            query={query}
           />
         </Panel>
 
