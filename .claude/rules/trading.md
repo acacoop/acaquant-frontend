@@ -43,8 +43,8 @@ Tres cosas más que no son obvias:
 El modo de los niveles arranca en **DIF %** (cuánto falta hasta el nivel), no en
 PRECIO. Y se fueron en el mismo cambio: la tab **ESTRATEGIA** (borrada del backend
 entero), el **LIBRO** (order book — vive en OPERAR), el chart **ZONAS ADR** y toda
-la data de **ADR** (la vista ADR de la tabla se apaga con el prop `soloCedear` de
-`cedears-scanner-table.tsx`, que el Scanner de Renta Variable NO usa, y los KPIs
-`SPY ADR` / `QQQ ADR` del toolbar). Criterio: `/trading` es la pantalla del CEDEAR
+la data de **ADR** (la vista ADR de la tabla, que desde el 2026-09-10 ya no
+existe en `cedears-scanner-table.tsx` para nadie: la tabla es SOLO CEDEAR, y el
+radar la usa en modo `compact`; y los KPIs `SPY ADR` / `QQQ ADR` del toolbar). Criterio: `/trading` es la pantalla del CEDEAR
 en ARS; el mundo USD del subyacente se mira en `/renta-variable` y `/research`.
 

@@ -346,7 +346,6 @@ export function TradingView() {
           <TradingRadarPanel
             onSelect={loadTicker}
             selectedTicker={charts.find(Boolean) || null}
-            hideRubro
             hideTicker
           />
         </div>

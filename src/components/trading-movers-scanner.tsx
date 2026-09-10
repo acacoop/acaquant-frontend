@@ -32,13 +32,11 @@ function esMover(r: CedearScannerRow): boolean {
 export function TradingMoversScanner({
   onSelect,
   selectedTicker,
-  hideRubro,
   hideTicker,
   headerLeading,
 }: {
   onSelect?: (ticker: string) => void;
   selectedTicker?: string | null;
-  hideRubro?: boolean;
   hideTicker?: boolean;
   headerLeading?: React.ReactNode;
 }) {
@@ -82,10 +80,8 @@ export function TradingMoversScanner({
         ccl={ccl}
         onSelect={onSelect}
         selectedTicker={selectedTicker}
-        hideRubro={hideRubro}
         hideTicker={hideTicker}
         compact
-        soloCedear
         headerLeading={headerLeading}
       />
     </div>

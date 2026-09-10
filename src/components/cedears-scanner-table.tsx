@@ -2,36 +2,33 @@
 
 import { useMemo, useState } from "react";
 import type { CedearScannerRow, CclLive } from "@/lib/types-scanner";
+import { fmtMoneyFull } from "@/lib/fmt-money";
 import { fmtPrice, fmtVol } from "./ui";
 
 /**
- * Tabla del Scanner — switch CEDEAR / ADR.
+ * Tabla de CEDEARs — precio BYMA en ARS, métricas live del motor_cedears.
  *
- * CEDEAR: precio BYMA en ARS, métricas live del motor_cedears.
- * ADR:    precio NYSE en USD del underlying, EOD desde Trading.PreciosAcciones.
+ * Refactor 2026-09-10 (vista CEDEARS de /renta-variable): se fue el switch
+ * CEDEAR/ADR (la tabla es SOLO el CEDEAR en ARS, como en TRADING) y con él las
+ * columnas RUBRO, SPREAD y VWAP. El VOL nominal se reemplazó por **$ OPERADO**
+ * (`total_money` = TRADE_EFFECTIVE_VOLUME, la plata que realmente se movió),
+ * el mismo dato y el mismo formato que ranquea VOLUMENES en /trading: el
+ * nominal no compara plata entre papeles de $10 y de $500.
  *
- * Click en cualquier header invierte el orden (asc/desc). Default:
- * INTRA descendente (CEDEAR) / vs_1d (ADR) — top movers arriba.
+ * Click en cualquier header invierte el orden (asc/desc). Default: INTRA
+ * descendente — top movers arriba.
  *
- * ⚠️ El switch ADR es del SCANNER de Renta Variable, que es donde se compara el
- * papel contra su subyacente en USD. En el radar de TRADING se apaga con
- * `soloCedear` (refactor 2026-09-01): esa pantalla opera el CEDEAR en ARS y los
- * retornos 7D/15R/MTD/YTD en dólares no se usaban para nada ahí.
+ * El radar de TRADING reusa esta tabla en modo `compact` (columnas propias:
+ * VOL nominal, VWAP y SPREAD, sin USD ni buscador). Ese layout NO cambió.
  */
 
-type View = "cedear" | "adr";
-
-type CedearSortKey =
-  | "ticker_corto" | "nombre" | "rubro"
+type SortKey =
+  | "ticker_corto" | "nombre"
   | "last" | "intraday_pct" | "vs_1d_pct" | "vs_1d_usd_pct"
+  | "total_money"
+  // solo en modo compact (radar de TRADING)
   | "vwap" | "spread_pct" | "volume";
 
-type AdrSortKey =
-  | "ticker_corto" | "nombre" | "rubro"
-  | "adr_last" | "adr_vs_1d_pct" | "adr_ret_7d_pct" | "adr_ret_15r_pct"
-  | "adr_ret_mtd_pct" | "adr_ret_ytd_pct";
-
-type SortKey = CedearSortKey | AdrSortKey;
 type SortDir = "asc" | "desc";
 
 export function CedearsScannerTable({
@@ -39,38 +36,25 @@ export function CedearsScannerTable({
   selectedTicker,
   onSelect,
   ccl,
-  rubroFiltro,
-  onClearRubro,
-  hideRubro = false,
   hideTicker = false,
   compact = false,
-  soloCedear = false,
   headerLeading,
 }: {
   data: CedearScannerRow[];
   selectedTicker?: string | null;
   onSelect?: (ticker: string) => void;
   ccl?: CclLive;
-  rubroFiltro?: string | null;
-  onClearRubro?: () => void;
-  // TRADING radar: oculta la columna RUBRO para ganar ancho (la vista embebida
-  // al lado de las cards es angosta). El Scanner de Renta Variable la mantiene.
-  hideRubro?: boolean;
-  // TRADING radar: oculta también la columna TICKER (queda solo NOMBRE) — el
-  // ticker se ve al hacer click y cargar el papel en una card.
+  // TRADING radar: oculta la columna TICKER (queda solo NOMBRE) — el ticker se
+  // ve al hacer click y cargar el papel en una card.
   hideTicker?: boolean;
-  // TRADING radar: layout compacto — saca la columna USD y el buscador, y mueve
-  // VOL al lado de 1D. El Scanner de Renta Variable (sin compact) queda igual.
+  // TRADING radar: layout compacto — saca la columna USD y el buscador, y
+  // muestra VOL nominal, VWAP y SPREAD. La vista CEDEARS (sin compact) muestra
+  // USD y $ OPERADO.
   compact?: boolean;
-  // TRADING radar: sin vista ADR — ni el switch ni sus columnas. El Scanner de
-  // Renta Variable (sin `soloCedear`) conserva las dos vistas.
-  soloCedear?: boolean;
   // Nodo opcional (ej. las tabs MOVERS/VOLUMENES) que se renderiza al inicio de
   // la barra de herramientas para compartir la MISMA fila y ahorrar alto.
   headerLeading?: React.ReactNode;
 }) {
-  const [viewRaw, setView] = useState<View>("cedear");
-  const view: View = soloCedear ? "cedear" : viewRaw;
   const [sortKey, setSortKey] = useState<SortKey>("intraday_pct");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [query, setQuery] = useState("");
@@ -80,19 +64,7 @@ export function CedearsScannerTable({
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
       setSortKey(key);
-      setSortDir(key === "ticker_corto" || key === "rubro" ? "asc" : "desc");
-    }
-  }
-
-  function changeView(v: View) {
-    setView(v);
-    // Reset sort default según vista
-    if (v === "cedear") {
-      setSortKey("intraday_pct");
-      setSortDir("desc");
-    } else {
-      setSortKey("adr_vs_1d_pct");
-      setSortDir("desc");
+      setSortDir(key === "ticker_corto" || key === "nombre" ? "asc" : "desc");
     }
   }
 
@@ -106,8 +78,9 @@ export function CedearsScannerTable({
         )
       : data;
     const cmp = (a: CedearScannerRow, b: CedearScannerRow) => {
-      const av = (a as unknown as Record<string, unknown>)[sortKey];
-      const bv = (b as unknown as Record<string, unknown>)[sortKey];
+      const av = a[sortKey];
+      const bv = b[sortKey];
+      // nulls SIEMPRE al final, sin importar la dirección
       if (av === null || av === undefined) return 1;
       if (bv === null || bv === undefined) return -1;
       if (typeof av === "string" && typeof bv === "string") {
@@ -120,27 +93,19 @@ export function CedearsScannerTable({
     return [...filtered].sort(cmp);
   }, [data, sortKey, sortDir, query]);
 
+  const nCols = 7 - (hideTicker ? 1 : 0) + (compact ? 1 : 0);
+
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex flex-wrap items-center gap-1 mb-1 shrink-0 px-1 py-1 border-b border-[var(--t-border)]">
         {headerLeading}
-        {!soloCedear && (
-          <>
-            <ViewBtn active={view === "cedear"} onClick={() => changeView("cedear")} tone="orange">
-              CEDEAR
-            </ViewBtn>
-            <ViewBtn active={view === "adr"} onClick={() => changeView("adr")} tone="cyan">
-              ADR
-            </ViewBtn>
-          </>
-        )}
         {!compact && (
           <>
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar ticker…"
-              className="ml-2 w-[150px] bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none placeholder:text-[var(--t-text-muted)]"
+              className="w-[150px] bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none placeholder:text-[var(--t-text-muted)]"
             />
             {query && (
               <button
@@ -152,16 +117,6 @@ export function CedearsScannerTable({
               </button>
             )}
           </>
-        )}
-        {rubroFiltro && (
-          <button
-            onClick={onClearRubro}
-            title="Quitar filtro de rubro (tocá otro en el Pulso para cambiarlo)"
-            className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] transition-colors"
-          >
-            <span className="truncate max-w-[130px]">{rubroFiltro}</span>
-            <span>✕</span>
-          </button>
         )}
         {ccl && (
           <div
@@ -194,53 +149,33 @@ export function CedearsScannerTable({
       <div className="flex-1 min-h-0 overflow-y-auto">
         <table className="w-full text-[10px]">
           <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
-            {view === "cedear" ? (
-              <tr className="text-[var(--t-text-muted)]">
-                {!hideTicker && (
-                  <SortableTh label="TICKER" col="ticker_corto" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" />
-                )}
-                <SortableTh label="NOMBRE" col="nombre"       sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" />
-                {!hideRubro && (
-                  <SortableTh label="RUBRO"  col="rubro"        sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" title="Clasificación de negocio (editable en Manager → Renta Variable)" />
-                )}
-                <SortableTh label="LAST"   col="last"         sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
-                <SortableTh label="INTRA"  col="intraday_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="% intradía: (last/open − 1) × 100" />
-                <SortableTh label="1D"     col="vs_1d_pct"    sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Variación ARS vs cierre día anterior" />
-                {compact && (
-                  <SortableTh label="VOL"    col="volume"       sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Volumen nominal operado en el día" />
-                )}
-                {!compact && (
-                  <SortableTh label="USD"    col="vs_1d_usd_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Retorno USD real descontando variación CCL" />
-                )}
-                <SortableTh label="VWAP"   col="vwap"         sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Precio promedio ponderado por volumen (EV/NV)" />
-                <SortableTh label="SPREAD" col="spread_pct"   sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Spread de puntas: (offer − bid) / mid × 100" />
-                {!compact && (
-                  <SortableTh label="VOL"    col="volume"       sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Volumen nominal operado en el día" />
-                )}
-              </tr>
-            ) : (
-              <tr className="text-[#5a8aa3]">
-                {!hideTicker && (
-                  <SortableTh label="TICKER"  col="ticker_corto"    sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left"  tone="cyan" />
-                )}
-                <SortableTh label="NOMBRE"  col="nombre"          sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left"  tone="cyan" />
-                {!hideRubro && (
-                  <SortableTh label="RUBRO"   col="rubro"           sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left"  tone="cyan" title="Clasificación de negocio (editable en Manager → Renta Variable)" />
-                )}
-                <SortableTh label="LAST"    col="adr_last"        sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="Último close USD del subyacente (NYSE/NASDAQ)" />
-                <SortableTh label="1D"      col="adr_vs_1d_pct"   sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="USD: (last / prev close − 1) × 100" />
-                <SortableTh label="7D"      col="adr_ret_7d_pct"  sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="USD: (last / close ~7d atrás − 1) × 100" />
-                <SortableTh label="15R"     col="adr_ret_15r_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="USD: retorno de las últimas 15 ruedas (last / close 15 ruedas atrás − 1) × 100" />
-                <SortableTh label="MTD"     col="adr_ret_mtd_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="USD: (last / close 1° del mes − 1) × 100" />
-                <SortableTh label="YTD"     col="adr_ret_ytd_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="USD: (last / close 1° del año − 1) × 100" />
-              </tr>
-            )}
+            <tr className="text-[var(--t-text-muted)]">
+              {!hideTicker && (
+                <SortableTh label="TICKER" col="ticker_corto" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" />
+              )}
+              <SortableTh label="NOMBRE" col="nombre"       sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" />
+              <SortableTh label="LAST"   col="last"         sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Último precio operado en BYMA (ARS)" />
+              <SortableTh label="INTRA"  col="intraday_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="% intradía: (last/open − 1) × 100" />
+              <SortableTh label="1D"     col="vs_1d_pct"    sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Variación ARS vs cierre día anterior" />
+              {compact ? (
+                <>
+                  <SortableTh label="VOL"    col="volume"     sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Volumen nominal operado en el día" />
+                  <SortableTh label="VWAP"   col="vwap"       sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Precio promedio ponderado por volumen (EV/NV)" />
+                  <SortableTh label="SPREAD" col="spread_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Spread de puntas: (offer − bid) / mid × 100" />
+                </>
+              ) : (
+                <>
+                  <SortableTh label="USD"       col="vs_1d_usd_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Retorno USD real descontando variación CCL" />
+                  <SortableTh label="$ OPERADO" col="total_money"   sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Plata operada en el día (precio × cantidad), no nominal — el mismo dato que ranquea VOLUMENES en TRADING" />
+                </>
+              )}
+            </tr>
           </thead>
           <tbody>
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={10 - (hideRubro ? 1 : 0) - (hideTicker ? 1 : 0) - (compact ? 1 : 0)} className="text-[var(--t-text-muted)] text-xs py-4 text-center">
-                  SIN CEDEARS ACTIVOS — correr scripts/seed_cedears.py
+                <td colSpan={nCols} className="text-[var(--t-text-muted)] text-xs py-4 text-center">
+                  {query ? "Ningún CEDEAR coincide con la búsqueda" : "Sin CEDEARs activos"}
                 </td>
               </tr>
             ) : (
@@ -259,56 +194,30 @@ export function CedearsScannerTable({
                     }`}
                   >
                     {!hideTicker && (
-                      <td className={`!px-1 font-semibold ${view === "adr" ? "text-[#5fb3d4]" : "text-[var(--t-accent)]"}`}>
+                      <td className="!px-1 font-semibold text-[var(--t-accent)]">
                         {r.ticker_corto}
                       </td>
                     )}
                     <td className="!px-1 text-[var(--t-text)] truncate max-w-[180px]" title={r.nombre ?? ""}>
                       {r.nombre || "--"}
                     </td>
-                    {!hideRubro && (
-                      <td className="!px-1 text-[var(--t-text-dim)]">
-                        {r.rubro || "--"}
-                      </td>
-                    )}
-
-                    {view === "cedear" ? (
+                    <td className="!px-1 text-right font-semibold tabular-nums">
+                      {fmtPrice(r.last ?? undefined)}
+                    </td>
+                    <PctCell v={r.intraday_pct} />
+                    <PctCell v={r.vs_1d_pct} />
+                    {compact ? (
                       <>
-                        <td className="!px-1 text-right font-semibold tabular-nums">
-                          {fmtPrice(r.last ?? undefined)}
-                        </td>
-                        <PctCell v={r.intraday_pct} />
-                        <PctCell v={r.vs_1d_pct} />
-                        {compact && (
-                          <td className="!px-1 text-right tabular-nums text-[var(--t-text-dim)]">{fmtVol(r.volume ?? undefined)}</td>
-                        )}
-                        {!compact && <PctCell v={r.vs_1d_usd_pct} />}
+                        <td className="!px-1 text-right tabular-nums text-[var(--t-text-dim)]">{fmtVol(r.volume ?? undefined)}</td>
                         <td className="!px-1 text-right tabular-nums text-[var(--t-text-dim)]">{fmtPrice(r.vwap ?? undefined)}</td>
                         <td className="!px-1 text-right tabular-nums text-[var(--t-text-dim)]">{r.spread_pct != null ? `${r.spread_pct.toFixed(2)}%` : "--"}</td>
-                        {!compact && (
-                          <td className="!px-1 text-right tabular-nums text-[var(--t-text-dim)]">{fmtVol(r.volume ?? undefined)}</td>
-                        )}
                       </>
                     ) : (
                       <>
-                        <td className="!px-1 text-right font-semibold tabular-nums">
-                          <span className={r.adr_intraday === false ? "text-[var(--t-text-dim)]" : "text-[var(--t-text)]"}>
-                            {r.adr_last != null ? `$${r.adr_last.toFixed(2)}` : "--"}
-                          </span>
-                          {r.adr_intraday === false && (
-                            <span
-                              className="ml-1 text-[7px] text-[var(--t-accent)] tracking-widest align-middle"
-                              title="Cierre previo — el mercado aún no operó hoy (pre-market) o es cierre EOD"
-                            >
-                              CIERRE
-                            </span>
-                          )}
+                        <PctCell v={r.vs_1d_usd_pct} />
+                        <td className="!px-1 text-right tabular-nums font-mono text-[var(--t-text)]">
+                          {r.total_money != null && r.total_money > 0 ? fmtMoneyFull(r.total_money) : "--"}
                         </td>
-                        <PctCell v={r.adr_vs_1d_pct} />
-                        <PctCell v={r.adr_ret_7d_pct} />
-                        <PctCell v={r.adr_ret_15r_pct} />
-                        <PctCell v={r.adr_ret_mtd_pct} />
-                        <PctCell v={r.adr_ret_ytd_pct} />
                       </>
                     )}
                   </tr>
@@ -340,38 +249,6 @@ function PctCell({ v }: { v: number | null | undefined }) {
   );
 }
 
-function ViewBtn({
-  active,
-  onClick,
-  tone,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  tone: "orange" | "cyan";
-  children: React.ReactNode;
-}) {
-  // Tono distinto para que el switch visual sea claro pero minimalista.
-  const activeColor =
-    tone === "orange"
-      ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
-      : "bg-[#5fb3d4] text-black border-[#5fb3d4]";
-  const inactiveColor =
-    tone === "orange"
-      ? "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
-      : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#5fb3d4] hover:border-[#5fb3d4]";
-  return (
-    <button
-      onClick={onClick}
-      className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
-        active ? activeColor : inactiveColor
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
 function SortableTh({
   label,
   col,
@@ -380,7 +257,6 @@ function SortableTh({
   onClick,
   align,
   title,
-  tone,
 }: {
   label: string;
   col: SortKey;
@@ -389,19 +265,15 @@ function SortableTh({
   onClick: (col: SortKey) => void;
   align: "left" | "right";
   title?: string;
-  tone?: "orange" | "cyan";
 }) {
   const active = sortKey === col;
   const arrow = active ? (sortDir === "asc" ? " ↑" : " ↓") : "";
-  const activeColor = tone === "cyan" ? "text-[#5fb3d4]" : "text-[var(--t-accent)]";
-  const hoverColor =
-    tone === "cyan" ? "hover:text-[#5fb3d4]" : "hover:text-[var(--t-accent)]";
   return (
     <th
       onClick={() => onClick(col)}
-      className={`!px-1 cursor-pointer select-none ${hoverColor} transition-colors text-${align} ${
-        active ? activeColor : ""
-      }`}
+      className={`!px-1 cursor-pointer select-none hover:text-[var(--t-accent)] transition-colors whitespace-nowrap ${
+        align === "left" ? "text-left" : "text-right"
+      } ${active ? "text-[var(--t-accent)]" : ""}`}
       title={title ?? "Click para ordenar"}
     >
       {label}
