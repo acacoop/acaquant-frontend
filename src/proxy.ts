@@ -70,6 +70,9 @@ const PATH_MODULES: [string, string[]][] = [
   // /renta-variable (Scanner: CEDEARs + métricas quant sobre Trading.PreciosAcciones)
   ["/renta-variable", ["renta-variable"]],
   ["/api/scanner",    ["renta-variable"]],
+  // /fci (FONDOS COMUNES DE INVERSIÓN: VCP y rendimientos) — módulo `fci`.
+  ["/fci",            ["fci"]],
+  ["/api/fci",        ["fci"]],
 ];
 
 function modulesForPath(path: string): string[] | null {
