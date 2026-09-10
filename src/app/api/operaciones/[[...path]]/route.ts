@@ -38,14 +38,16 @@ async function proxy(req: Request, path: string[]) {
     }
 
     const res = await fetch(target, init);
-    const text = await res.text();
-    return new NextResponse(text, {
-      status: res.status,
-      headers: {
-        "content-type": res.headers.get("content-type") || "application/json",
-        "Cache-Control": "no-store, no-cache, must-revalidate",
-      },
+    // Bytes crudos siempre: el JSON pasa igual y el .xlsx de /ops/aranceles/export
+    // llega intacto (un res.text() lo corrompía). Mismo patrón que el proxy de SENEBIS.
+    const body = await res.arrayBuffer();
+    const out = new Headers({
+      "content-type": res.headers.get("content-type") || "application/json",
+      "Cache-Control": "no-store, no-cache, must-revalidate",
     });
+    const disp = res.headers.get("content-disposition");
+    if (disp) out.set("content-disposition", disp);
+    return new NextResponse(body, { status: res.status, headers: out });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 502 });
   }
