@@ -4,6 +4,11 @@
 // nivel_3 (arriba) + gráfico (abajo, OpsBarChart). Der: Σ aranceles por cliente.
 // Filtros: moneda, segmento (nivel_1), fechas. El gráfico trae la serie DIARIA
 // y agrega/filtra en cliente (toolbar idéntico a OPERACIONES). Endpoint /ops/aranceles.
+// EXPORT A EXCEL (botón ⬇ XLS): lo genera el BACKEND (/ops/aranceles/export, openpyxl)
+// con los MISMOS filtros que la vista — 3 hojas (Consolidado con las 4 dimensiones,
+// Por cliente, Por instrumento) y el rango como celdas de fecha. No se arma acá con
+// SheetJS porque la hoja Consolidado necesita las cuatro dimensiones y la vista
+// solo tiene cargada una.
 
 import { useEffect, useMemo, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
@@ -74,6 +79,8 @@ export function ArancelesView() {
   // La serie del gráfico llega acotada a ~18m (perf). Al elegir "ALL" pedimos
   // la historia completa (serie_full) — el resto de los rangos entran en 18m.
   const [serieFull, setSerieFull] = useState(false);
+  const [exportando, setExportando] = useState(false);
+  const [exportErr, setExportErr] = useState<string | null>(null);
 
   const fecha = fechas[0]?.fecha ?? "";   // ancla = fecha más reciente
   // Rango de DATOS (fechas viene DESC: [0]=última, [last]=primera). Los date inputs se
@@ -115,23 +122,60 @@ export function ArancelesView() {
       .then((r) => (r.ok ? r.json() : null)).then((j) => setMeta(j?.meta ?? null)).catch(() => setMeta(null));
   }, [fecha, modo]);
 
-  // Serie SIEMPRE DIARIA → el toolbar del gráfico agrega/filtra en cliente (no refetch).
-  useEffect(() => {
-    if (!rango.desde || !rango.hasta) return;
-    setLoading(true);
-    // Normalizar por si quedó desde > hasta (ahora los inputs son libres dentro del rango de datos).
+  // Query string de los FILTROS (rango + moneda + selectores + cross-filter). La comparten
+  // la vista y el export a Excel: lo que se descarga es exactamente lo que se ve.
+  // Normaliza por si quedó desde > hasta (los inputs son libres dentro del rango de datos).
+  const qsFiltros = useMemo(() => {
+    if (!rango.desde || !rango.hasta) return "";
     const [qDesde, qHasta] = rango.desde <= rango.hasta ? [rango.desde, rango.hasta] : [rango.hasta, rango.desde];
-    const qs = `moneda=${moneda}&desde=${qDesde}&hasta=${qHasta}&agg=DIARIO&dim=${dim}`
+    return `moneda=${moneda}&desde=${qDesde}&hasta=${qHasta}&dim=${dim}`
       + (segmento ? `&segmento=${encodeURIComponent(segmento)}` : "")
       + (operador ? `&operador=${encodeURIComponent(operador)}` : "")
       + (selDim ? `&sel_dim=${encodeURIComponent(selDim)}` : "")
       + (selCuenta ? `&cuenta=${encodeURIComponent(selCuenta)}` : "")
-      + (selInstr ? `&instrumento=${encodeURIComponent(selInstr)}` : "")
-      + (serieFull ? "&serie_full=true" : "");
+      + (selInstr ? `&instrumento=${encodeURIComponent(selInstr)}` : "");
+  }, [moneda, rango.desde, rango.hasta, segmento, operador, dim, selDim, selCuenta, selInstr]);
+
+  // Serie SIEMPRE DIARIA → el toolbar del gráfico agrega/filtra en cliente (no refetch).
+  useEffect(() => {
+    if (!qsFiltros) return;
+    setLoading(true);
+    const qs = `${qsFiltros}&agg=DIARIO` + (serieFull ? "&serie_full=true" : "");
     fetch(`/api/operaciones/ops/aranceles?${qs}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null)).then(setData)
       .catch(() => setData(null)).finally(() => setLoading(false));
-  }, [moneda, rango.desde, rango.hasta, segmento, operador, dim, selDim, selCuenta, selInstr, serieFull]);
+  }, [qsFiltros, serieFull]);
+
+  // Descarga el .xlsx del backend (mismo patrón que SENEBIS: blob + <a download>, el
+  // nombre sale del Content-Disposition: aranceles_<desde>_<hasta>.xlsx).
+  const exportarExcel = async () => {
+    if (!qsFiltros || exportando) return;
+    setExportando(true);
+    setExportErr(null);
+    try {
+      const r = await fetch(`/api/operaciones/ops/aranceles/export?${qsFiltros}`, { cache: "no-store" });
+      if (!r.ok) {
+        let msg = `export falló (HTTP ${r.status})`;
+        try {
+          const j = (await r.json()) as { detail?: string };
+          if (typeof j?.detail === "string") msg = j.detail;
+        } catch { /* body no era JSON */ }
+        setExportErr(msg);
+        return;
+      }
+      const blob = await r.blob();
+      const m = /filename="?([^";]+)"?/.exec(r.headers.get("content-disposition") || "");
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = m?.[1] ?? `aranceles_${rango.desde}_${rango.hasta}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch (e) {
+      setExportErr(String(e));
+    } finally {
+      setExportando(false);
+    }
+  };
 
   const chartSerie = useMemo<SerieRow[]>(
     () => (data?.serie ?? []).map((r) => ({ fecha: r.periodo, arancel: r.arancel })),
@@ -196,6 +240,12 @@ export function ArancelesView() {
         <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">
           TOTAL: <span className="text-[var(--t-text)] font-semibold">{fmtCompact(total)} {moneda}</span>{loading ? " · cargando…" : ""}
         </span>
+        {exportErr && <span className="text-[10px] text-[var(--t-neg)]" title={exportErr}>⚠ {exportErr}</span>}
+        <button onClick={() => void exportarExcel()} disabled={!qsFiltros || exportando}
+          title="Descargar a Excel: Consolidado (nivel 3 · operación · mercado · operador) + Por cliente + Por instrumento, con los filtros y el rango actuales"
+          className="text-[9px] tracking-wider text-[var(--t-text-dim)] hover:text-[var(--t-accent)] border border-[var(--t-border-2)] hover:border-[var(--t-accent)] px-1.5 py-0.5 uppercase disabled:opacity-50">
+          {exportando ? "…" : "⬇ xls"}
+        </button>
       </div>
 
       {/* Cuerpo 50/50 */}
