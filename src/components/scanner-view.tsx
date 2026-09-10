@@ -66,6 +66,8 @@ export function ScannerView({
     return top ?? rows[0] ?? null;
   }, [rows, selectedTicker]);
   const simboloAdr = activo ? (activo.underlying || activo.ticker_corto) : null;
+  // El título dice solo `ADR · PBR`: el CEDEAR del que viene ya está marcado en
+  // la tabla y repetirlo acá confundía (feedback del user 2026-09-10).
 
   const buscador = (
     <>
@@ -108,7 +110,14 @@ export function ScannerView({
         {/* DERECHA: el ADR del papel elegido, en TradingView */}
         <Panel
           title={simboloAdr ? `ADR · ${simboloAdr}` : "ADR"}
-          sub={activo ? `CEDEAR ${activo.ticker_corto}${activo.nombre ? ` · ${activo.nombre}` : ""}` : undefined}
+          rightActions={
+            // El widget gratuito de TradingView sirve NYSE/NASDAQ con 15 min de
+            // atraso (documentación de TradingView; el precio de AHORA está en
+            // la tabla). Se dice y nada más.
+            <span className="text-[10px] text-[var(--t-text-muted)] tracking-wide uppercase">
+              Delay 15 min
+            </span>
+          }
           fill
         >
           {simboloAdr ? (
