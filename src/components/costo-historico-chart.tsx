@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Brush,
   CartesianGrid,
   Line,
   LineChart,
@@ -14,6 +13,12 @@ import {
 } from "recharts";
 import type { Leg } from "@/lib/estrategias";
 import { useViewportKey } from "@/lib/use-viewport-key";
+import {
+  PERIODOS_INTRADIA,
+  PeriodoFilter,
+  inicioPeriodo,
+  type Periodo,
+} from "./periodo-filter";
 
 type Punto = {
   ts: string;      // ISO
@@ -39,11 +44,8 @@ export function CostoHistoricoChart({
   // 2º eje Y: spot del subyacente (GGAL) desde Opciones.VR-GGal, switch ARS/ADR.
   const [spotMoneda, setSpotMoneda] = useState<"ARS" | "ADR">("ARS");
   const [vrMap, setVrMap] = useState<Record<string, { local?: number; adr?: number }>>({});
-  // Ventana de zoom del brush (en índices de bucket). Controlada: el dominio del
-  // eje X la sigue, así arrastrar/mover el brush hace zoom+pan real sobre las
-  // fechas en vez de comprimir la línea contra el borde (que parecía "borrarla").
-  // Guardamos `len` para invalidar el zoom cuando cambia la cantidad de puntos.
-  const [brush, setBrush] = useState<{ start: number; end: number; len: number } | null>(null);
+  // Período visible (HOY / WTD / MTD / TODO). Reemplaza al brush.
+  const [periodo, setPeriodo] = useState<Periodo>("TODO");
 
   // Firma estable de los legs para disparar el refetch al cambiar estrategia.
   const legsKey = useMemo(
@@ -125,11 +127,11 @@ export function CostoHistoricoChart({
     // Ponemos el spot UNA vez por día (primer bucket) y null en el resto: con
     // connectNulls + type linear la línea conecta los puntos diarios en recto,
     // en vez de quedar escalonada (flat dentro del día + salto entre días).
-    let lastDay = "";
-    return data.map((p, idx) => {
+    const desde = inicioPeriodo(periodo);
+    const visibles = data.filter((p) => desde == null || new Date(p.ts).getTime() >= desde);
+    return visibles.map((p, idx) => {
       const day = p.ts.slice(0, 10);
-      const nuevoDia = day !== lastDay;
-      lastDay = day;
+      const nuevoDia = idx === 0 || day !== visibles[idx - 1].ts.slice(0, 10);
       const vr = vrMap[day];
       const spotDia = vr ? (spotMoneda === "ARS" ? vr.local : vr.adr) : undefined;
       return {
@@ -142,16 +144,9 @@ export function CostoHistoricoChart({
         strikes: p.strikes,
       };
     });
-  }, [data, vrMap, spotMoneda]);
+  }, [data, vrMap, spotMoneda, periodo]);
 
   const haySpot2 = useMemo(() => serie.some((p) => p.spot2 != null), [serie]);
-
-  // El zoom vale solo mientras la serie no cambie de tamaño (otra estrategia /
-  // bucket distinto). Si cambió, volvemos a full — derivado en render, sin
-  // setState en un effect.
-  const startIdx = brush && brush.len === serie.length ? brush.start : 0;
-  const endIdx =
-    brush && brush.len === serie.length ? brush.end : Math.max(0, serie.length - 1);
 
   const stats = useMemo(() => {
     if (!serie.length) return null;
@@ -214,7 +209,7 @@ export function CostoHistoricoChart({
       </p>
     );
   }
-  if (!serie.length) {
+  if (!data.length) {
     return (
       <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
         Sin histórico disponible para esta estrategia en el OPEX en curso.
@@ -248,8 +243,10 @@ export function CostoHistoricoChart({
 
   return (
     <div className="h-full min-h-0 flex flex-col">
-      {stats && (
-        <div className="flex items-center gap-3 px-2 pb-1 text-[9px] text-[var(--t-text-dim)] shrink-0">
+      <div className="flex items-center gap-3 px-2 pb-1 text-[9px] text-[var(--t-text-dim)] shrink-0 flex-wrap">
+        <PeriodoFilter value={periodo} onChange={setPeriodo} opciones={PERIODOS_INTRADIA} />
+        {stats && (
+          <>
           <span>
             MIN{" "}
             <span className="text-[var(--t-text)] font-semibold">
@@ -300,8 +297,14 @@ export function CostoHistoricoChart({
           <span className={(haySpot2 ? "" : "ml-auto ") + "text-[var(--t-text-muted)]"}>
             {serie.length} puntos
           </span>
-        </div>
-      )}
+          </>
+        )}
+      </div>
+      {!serie.length ? (
+        <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
+          Sin datos en el período {periodo} para esta estrategia.
+        </p>
+      ) : (
       <div className="flex-1 min-h-0">
         <ResponsiveContainer key={vpKey} width="100%" height="100%">
           <LineChart
@@ -312,8 +315,7 @@ export function CostoHistoricoChart({
             <XAxis
               dataKey="idx"
               type="number"
-              domain={[startIdx, endIdx]}
-              allowDataOverflow
+              domain={[0, Math.max(0, serie.length - 1)]}
               ticks={xTicks}
               tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
               axisLine={{ stroke: "var(--t-border-2)" }}
@@ -402,26 +404,10 @@ export function CostoHistoricoChart({
                 connectNulls
               />
             )}
-            <Brush
-              dataKey="idx"
-              height={16}
-              stroke="var(--t-accent)"
-              fill="var(--t-surface)"
-              travellerWidth={8}
-              tickFormatter={(idx: number) => fmtTickFecha(Number(idx))}
-              startIndex={startIdx}
-              endIndex={endIdx}
-              onChange={(r) => {
-                const s = (r as { startIndex?: number }).startIndex;
-                const e = (r as { endIndex?: number }).endIndex;
-                if (typeof s === "number" && typeof e === "number") {
-                  setBrush({ start: s, end: e, len: serie.length });
-                }
-              }}
-            />
           </LineChart>
         </ResponsiveContainer>
       </div>
+      )}
     </div>
   );
 }

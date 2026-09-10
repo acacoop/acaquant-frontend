@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Brush,
   CartesianGrid,
   Line,
   LineChart,
@@ -12,6 +11,12 @@ import {
   YAxis,
 } from "recharts";
 import { useViewportKey } from "@/lib/use-viewport-key";
+import {
+  PERIODOS_DIARIO,
+  PeriodoFilter,
+  inicioPeriodo,
+  type Periodo,
+} from "./periodo-filter";
 
 interface GriegaDoc {
   fecha: string;        // "YYYY-MM-DD"
@@ -49,10 +54,8 @@ export function GriegasHistoricoChart({ instrumento }: { instrumento: string }) 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [griega, setGriega] = useState<GriegaKey>("delta");
-  // Ventana de zoom del brush (índices de fecha). Controlada → el dominio del
-  // eje X la sigue: arrastrar/mover el brush hace zoom+pan real sobre las fechas.
-  // `len` invalida el zoom cuando cambia la cantidad de puntos.
-  const [brush, setBrush] = useState<{ start: number; end: number; len: number } | null>(null);
+  // Período visible (WTD / MTD / TODO). Reemplaza al brush.
+  const [periodo, setPeriodo] = useState<Periodo>("TODO");
 
   useEffect(() => {
     let cancelled = false;
@@ -87,15 +90,18 @@ export function GriegasHistoricoChart({ instrumento }: { instrumento: string }) 
 
   const cfg = GRIEGAS.find((g) => g.key === griega)!;
 
-  const serie = useMemo(
-    () =>
-      data.map((p, idx) => {
+  const serie = useMemo(() => {
+    const desde = inicioPeriodo(periodo);
+    return data
+      // `fecha` es "YYYY-MM-DD": la parseamos como medianoche LOCAL (con "T00:00"
+      // el Date no la toma como UTC), comparable con `inicioPeriodo`.
+      .filter((p) => desde == null || new Date(p.fecha + "T00:00").getTime() >= desde)
+      .map((p, idx) => {
         const raw = p[griega];
         const v = typeof raw === "number" ? (cfg.pct ? raw * 100 : raw) : null;
         return { idx, fecha: p.fecha, v, last: p.last, spot: p.spot };
-      }),
-    [data, griega, cfg.pct],
-  );
+      });
+  }, [data, griega, cfg.pct, periodo]);
 
   const stats = useMemo(() => {
     const vals = serie.map((p) => p.v).filter((v): v is number => v != null);
@@ -128,13 +134,6 @@ export function GriegasHistoricoChart({ instrumento }: { instrumento: string }) 
     return serie.map((p) => p.idx);
   }, [serie]);
 
-  // El zoom vale solo mientras la serie no cambie de tamaño (otro contrato). El
-  // cambio de griega NO cambia el tamaño → se respeta el zoom. Derivado en
-  // render, sin setState en un effect.
-  const startIdx = brush && brush.len === serie.length ? brush.start : 0;
-  const endIdx =
-    brush && brush.len === serie.length ? brush.end : Math.max(0, serie.length - 1);
-
   const fmtVal = (v: number) =>
     cfg.pct
       ? `${v.toFixed(1)}%`
@@ -156,7 +155,7 @@ export function GriegasHistoricoChart({ instrumento }: { instrumento: string }) 
   if (error) {
     return <p className="text-[var(--t-neg)] text-xs py-4 text-center">Error: {error}</p>;
   }
-  if (!serie.length) {
+  if (!data.length) {
     return (
       <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
         Sin histórico diario para {instrumento}.
@@ -181,8 +180,10 @@ export function GriegasHistoricoChart({ instrumento }: { instrumento: string }) 
             {g.label}
           </button>
         ))}
+        <span className="ml-auto flex items-center gap-2">
+          <PeriodoFilter value={periodo} onChange={setPeriodo} opciones={PERIODOS_DIARIO} />
         {stats && (
-          <span className="ml-auto text-[9px] text-[var(--t-text-dim)] flex items-center gap-2">
+          <span className="text-[9px] text-[var(--t-text-dim)] flex items-center gap-2">
             <span>
               MÍN <span className="text-[var(--t-text)] font-semibold">{fmtVal(stats.min)}</span>
             </span>
@@ -194,7 +195,13 @@ export function GriegasHistoricoChart({ instrumento }: { instrumento: string }) 
             </span>
           </span>
         )}
+        </span>
       </div>
+      {!serie.length ? (
+        <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
+          Sin datos en el período {periodo} para {instrumento}.
+        </p>
+      ) : (
       <div className="flex-1 min-h-0">
         <ResponsiveContainer key={vpKey} width="100%" height="100%">
           <LineChart data={serie} margin={{ top: 4, right: 12, bottom: 20, left: 4 }}>
@@ -202,8 +209,7 @@ export function GriegasHistoricoChart({ instrumento }: { instrumento: string }) 
             <XAxis
               dataKey="idx"
               type="number"
-              domain={[startIdx, endIdx]}
-              allowDataOverflow
+              domain={[0, Math.max(0, serie.length - 1)]}
               ticks={xTicks}
               tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
               axisLine={{ stroke: "var(--t-border-2)" }}
@@ -242,26 +248,10 @@ export function GriegasHistoricoChart({ instrumento }: { instrumento: string }) 
               isAnimationActive={false}
               connectNulls
             />
-            <Brush
-              dataKey="idx"
-              height={16}
-              stroke="#4a9eff"
-              fill="#0a0a0a"
-              travellerWidth={8}
-              tickFormatter={(idx: number) => fmtTickFecha(Number(idx))}
-              startIndex={startIdx}
-              endIndex={endIdx}
-              onChange={(r) => {
-                const s = (r as { startIndex?: number }).startIndex;
-                const e = (r as { endIndex?: number }).endIndex;
-                if (typeof s === "number" && typeof e === "number") {
-                  setBrush({ start: s, end: e, len: serie.length });
-                }
-              }}
-            />
           </LineChart>
         </ResponsiveContainer>
       </div>
+      )}
     </div>
   );
 }

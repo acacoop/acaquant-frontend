@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Panel, fmtHoraAR, shortTicker } from "./ui";
 import { OpcionesTableCompact } from "./opciones-table-compact";
 import { EstrategiasTabla } from "./estrategias-tabla";
@@ -62,26 +62,42 @@ export function DerivadosView({
 
   const [strike, setStrike] = useState<number | null>(null);
   const [categoria, setCategoria] = useState("Cono / Cuna");
-  // Selección mutuamente excluyente: o hay una estrategia seleccionada
-  // (`selected` ≠ null) o un contrato individual (`selectedOpcion` ≠ null),
-  // nunca las dos a la vez. La default al primer render es la estrategia
-  // ATM (selected=0); clickear un contrato la limpia, y clickear una
-  // estrategia limpia el contrato.
-  const [selected, setSelected] = useState<number | null>(0);
-  const [selectedOpcion, setSelectedOpcion] = useState<OpcionDoc | null>(null);
+  // Dos selecciones independientes: la estrategia (índice en `rows`, default
+  // ATM) y el contrato (por instrumento, así sigue vivo con cada poll). La
+  // columna derecha muestra una u otra según la tab de la tabla: CALL/PUT →
+  // contrato (costo hist. + griegas); ESTRAT. → estrategia (payoff/escenarios
+  // + costo hist.). Por default la vista es la chain, o sea el contrato.
+  const [selected, setSelected] = useState<number>(0);
+  const [selectedInstrumento, setSelectedInstrumento] = useState<string | null>(null);
   const [detalleTab, setDetalleTab] = useState<DetalleTab>("payoff");
   // Filtro de la tabla OPCIONES GGAL (CALL/PUT = chain; ESTRATEGIAS = tabla
   // de estrategias en el mismo panel).
   const [tablaVista, setTablaVista] = useState<TablaVista>("CALL");
 
-  function pickStrategy(i: number) {
-    setSelected(i);
-    setSelectedOpcion(null);
-  }
+  // Contrato activo: el elegido, y si todavía no eligió ninguno, el CALL más
+  // operado del día (primera fila de la chain). Se fija UNA sola vez, cuando
+  // llega la primera chain con datos: si el ranking cambia durante la rueda el
+  // chart no salta, y si el user deselecciona (click sobre la fila activa) no
+  // se lo volvemos a elegir — `autoPickHecho` guarda eso, no el estado.
+  const autoPickHecho = useRef(false);
+  useEffect(() => {
+    if (autoPickHecho.current || selectedInstrumento != null || !docs.length) return;
+    const top = docs
+      .filter((d) => d.tipo === "CALL" && ((d.last || 0) > 0 || (d.bid || 0) > 0 || (d.offer || 0) > 0))
+      .sort((a, b) => (b.ev || 0) - (a.ev || 0))[0];
+    if (!top) return;
+    autoPickHecho.current = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelectedInstrumento(top.instrumento);
+  }, [docs, selectedInstrumento]);
+
+  const selectedOpcion = useMemo<OpcionDoc | null>(
+    () => docs.find((d) => d.instrumento === selectedInstrumento) ?? null,
+    [docs, selectedInstrumento],
+  );
 
   function pickOpcion(d: OpcionDoc | null) {
-    setSelectedOpcion(d);
-    if (d) setSelected(null);
+    setSelectedInstrumento(d?.instrumento ?? null);
   }
 
   const spot = useMemo(
@@ -90,6 +106,7 @@ export function DerivadosView({
   );
 
   const ultimoDisplay = atDocs > 0 ? fmtHoraAR(atDocs) : "—";
+  const modoContrato = tablaVista !== "ESTRATEGIAS";
 
   const { liquidStrikes, atmStrike, rows } = useMemo(() => {
     const { porStrike, liquidStrikes } = buildPorStrike(docs);
@@ -127,9 +144,7 @@ export function DerivadosView({
 
   // Clamp la selección del usuario al rango actual; si la fila elegida quedó
   // sin liquidez o se cambió de categoría, caemos a la primera válida.
-  // `null` = no hay estrategia activa (porque el user clickeó un contrato).
   const effectiveSelected = useMemo<number | null>(() => {
-    if (selected == null) return null;
     if (
       selected >= 0 &&
       selected < rows.length &&
@@ -246,7 +261,7 @@ export function DerivadosView({
               categoria={categoria}
               setCategoria={setCategoria}
               selected={effectiveSelected ?? -1}
-              setSelected={pickStrategy}
+              setSelected={setSelected}
             />
           ) : (
             <OpcionesTableCompact
@@ -259,11 +274,12 @@ export function DerivadosView({
           )}
         </Panel>
 
-        {/* ── Columna derecha ──
-            Contrato:   sup. COSTO HIST. del contrato · inf. GRIEGAS.
-            Estrategia: sup. PAYOFF / ESCENARIOS   · inf. COSTO HISTÓRICO de la estrategia. */}
+        {/* ── Columna derecha: sigue a la tab de la tabla ──
+            CALL/PUT (default): sup. COSTO HIST. del contrato · inf. GRIEGAS.
+            ESTRAT.:            sup. PAYOFF / ESCENARIOS   · inf. COSTO HISTÓRICO de la estrategia. */}
         <div className="min-w-0 min-h-0 grid grid-rows-2 gap-3">
-          {selectedOpcion ? (
+          {modoContrato ? (
+            selectedOpcion ? (
             <Panel
               title={`COSTO HIST. — ${shortTicker(selectedOpcion.instrumento)}`}
               fill
@@ -274,6 +290,13 @@ export function DerivadosView({
                 lastLive={selectedOpcion.last}
               />
             </Panel>
+            ) : (
+              <Panel title="COSTO HISTÓRICO" fill expandable>
+                <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
+                  Clickeá un contrato en OPCIONES GGAL para ver su costo histórico.
+                </p>
+              </Panel>
+            )
           ) : (
             <Panel
               title={buildDetalleTitle(detalleTab, selRow, selCosto)}
@@ -307,7 +330,8 @@ export function DerivadosView({
             </Panel>
           )}
 
-          {selectedOpcion ? (
+          {modoContrato ? (
+            selectedOpcion ? (
             <Panel
               title={`GRIEGAS — ${shortTicker(selectedOpcion.instrumento)}`}
               fill
@@ -315,6 +339,13 @@ export function DerivadosView({
             >
               <GriegasHistoricoChart instrumento={selectedOpcion.instrumento} />
             </Panel>
+            ) : (
+              <Panel title="GRIEGAS" fill expandable>
+                <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
+                  Clickeá un contrato en OPCIONES GGAL para ver la variación de sus griegas.
+                </p>
+              </Panel>
+            )
           ) : (
             <Panel
               title={
@@ -331,7 +362,7 @@ export function DerivadosView({
                 />
               ) : (
                 <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
-                  Elegí una estrategia (filtro ESTRAT.) o un contrato (CALL/PUT) para ver el costo histórico.
+                  Elegí una estrategia con liquidez para ver su costo histórico.
                 </p>
               )}
             </Panel>
