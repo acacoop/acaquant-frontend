@@ -25,6 +25,8 @@ import {
 } from "recharts";
 
 import { usePoll } from "@/lib/use-poll";
+import { PivotPointsPanel } from "./pivot-points-panel";
+import { VentanaFlotante } from "./ventana-flotante";
 import type {
   MonitorClase,
   MonitorResp,
@@ -279,6 +281,10 @@ function PanelDerecho({
   onVentana: (v: string) => void;
 }) {
   const esVivo = ventana === "hoy";
+  // Ventana PIVOTS (solo renta variable): los niveles del ADR en USD del papel
+  // activo, encima del chart y sin taparlo — el mismo panel que tenía
+  // /renta-variable. Un bono no tiene ADR: en renta fija el botón no existe.
+  const [pivotsAbierto, setPivotsAbierto] = useState(false);
   const { data: datos, error } = usePoll<MonitorResp | null>(
     `/api/trading/monitor?clase=${clase}&ticker=${encodeURIComponent(ticker)}` +
       `&ventana=${ventana}&buckets=${BUCKETS}`,
@@ -307,6 +313,31 @@ function PanelDerecho({
               >
                 APROX.
               </span>
+            )}
+            {clase === "rv" && (
+              <button
+                onClick={() => setPivotsAbierto((v) => !v)}
+                title="Pivots del ADR (USD del subyacente) en 4 timeframes — se abre en una ventana encima del chart"
+                className={`text-[9px] px-1.5 py-0.5 border transition-colors ${
+                  pivotsAbierto
+                    ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+                    : "border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+                }`}
+              >
+                PIVOTS
+              </button>
+            )}
+            {pivotsAbierto && clase === "rv" && (
+              <VentanaFlotante
+                titulo={`PIVOTS · ${ticker}`}
+                sub="ADR · USD del subyacente"
+                storageKey="trd-fx-monitor-pivots-geo-v1"
+                anchoInicial={420}
+                altoInicial={360}
+                onClose={() => setPivotsAbierto(false)}
+              >
+                <PivotPointsPanel ticker={ticker} />
+              </VentanaFlotante>
             )}
             <div className="ml-auto flex items-center gap-4">
               <Kpi label="vwap">{fmtNum(datos?.resumen?.vwap, dec)}</Kpi>

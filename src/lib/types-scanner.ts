@@ -1,12 +1,9 @@
 /**
- * Tipos para el módulo Scanner (Renta Variable).
- *
- * Los devuelve `GET /api/scanner/cedears` — join de Trading.Cedears
- * (master categórico) + Trading.CedearsSnapshot (live).
+ * Tipos del módulo Scanner (Renta Variable) — lo que devuelve `/api/scanner/*`.
  */
 
 /**
- * Respuesta de `GET /api/scanner/ccl` — KPI live de CCL para el shell.
+ * Respuesta de `GET /api/scanner/ccl` — KPI live de CCL.
  * Cualquier campo puede ser null si el motor está caído o no hay cierre
  * previo.
  */
@@ -18,7 +15,7 @@ export interface CclLive {
 
 /**
  * Respuesta de `GET /api/scanner/pivot/{ticker}` — 4 timeframes de
- * pivot points sobre el subyacente USD.
+ * pivot points sobre el subyacente USD (la ventana PIVOTS de TRADING → MONITOR).
  */
 export interface PivotLevels {
   pp: number;
@@ -45,7 +42,7 @@ export interface PivotData {
   ticker:     string;
   last:       number | null;
   last_fecha: string | null;
-  // "live" = precio del ADR (AdrSnapshot, ~cada 15 min); "eod" = cierre EOD.
+  // "live" = precio del ADR (adr_snapshot, ~cada 15 min); "eod" = cierre EOD.
   last_source?: "live" | "eod";
   frames: {
     diario:  PivotFrame | null;
@@ -56,42 +53,15 @@ export interface PivotData {
 }
 
 /**
- * Stats rolling sobre Trading.PreciosAcciones (window 60d hábiles).
- * Devueltos por `GET /api/scanner/quant/{ticker}`.
+ * Fila de `GET /api/scanner/cedears` — master + snapshot live del CEDEAR en
+ * ARS. Desde 2026-09-10 NO trae más las métricas del ADR (`adr_*`) ni la
+ * clasificación (`rubro` / `es_ia`): nadie las consumía y viajaban cada 2 s.
  */
-/**
- * Respuesta de `GET /api/scanner/returns/{ticker}` — serie de retornos
- * diarios aritméticos del último año para el histograma.
- */
-export interface TickerReturns {
-  ticker:      string;
-  returns:     number[];          // ~252 puntos diarios
-  last_return: number | null;
-  last_fecha:  string | null;
-}
-
-export interface QuantStats {
-  ticker:         string;
-  last:           number | null;
-  n_observations: number;
-  beta:   { spy: number | null; qqq: number | null };
-  alpha:  { spy: number | null; qqq: number | null };   // anualizada
-  corr:   { spy: number | null; qqq: number | null };
-  vol:    { d30: number | null; d60: number | null };   // anualizada
-  zscore: { d30: number | null; d60: number | null };   // z del retorno de hoy
-}
-
 export interface CedearScannerRow {
   ticker_corto: string;
   nombre:       string | null;
-  underlying:   string | null;
+  underlying:   string | null;   // US symbol (YPFD → YPF); el chart ADR lo usa
   ratio_cedear: number | null;
-  sector:       string | null;   // legacy (jsonb master Trading.Cedears) — casi siempre vacío
-  rubro:        string | null;   // clasificación de negocio viva (col SQL mercado.cedears, editable en Manager)
-  es_ia:        boolean | null;  // ecosistema IA (col SQL)
-  industria:    string | null;
-  region:       string | null;
-  pais:         string | null;
   // Métricas live (null si motor recién arrancado / sin tick aún).
   last:         number | null;
   open:         number | null;
@@ -109,18 +79,5 @@ export interface CedearScannerRow {
   vwap:       number | null;     // EV / NV (precio promedio ponderado por volumen)
   volume:     number | null;     // NOMINAL_VOLUME acumulado del día
   total_money: number | null;    // TRADE_EFFECTIVE_VOLUME ($ operado en el día)
-  // ADR (USD del underlying, EOD desde Trading.PreciosAcciones)
-  adr_last:        number | null;
-  adr_fecha:       string | null;
-  // true = precio intradía de hoy; false = cierre previo (pre-market/EOD);
-  // null = sin dato. El frontend marca con "CIERRE" cuando no es intradía.
-  adr_intraday:    boolean | null;
-  adr_vs_1d_pct:   number | null;
-  adr_ret_wtd_pct: number | null;  // week-to-date (vs cierre del viernes previo)
-  adr_ret_7d_pct:  number | null;
-  adr_ret_15r_pct: number | null;  // retorno últimas 15 ruedas
-  adr_ret_mtd_pct: number | null;
-  adr_ret_ytd_pct: number | null;
-  adr_dollar_vol:  number | null;  // volumen USD del ADR (cierre × volumen último EOD) — peso del Pulso
   updated_at:    string | null;
 }

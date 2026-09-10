@@ -1,46 +1,40 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { usePoll } from "@/lib/use-poll";
 import { TableHelp } from "./help-tooltip";
-import type {
-  PivotData,
-  PivotFrame,
-  QuantStats,
-} from "@/lib/types-scanner";
+import type { PivotData, PivotFrame } from "@/lib/types-scanner";
 
-const METRICAS_GLOSSARY = [
-  { label: "ZONAS",              text: "Pivot Points (Floor Trader). Niveles de soporte/resistencia calculados sobre OHLC del período PREVIO cerrado. Si el precio supera R1, probable continuación; toca y rebota, posible reversión." },
+/**
+ * PIVOTS del ADR — la ventana PIVOTS de TRADING → MONITOR (renta variable).
+ *
+ * Es el panel ZONAS que vivía en /renta-variable hasta el refactor 2026-09-10,
+ * sin la tab VOLATILIDAD & BETA (se borró con `/api/scanner/quant`). Por
+ * timeframe (DIARIO / SEMANAL / MENSUAL / ANUAL) muestra el máximo, mínimo y
+ * cierre del período PREVIO cerrado y los 7 niveles Floor Trader (R3…S3) con la
+ * distancia al último precio.
+ *
+ * ⚠️ Todo en USD del SUBYACENTE (`GET /api/scanner/pivot/{ticker}` resuelve
+ * YPFD → YPF y lee `mercado.precios_acciones`). No son los pivots en pesos de
+ * la tab PIVOTS de /trading (`/api/trading/pivots`, otro service, otra tabla):
+ * los dos conviven y ninguno pisa al otro.
+ *
+ * El `last` viene pisado con el precio del ADR (Finnhub, ~15') cuando lo hay
+ * (`LIVE`) o es el cierre EOD (`EOD`). Se pollea cada 60 s con techo, por
+ * `usePoll`: los niveles no cambian intradía, el `last` un par de veces por
+ * rueda.
+ */
+
+const GLOSARIO = [
+  { label: "ZONAS",              text: "Pivot Points (Floor Trader). Niveles de soporte/resistencia calculados sobre el máximo, mínimo y cierre del período PREVIO cerrado. Si el precio supera R1, probable continuación; toca y rebota, posible reversión." },
   { label: "vs LAST",            text: "Distancia % de la zona al precio actual: (zona / last − 1) × 100. Positivo = la zona está ARRIBA del precio (target alcista / resistencia por romper). Negativo = la zona está ABAJO (soporte para defender / objetivo bajista)." },
-  { label: "DIARIO/SEM/MES/AÑO", text: "Período del que se sacan H/L/C base. Diario = día hábil anterior. Semanal = lun-vie pasados. Mensual = mes calendario previo. Anual = año calendario previo." },
+  { label: "DIARIO/SEM/MES/AÑO", text: "Período del que se sacan máximo / mínimo / cierre. Diario = día hábil anterior. Semanal = lun-vie pasados. Mensual = mes calendario previo. Anual = año calendario previo." },
   { label: "R1/R2/R3",           text: "Resistencias arriba del PP. Niveles donde un precio en suba tiende a frenar." },
   { label: "PP",                 text: "Pivot Point = (H + L + C) / 3 del período previo. Eje del movimiento esperado." },
   { label: "S1/S2/S3",           text: "Soportes abajo del PP. Niveles donde un precio en baja tiende a rebotar." },
-  { label: "VOL & BETA",         text: "Estadística rolling sobre 60 ruedas hábiles vs SPY (mercado US) y QQQ (Nasdaq tech)." },
-  { label: "Beta",               text: "Sensibilidad al benchmark. β=1 se mueve igual; β>1 más volátil que el bench; β<1 más defensivo. β = cov(activo, bench) / var(bench)." },
-  { label: "Alpha (anual)",      text: "Retorno extra anualizado por encima de lo que explicaría el beta. α > 0 = outperformance idiosincrática del activo." },
-  { label: "Correlación",        text: "Pearson entre retornos diarios. 1 = se mueven juntos; 0 = independientes; −1 = opuestos. Junto al beta da la imagen completa." },
-  { label: "Vol Realizada",      text: "Volatilidad histórica anualizada: stdev(retornos) × √252. Cuánto se movió realmente. Sirve para sizing." },
-  { label: "Z-Score Hoy",        text: "Cuán raro es el movimiento de HOY vs los días previos en la ventana. z = (r_hoy − μ) / σ. |z|>2 atípico (~5% prob); |z|>3 extremo (~0.3%). Sirve para detectar movimientos out-of-distribution candidatos a mean reversion." },
 ];
 
-/**
- * Panel MÉTRICAS del Scanner. 2 niveles de tabs:
- *
- *   Main:    ZONAS (pivot points)  |  VOLATILIDAD & BETA
- *   Sub:     DIARIO / SEMANAL / MENSUAL / ANUAL   (solo si Main = ZONAS)
- *
- * Todo se computa sobre Trading.PreciosAcciones (USD del underlying).
- * Re-fetcha cuando cambia el ticker. STATS lazy (solo se pide cuando se
- * selecciona el main tab VOLATILIDAD & BETA).
- */
-
-type MainTab = "zonas" | "stats";
-type SubTab  = "diario" | "semanal" | "mensual" | "anual";
-
-const MAIN_TABS: { key: MainTab; label: string }[] = [
-  { key: "zonas", label: "ZONAS" },
-  { key: "stats", label: "VOLATILIDAD & BETA" },
-];
+type SubTab = "diario" | "semanal" | "mensual" | "anual";
 
 const SUB_TABS: { key: SubTab; label: string }[] = [
   { key: "diario",  label: "DIARIO"  },
@@ -49,83 +43,26 @@ const SUB_TABS: { key: SubTab; label: string }[] = [
   { key: "anual",   label: "ANUAL"   },
 ];
 
-export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
-  const [pivot, setPivot] = useState<PivotData | null>(null);
-  const [stats, setStats] = useState<QuantStats | null>(null);
-  const [mainTab, setMainTab] = useState<MainTab>("zonas");
-  const [subTab,  setSubTab]  = useState<SubTab>("diario");
-  const [loading, setLoading] = useState(false);
+const POLL_MS = 60_000;
 
-  // Fetch pivots cuando cambia el ticker. Además re-fetch cada 60s: los
-  // NIVELES son del período previo (estáticos), pero el `last` viene del
-  // precio live del ADR (refrescado cada 15 min) → el "vs LAST" se actualiza
-  // un par de veces por rueda sin recargar la página.
-  useEffect(() => {
-    if (!ticker) {
-      setPivot(null);
-      return;
-    }
-    let alive = true;
-    const load = (withSpinner: boolean) => {
-      if (withSpinner) setLoading(true);
-      fetch(`/api/scanner/pivot/${encodeURIComponent(ticker)}`, { cache: "no-store" })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((j) => {
-          if (alive) {
-            setPivot(j as PivotData | null);
-            setLoading(false);
-          }
-        })
-        .catch(() => {
-          if (alive) {
-            setPivot(null);
-            setLoading(false);
-          }
-        });
-    };
-    load(true);
-    const id = setInterval(() => load(false), 60_000);
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-  }, [ticker]);
-
-  // Fetch stats lazy — solo cuando se activa el tab VOL & BETA.
-  useEffect(() => {
-    if (!ticker || mainTab !== "stats") return;
-    let alive = true;
-    fetch(`/api/scanner/quant/${encodeURIComponent(ticker)}`, { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (alive) setStats(j as QuantStats | null);
-      })
-      .catch(() => {
-        if (alive) setStats(null);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [ticker, mainTab]);
-
-  if (!ticker) {
-    return (
-      <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
-        Seleccioná un ticker en la tabla
-      </p>
-    );
-  }
+export function PivotPointsPanel({ ticker }: { ticker: string }) {
+  const [subTab, setSubTab] = useState<SubTab>("diario");
+  const { data: pivot, lastAt, error } = usePoll<PivotData | null>(
+    `/api/scanner/pivot/${encodeURIComponent(ticker)}`,
+    null,
+    POLL_MS,
+    { fetchOnMount: true },
+  );
 
   return (
     <div className="h-full flex flex-col min-h-0 text-[10px]">
-      {/* Main + sub tabs en una sola línea */}
       <div className="flex items-center flex-wrap gap-1 mb-2 shrink-0">
-        {MAIN_TABS.map(({ key, label }) => (
+        {SUB_TABS.map(({ key, label }) => (
           <button
             key={key}
-            onClick={() => setMainTab(key)}
+            onClick={() => setSubTab(key)}
             className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
-              mainTab === key
+              subTab === key
                 ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
                 : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
             }`}
@@ -133,29 +70,9 @@ export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
             {label}
           </button>
         ))}
-
-        {/* Sub-tabs ZONAS al mismo nivel que main tabs (solo si zonas activo) */}
-        {mainTab === "zonas" && (
-          <span className="flex items-center gap-1 pl-2 border-l border-[var(--t-border)]">
-            {SUB_TABS.map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => setSubTab(key)}
-                className={`px-1.5 py-0.5 text-[9px] tracking-wide border transition-colors ${
-                  subTab === key
-                    ? "text-[var(--t-accent)] border-[var(--t-accent)]/40"
-                    : "text-[var(--t-text-muted)] border-transparent hover:text-[var(--t-accent)]"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </span>
-        )}
-
-        <TableHelp entries={METRICAS_GLOSSARY} />
+        <TableHelp entries={GLOSARIO} />
         <span className="ml-auto text-[var(--t-text-dim)]">
-          {ticker} · last{" "}
+          last{" "}
           <span className="text-[var(--t-text)] font-mono">
             {pivot?.last != null ? `$${pivot.last.toFixed(2)}` : "--"}
           </span>
@@ -168,11 +85,12 @@ export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
         </span>
       </div>
 
-      {/* Contenido */}
-      {loading && mainTab === "zonas" ? (
+      {error && !pivot ? (
+        <p className="text-[var(--t-neg)] text-xs py-4 text-center">
+          No pude traer los pivots ({error})
+        </p>
+      ) : lastAt === 0 && !pivot ? (
         <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">Cargando…</p>
-      ) : mainTab === "stats" ? (
-        <StatsView stats={stats} />
       ) : (
         <PivotView
           frame={pivot?.frames[subTab] ?? null}
@@ -183,10 +101,6 @@ export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
     </div>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────
-// Subvistas
-// ─────────────────────────────────────────────────────────────────────
 
 function PivotView({
   frame,
@@ -206,6 +120,18 @@ function PivotView({
   }
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
+      {/* El período previo del que salen los niveles: máximo, mínimo y cierre. */}
+      <div className="flex items-center gap-3 px-1 pb-2 font-mono tabular-nums">
+        <Dato label="MÁX" value={frame.h} />
+        <Dato label="MÍN" value={frame.l} />
+        <Dato label="CIERRE" value={frame.c} />
+        <span
+          className="ml-auto text-[9px] text-[var(--t-text-muted)]"
+          title="Período previo cerrado del que salen los niveles (cantidad de velas)"
+        >
+          {frame.fecha_desde} → {frame.fecha_hasta} · {frame.n_velas} velas
+        </span>
+      </div>
       <table className="w-full table-fixed">
         <colgroup>
           <col className="w-1/3" />
@@ -233,85 +159,12 @@ function PivotView({
   );
 }
 
-function StatsView({ stats }: { stats: QuantStats | null }) {
-  if (!stats) {
-    return <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">Cargando stats…</p>;
-  }
+function Dato({ label, value }: { label: string; value: number }) {
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto">
-      <div className="text-[var(--t-text-muted)] text-[9px] mb-1">
-        Window: 60 ruedas hábiles · n={stats.n_observations}
-      </div>
-      <table className="w-full mb-3">
-        <thead>
-          <tr className="text-[var(--t-text-muted)]">
-            <th className="!px-1 text-left">MÉTRICA</th>
-            <th className="!px-1 text-right">vs SPY</th>
-            <th className="!px-1 text-right">vs QQQ</th>
-          </tr>
-        </thead>
-        <tbody>
-          <StatRow label="Beta"          spy={stats.beta.spy}  qqq={stats.beta.qqq}  fmt="num" />
-          <StatRow label="Alpha (anual)" spy={stats.alpha.spy} qqq={stats.alpha.qqq} fmt="pct" />
-          <StatRow label="Correlación"   spy={stats.corr.spy}  qqq={stats.corr.qqq}  fmt="num" />
-        </tbody>
-      </table>
-      <table className="w-full mb-3">
-        <thead>
-          <tr className="text-[var(--t-text-muted)]">
-            <th className="!px-1 text-left">VOL REALIZADA (anual)</th>
-            <th className="!px-1 text-right">VALOR</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td className="!px-1 text-[var(--t-text-dim)]">30 días</td>
-            <td className="!px-1 text-right text-[var(--t-text)] tabular-nums font-semibold">
-              {stats.vol.d30 != null ? `${(stats.vol.d30 * 100).toFixed(1)}%` : "--"}
-            </td>
-          </tr>
-          <tr>
-            <td className="!px-1 text-[var(--t-text-dim)]">60 días</td>
-            <td className="!px-1 text-right text-[var(--t-text)] tabular-nums font-semibold">
-              {stats.vol.d60 != null ? `${(stats.vol.d60 * 100).toFixed(1)}%` : "--"}
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <table className="w-full">
-        <thead>
-          <tr className="text-[var(--t-text-muted)]">
-            <th className="!px-1 text-left">Z-SCORE RETORNO HOY</th>
-            <th className="!px-1 text-right">VALOR</th>
-          </tr>
-        </thead>
-        <tbody>
-          <ZRow label="30 días" v={stats.zscore.d30} />
-          <ZRow label="60 días" v={stats.zscore.d60} />
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function ZRow({ label, v }: { label: string; v: number | null }) {
-  // Coloreado por magnitud: |z|>2 atípico (naranja), |z|>3 extremo (rojo).
-  // Verde si |z|<2 (movimiento normal). Color absoluto, no por signo —
-  // un -3σ es tan extremo como un +3σ.
-  let color = "text-[var(--t-text)]";
-  if (v != null) {
-    const abs = Math.abs(v);
-    if (abs >= 3)      color = "text-[var(--t-neg)]";
-    else if (abs >= 2) color = "text-[var(--t-accent)]";
-    else               color = "text-[var(--t-pos)]";
-  }
-  return (
-    <tr>
-      <td className="!px-1 text-[var(--t-text-dim)]">{label}</td>
-      <td className={`!px-1 text-right tabular-nums font-semibold ${color}`}>
-        {v != null ? `${v >= 0 ? "+" : ""}${v.toFixed(2)} σ` : "--"}
-      </td>
-    </tr>
+    <span>
+      <span className="text-[9px] text-[var(--t-text-muted)] tracking-wide">{label} </span>
+      <span className="text-[var(--t-text)] font-semibold">{value.toFixed(2)}</span>
+    </span>
   );
 }
 
@@ -326,9 +179,9 @@ function Row({
   last: number | null;
   color: "resistance" | "pivot" | "support";
 }) {
-  // Distancia DE LA ZONA al precio actual. Positivo = zona por arriba
-  // del last (target alcista / resistencia por romper). Negativo =
-  // zona por abajo (soporte para defender / objetivo bajista).
+  // Distancia DE LA ZONA al precio actual. Positivo = zona por arriba del last
+  // (target alcista / resistencia por romper). Negativo = zona por abajo
+  // (soporte para defender / objetivo bajista).
   const dist = last !== null && last > 0 ? ((value / last) - 1) * 100 : null;
   const labelColor =
     color === "resistance"
@@ -356,38 +209,3 @@ function Row({
     </tr>
   );
 }
-
-function StatRow({
-  label,
-  spy,
-  qqq,
-  fmt,
-}: {
-  label: string;
-  spy: number | null;
-  qqq: number | null;
-  fmt: "num" | "pct";
-}) {
-  const format = (v: number | null) => {
-    if (v == null) return "--";
-    if (fmt === "pct") return `${v >= 0 ? "+" : ""}${(v * 100).toFixed(2)}%`;
-    return v.toFixed(2);
-  };
-  const colorFor = (v: number | null) => {
-    if (v == null) return "text-[var(--t-text-muted)]";
-    if (fmt === "pct") return v >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]";
-    return "text-[var(--t-text)]";
-  };
-  return (
-    <tr>
-      <td className="!px-1 text-[var(--t-text-dim)]">{label}</td>
-      <td className={`!px-1 text-right tabular-nums font-semibold ${colorFor(spy)}`}>
-        {format(spy)}
-      </td>
-      <td className={`!px-1 text-right tabular-nums font-semibold ${colorFor(qqq)}`}>
-        {format(qqq)}
-      </td>
-    </tr>
-  );
-}
-
