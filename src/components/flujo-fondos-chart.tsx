@@ -17,19 +17,19 @@ import { fmtFechaCorta } from "@/lib/fmt";
 /**
  * FLUJO DE FONDOS — el gráfico de la FICHA DEL BONO y del SIMULAR INVERSIÓN.
  *
- * UN gráfico, DOS ejes y DOS formas. El capital son barras contra el eje
- * IZQUIERDO; los cupones, una línea de puntos con el número escrito encima,
- * contra el eje DERECHO, con su propia escala.
+ * UN gráfico, UNA escala y DOS formas. El capital son barras; los cupones,
+ * una línea de puntos con el número escrito encima. Las dos series contra el
+ * MISMO eje.
  *
- * Por qué así (paso 26 de RENTA_FIJA.md). En una sola escala, en un bullet la
- * amortización (100) aplasta al cupón (1,89): la renta se dibuja pegada al cero
- * y el bono parece no pagar nada hasta el vencimiento. Dos paneles apilados
- * arreglaban eso pero partían en dos un cronograma que es uno solo. Y el doble
- * eje con las DOS series en barras es lo peor de los dos mundos: misma forma,
- * misma unidad, dos escalas — el ojo compara alturas que no son comparables.
- * La salida es que cada serie tenga su FORMA: nadie compara la altura de una
- * línea contra la de una barra, y el cupón se lee por su NÚMERO, no por su
- * altura.
+ * Por qué una sola escala (paso 27 de RENTA_FIJA.md, feedback de la mesa). El
+ * paso 26 había puesto la renta en un eje derecho propio para que no quedara
+ * pegada al cero; el resultado era una línea cuya ALTURA no significaba nada
+ * (a 1/3 del alto o a 3/4, según el techo elegido, el cupón "parecía" casi
+ * tan grande como la amortización). Con una sola escala la altura vuelve a
+ * ser el dato: en un bullet el cupón queda bajo porque ES chico frente al
+ * capital, y el monto se lee en el número sobre cada punto, no midiendo la
+ * línea. Las dos formas distintas (barra / punto) siguen: es lo que deja ver
+ * un cupón de 0,5 al pie de una barra de 100.
  *
  * Vive en un archivo propio desde el 2026-09-10 porque el simulador dibujaba
  * el mismo flujo con dos gráficos de barras apilados y la mesa pidió que se
@@ -43,8 +43,7 @@ export interface PuntoFlujo {
   futuro?: boolean;       // false = ya cobrado → gris. Sin el campo, todo futuro.
 }
 
-// El verde de la RENTA: la serie, su eje, sus puntos y sus números. Con dos
-// escalas en un gráfico, el color es lo único que dice qué se mide con qué eje.
+// El verde de la RENTA: la serie, sus puntos y sus números.
 const VERDE_RENTA = "#33ccaa";
 const APAGADO = "#8a94a0";   // lo ya cobrado: gris, no verde ni azul
 
@@ -52,8 +51,8 @@ const fmtN = (v: number, d: number) =>
   v.toLocaleString("es-AR", { minimumFractionDigits: d, maximumFractionDigits: d });
 
 /** Referencia de una serie: la marca (barra o punto), qué es y con qué eje se lee. */
-function SerieFlujo({ color, forma, texto, eje }: {
-  color: string; forma: "barra" | "punto"; texto: string; eje: string;
+function SerieFlujo({ color, forma, texto }: {
+  color: string; forma: "barra" | "punto"; texto: string;
 }) {
   return (
     <div className="flex items-baseline gap-1.5 shrink-0">
@@ -62,7 +61,6 @@ function SerieFlujo({ color, forma, texto, eje }: {
         style={{ background: color }}
       />
       <span className="text-[9px] tracking-wide" style={{ color }}>{texto}</span>
-      <span className="text-[9px] text-[var(--t-text-muted)]">{eje}</span>
     </div>
   );
 }
@@ -110,27 +108,8 @@ export function FlujoFondosChart({
   const numerosDelCupon =
     anchoGrafico > 0 && anchoGrafico / Math.max(1, puntos.length) >= pxPorNumero;
 
-  // El TECHO del eje de la renta. Fijarlo (y no dejar que recharts lo saque del
-  // máximo) deja el eje en números redondos y con aire arriba para los números
-  // de cada cupón. Hasta el 2026-09-10 era `max × 2,2`: los cupones vivían en el
-  // tercio de abajo y dos tercios del gráfico quedaban vacíos — la mesa lo leía
-  // como "la escala no se ajusta". Ahora es `max × 1,25`: la línea usa casi
-  // todo el alto y sigue habiendo lugar para el número encima del punto más alto.
-  const techoRenta = useMemo(() => {
-    const max = Math.max(0, ...puntos.map((c) => c.interes));
-    if (max <= 0) return 1;
-    const paso = max * 1.25 / 4;                    // 4 intervalos = 5 marcas
-    const mag = Math.pow(10, Math.floor(Math.log10(paso)));
-    const lindo = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].find((k) => k * mag >= paso) ?? 10;
-    return lindo * mag * 4;
-  }, [puntos]);
-
-  const fmtEjeCapital = (v: number) =>
+  const fmtEje = (v: number) =>
     ejeCompacto ? v.toLocaleString("es-AR", { notation: "compact" }) : fmtN(v, 0);
-  const fmtEjeRenta = (v: number) =>
-    ejeCompacto
-      ? v.toLocaleString("es-AR", { notation: "compact" })
-      : fmtN(v, v >= 10 ? 0 : 2);
 
   const tooltip = {
     contentStyle: {
@@ -147,18 +126,9 @@ export function FlujoFondosChart({
   return (
     <div className="flex-1 min-h-0 flex flex-col">
       <div className="flex items-baseline gap-4 flex-wrap px-1 pb-1 shrink-0">
-        <SerieFlujo
-          color="var(--t-accent)"
-          forma="barra"
-          texto="CAPITAL — amortización"
-          eje="eje izq."
-        />
-        <SerieFlujo
-          color={VERDE_RENTA}
-          forma="punto"
-          texto="RENTA — interés"
-          eje="eje der., otra escala"
-        />
+        <SerieFlujo color="var(--t-accent)" forma="barra" texto="CAPITAL — amortización" />
+        <SerieFlujo color={VERDE_RENTA} forma="punto" texto="RENTA — interés" />
+        <span className="text-[9px] text-[var(--t-text-muted)]">misma escala</span>
       </div>
       <div ref={medirGrafico} className="flex-1" style={{ minHeight: minAlto }}>
         <ResponsiveContainer width="100%" height="100%">
@@ -174,34 +144,19 @@ export function FlujoFondosChart({
               tickFormatter={fmtFechaCorta}
               interval={Math.max(0, Math.floor(puntos.length / 10))}
             />
+            {/* UN solo eje para las dos series: la altura es el monto. */}
             <YAxis
-              yAxisId="capital"
-              tick={{ fill: "var(--t-accent)", fontSize: 10 }}
+              tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
               axisLine={{ stroke: "var(--t-border-2)" }}
               tickLine={false}
               width={ejeCompacto ? 60 : 52}
-              tickFormatter={fmtEjeCapital}
-            />
-            {/* El eje de la renta arranca en 0 y llega a un número redondo apenas
-                arriba del cupón más grande: la línea usa el alto del gráfico y
-                queda aire para el número sobre cada punto. */}
-            <YAxis
-              yAxisId="renta"
-              orientation="right"
-              tick={{ fill: VERDE_RENTA, fontSize: 10 }}
-              axisLine={{ stroke: VERDE_RENTA }}
-              tickLine={false}
-              width={ejeCompacto ? 60 : 52}
-              domain={[0, techoRenta]}
-              tickCount={5}
-              tickFormatter={fmtEjeRenta}
+              tickFormatter={fmtEje}
             />
             <Tooltip {...tooltip} />
             {/* Barras FINAS y translúcidas. Anchas y macizas (el default: cada
                 barra ocupa toda su categoría) el gráfico es un paredón, y encima
                 de ese paredón no se lee ni la línea de cupones ni sus números. */}
             <Bar
-              yAxisId="capital"
               dataKey="amortizacion"
               name="Amortización"
               isAnimationActive={false}
@@ -213,7 +168,6 @@ export function FlujoFondosChart({
               ))}
             </Bar>
             <Line
-              yAxisId="renta"
               type="linear"
               dataKey="interes"
               name="Interés"
@@ -233,8 +187,9 @@ export function FlujoFondosChart({
               )}
             >
               {/* El cupón se LEE, no se mide: cuando hay lugar va el número sobre
-                  cada punto y el eje derecho pasa a ser una referencia, no la
-                  fuente del dato. Cuando no entra, manda el tooltip. */}
+                  cada punto (en un bullet la línea va pegada al piso y el número
+                  es lo único que lo hace legible). Cuando no entra, manda el
+                  tooltip. */}
               {numerosDelCupon && (
                 <LabelList
                   dataKey="interes"
