@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { usePoll } from "@/lib/use-poll";
 import { Panel } from "./panel";
 import { CclKpi, CedearsScannerTable } from "./cedears-scanner-table";
+import { TradingViewChart } from "./tradingview-chart";
 import type { CedearScannerRow, CclLive } from "@/lib/types-scanner";
 
 /**
@@ -13,12 +14,17 @@ import type { CedearScannerRow, CclLive } from "@/lib/types-scanner";
  *   - IZQUIERDA: panel CEDEARS = la tabla en ARS. El buscador y el KPI CCL van
  *     en la MISMA fila que el título del panel (no gastan una fila propia).
  *     Sin switch ADR, sin RUBRO/SPREAD/VWAP, con $ OPERADO.
- *   - DERECHA: vacía a propósito. Se fueron MÉTRICAS (PULSO / PIVOTS / VOL /
- *     RETORNOS) y CHART & RETORNOS; lo que va acá se decide después, primero
- *     se cierra el lado izquierdo.
+ *   - DERECHA: panel ADR = TradingView del SUBYACENTE en USD (el `underlying`
+ *     de la fila: YPFD → YPF), linkeado al ticker elegido en la tabla. Es el
+ *     ADR y no el CEDEAR a propósito: la historia limpia es la del papel en
+ *     dólares; el CEDEAR en pesos es eso por el CCL. Se reusa el componente
+ *     genérico `tradingview-chart.tsx` (el mismo de la watchlist de HOME).
  *
- * El click en una fila sigue marcando el ticker elegido: es lo que va a
- * alimentar el lado derecho cuando exista.
+ * Sin click todavía, el chart arranca con el PRIMER papel de la tabla en su
+ * orden por defecto (INTRA desc): el panel nunca está vacío. Se fueron
+ * MÉTRICAS (PULSO / PIVOTS / VOL / RETORNOS) y CHART & RETORNOS;
+ * `pivot-points-panel.tsx` y `retornos-chart.tsx` quedan en el repo sin
+ * importador porque se van a reusar en otro lado (decisión del user).
  */
 // Real-time: el motor escribe cedears_snapshot cada 1s y el service cachea 2s.
 // Pollear a 2s mantiene la tabla viva sin pegarle al cache viejo.
@@ -44,6 +50,22 @@ export function ScannerView({
   );
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+
+  // Papel activo: el elegido, o el primero de la tabla en su orden por defecto
+  // (INTRA desc, la misma regla que `CedearsScannerTable`) mientras no se
+  // clickeó nada. Con `rows` vacío no hay activo y el panel lo dice.
+  const activo = useMemo<CedearScannerRow | null>(() => {
+    if (selectedTicker) {
+      return rows.find((r) => r.ticker_corto === selectedTicker) ?? null;
+    }
+    let top: CedearScannerRow | null = null;
+    for (const r of rows) {
+      if (r.intraday_pct == null) continue;
+      if (!top || r.intraday_pct > (top.intraday_pct ?? -Infinity)) top = r;
+    }
+    return top ?? rows[0] ?? null;
+  }, [rows, selectedTicker]);
+  const simboloAdr = activo ? (activo.underlying || activo.ticker_corto) : null;
 
   const buscador = (
     <>
@@ -83,8 +105,22 @@ export function ScannerView({
           />
         </Panel>
 
-        {/* DERECHA: reservada. Se define en el próximo paso del refactor. */}
-        <div className="min-w-0 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)]" />
+        {/* DERECHA: el ADR del papel elegido, en TradingView */}
+        <Panel
+          title={simboloAdr ? `ADR · ${simboloAdr}` : "ADR"}
+          sub={activo ? `CEDEAR ${activo.ticker_corto}${activo.nombre ? ` · ${activo.nombre}` : ""}` : undefined}
+          fill
+        >
+          {simboloAdr ? (
+            // key = símbolo: al cambiar de papel se remonta el widget entero,
+            // que es lo que TradingView necesita para cambiar de instrumento.
+            <TradingViewChart key={simboloAdr} symbol={simboloAdr} />
+          ) : (
+            <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
+              Sin CEDEARs para graficar
+            </p>
+          )}
+        </Panel>
       </div>
     </div>
   );
