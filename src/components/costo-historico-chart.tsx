@@ -19,6 +19,7 @@ import {
   inicioPeriodo,
   type Periodo,
 } from "./periodo-filter";
+import { claveDia, ejeSesion, fmtDDMMHHMM } from "@/lib/eje-sesion";
 
 type Punto = {
   ts: string;      // ISO
@@ -118,10 +119,9 @@ export function CostoHistoricoChart({
     };
   }, []);
 
-  // serie indexada (idx categórico) — el eje X usa el índice del bucket,
-  // no el timestamp real, así dos buckets consecutivos quedan pegados
-  // aunque haya un fin de semana o feriado entre ellos. Sin esto el
-  // chart abre un hueco visual durante 2-3 días por mes que se ve mal.
+  // Eje X "de sesión" (lib/eje-sesion): cada día de rueda ocupa el mismo
+  // ancho y el punto se ubica por su hora dentro de la sesión. Sin huecos de
+  // noches ni fines de semana, y los días con un solo cierre no se aplastan.
   const serie = useMemo(() => {
     // El spot (VR-GGal) es DIARIO; el costo es intradía (buckets de 15 min).
     // Ponemos el spot UNA vez por día (primer bucket) y null en el resto: con
@@ -129,14 +129,17 @@ export function CostoHistoricoChart({
     // en vez de quedar escalonada (flat dentro del día + salto entre días).
     const desde = inicioPeriodo(periodo);
     const visibles = data.filter((p) => desde == null || new Date(p.ts).getTime() >= desde);
+    const tDe = (p: Punto) => new Date(p.ts).getTime();
+    const eje = ejeSesion(visibles.map(tDe));
     return visibles.map((p, idx) => {
-      const day = p.ts.slice(0, 10);
-      const nuevoDia = idx === 0 || day !== visibles[idx - 1].ts.slice(0, 10);
+      const t = tDe(p);
+      const day = claveDia(t);
+      const nuevoDia = idx === 0 || day !== claveDia(tDe(visibles[idx - 1]));
       const vr = vrMap[day];
       const spotDia = vr ? (spotMoneda === "ARS" ? vr.local : vr.adr) : undefined;
       return {
-        idx,
-        t: new Date(p.ts).getTime(),
+        x: eje.xs[idx],
+        t,
         costo: p.costo,
         atm: p.atm,
         spot: p.spot,
@@ -147,6 +150,7 @@ export function CostoHistoricoChart({
   }, [data, vrMap, spotMoneda, periodo]);
 
   const haySpot2 = useMemo(() => serie.some((p) => p.spot2 != null), [serie]);
+  const eje = useMemo(() => ejeSesion(serie.map((p) => p.t)), [serie]);
 
   const stats = useMemo(() => {
     if (!serie.length) return null;
@@ -178,22 +182,6 @@ export function CostoHistoricoChart({
     return [Math.floor(min - pad), Math.ceil(max + pad)];
   }, [serie, costoLive]);
 
-  // Un tick por día. Como el eje X es ahora `idx` (categórico), guardo
-  // el `idx` del primer bucket de cada día en lugar del timestamp.
-  const xTicks = useMemo<number[]>(() => {
-    if (!serie.length) return [];
-    const seen = new Set<string>();
-    const out: number[] = [];
-    for (const p of serie) {
-      const d = new Date(p.t);
-      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        out.push(p.idx);
-      }
-    }
-    return out;
-  }, [serie]);
 
   if (loading) {
     return (
@@ -219,27 +207,7 @@ export function CostoHistoricoChart({
 
   const fmtCosto = (v: number) =>
     v.toLocaleString("es-AR", { maximumFractionDigits: 0 });
-  // El eje X es idx — buscamos el timestamp real del bucket en `serie`
-  // y lo formateamos a DD/MM.
-  const fmtTickFecha = (idx: number) => {
-    const p = serie[idx];
-    if (!p) return "";
-    const d = new Date(p.t);
-    return `${String(d.getDate()).padStart(2, "0")}/${String(
-      d.getMonth() + 1,
-    ).padStart(2, "0")}`;
-  };
-  // Tooltip: ídem, mapea idx → ts → DD/MM HH:MM.
-  const fmtTooltipFecha = (idx: number) => {
-    const p = serie[idx];
-    if (!p) return "";
-    const d = new Date(p.t);
-    return `${String(d.getDate()).padStart(2, "0")}/${String(
-      d.getMonth() + 1,
-    ).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(
-      d.getMinutes(),
-    ).padStart(2, "0")}`;
-  };
+  const fmtTooltipFecha = (p?: (typeof serie)[number]) => (p ? fmtDDMMHHMM(p.t) : "");
 
   return (
     <div className="h-full min-h-0 flex flex-col">
@@ -313,15 +281,15 @@ export function CostoHistoricoChart({
           >
             <CartesianGrid stroke="var(--t-border)" vertical={false} />
             <XAxis
-              dataKey="idx"
+              dataKey="x"
               type="number"
-              domain={[0, Math.max(0, serie.length - 1)]}
-              ticks={xTicks}
+              domain={eje.domain}
+              ticks={eje.ticks}
               tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
               axisLine={{ stroke: "var(--t-border-2)" }}
               tickLine={false}
-              tickFormatter={fmtTickFecha}
-              minTickGap={30}
+              tickFormatter={eje.labelTick}
+              minTickGap={24}
             />
             <YAxis
               domain={yDomain}
@@ -354,7 +322,9 @@ export function CostoHistoricoChart({
                 fontSize: 11,
                 fontFamily: "JetBrains Mono, monospace",
               }}
-              labelFormatter={(v) => fmtTooltipFecha(Number(v))}
+              labelFormatter={(_v, payload) =>
+                fmtTooltipFecha(payload?.[0]?.payload as (typeof serie)[number] | undefined)
+              }
               formatter={(value, key, item) => {
                 if (key === "costo") {
                   const p = item.payload as (typeof serie)[0];

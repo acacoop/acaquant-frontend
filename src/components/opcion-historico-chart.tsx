@@ -18,6 +18,7 @@ import {
   inicioPeriodo,
   type Periodo,
 } from "./periodo-filter";
+import { claveDia, ejeSesion, fmtDDMMHHMM } from "@/lib/eje-sesion";
 
 interface TradeDoc {
   instrumento: string;
@@ -135,18 +136,23 @@ export function OpcionHistoricoChart({
     // El spot (VR-GGal) es DIARIO: lo ponemos UNA vez por día y null en el
     // resto → con connectNulls + type linear la línea queda recta, no escalonada.
     const keys = [...byBucket.keys()].sort((a, b) => a - b);
-    const fechaDe = (k: number) =>
-      new Date(byBucket.get(k)!.timestamp).toISOString().slice(0, 10);
+    const tDe = (k: number) => new Date(byBucket.get(k)!.timestamp).getTime();
+    const eje = ejeSesion(keys.map(tDe));
     return keys.map((k, idx) => {
         const p = byBucket.get(k)!;
-        const t = new Date(p.timestamp).getTime();
-        const fecha = fechaDe(k);
-        const nuevoDia = idx === 0 || fecha !== fechaDe(keys[idx - 1]);
+        const t = tDe(k);
+        const fecha = claveDia(t);
+        const nuevoDia = idx === 0 || fecha !== claveDia(tDe(keys[idx - 1]));
         const vr = vrMap[fecha];
         const spotDia = vr ? (spotMoneda === "ARS" ? vr.local : vr.adr) : undefined;
+        // Cierre diario (viene de options_data_hist): el backend lo ubica a las
+        // 17:00 en punto y sin `last_timestamp` (un tick real siempre lo trae).
+        const d = new Date(t);
+        const cierre = p.last_timestamp == null && d.getHours() === 17 && d.getMinutes() === 0;
         return {
-          idx,
+          x: eje.xs[idx],
           t,
+          cierre,
           last: Number(p.last),
           spot: p.spot,
           strike: p.strike,
@@ -154,6 +160,8 @@ export function OpcionHistoricoChart({
         };
       });
   }, [data, vrMap, spotMoneda, periodo]);
+
+  const eje = useMemo(() => ejeSesion(serie.map((p) => p.t)), [serie]);
 
   const haySpot2 = useMemo(() => serie.some((p) => p.spot2 != null), [serie]);
 
@@ -179,21 +187,6 @@ export function OpcionHistoricoChart({
     return [min - pad, max + pad];
   }, [serie, lastLive]);
 
-  const xTicks = useMemo<number[]>(() => {
-    if (!serie.length) return [];
-    const seen = new Set<string>();
-    const out: number[] = [];
-    for (const p of serie) {
-      const d = new Date(p.t);
-      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        out.push(p.idx);
-      }
-    }
-    return out;
-  }, [serie]);
-
   if (loading) {
     return (
       <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
@@ -218,24 +211,8 @@ export function OpcionHistoricoChart({
 
   const fmtPx = (v: number) =>
     v.toLocaleString("es-AR", { maximumFractionDigits: 2 });
-  const fmtTickFecha = (idx: number) => {
-    const p = serie[idx];
-    if (!p) return "";
-    const d = new Date(p.t);
-    return `${String(d.getDate()).padStart(2, "0")}/${String(
-      d.getMonth() + 1,
-    ).padStart(2, "0")}`;
-  };
-  const fmtTooltipFecha = (idx: number) => {
-    const p = serie[idx];
-    if (!p) return "";
-    const d = new Date(p.t);
-    return `${String(d.getDate()).padStart(2, "0")}/${String(
-      d.getMonth() + 1,
-    ).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(
-      d.getMinutes(),
-    ).padStart(2, "0")}`;
-  };
+  const fmtTooltipFecha = (p?: (typeof serie)[number]) =>
+    p ? (p.cierre ? `${fmtDDMMHHMM(p.t)} · cierre` : fmtDDMMHHMM(p.t)) : "";
 
   return (
     <div className="h-full min-h-0 flex flex-col">
@@ -307,15 +284,15 @@ export function OpcionHistoricoChart({
           >
             <CartesianGrid stroke="var(--t-border)" vertical={false} />
             <XAxis
-              dataKey="idx"
+              dataKey="x"
               type="number"
-              domain={[0, Math.max(0, serie.length - 1)]}
-              ticks={xTicks}
+              domain={eje.domain}
+              ticks={eje.ticks}
               tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
               axisLine={{ stroke: "var(--t-border-2)" }}
               tickLine={false}
-              tickFormatter={fmtTickFecha}
-              minTickGap={30}
+              tickFormatter={eje.labelTick}
+              minTickGap={24}
             />
             <YAxis
               domain={yDomain}
@@ -347,7 +324,9 @@ export function OpcionHistoricoChart({
                 fontSize: 11,
                 fontFamily: "JetBrains Mono, monospace",
               }}
-              labelFormatter={(v) => fmtTooltipFecha(Number(v))}
+              labelFormatter={(_v, payload) =>
+                fmtTooltipFecha(payload?.[0]?.payload as (typeof serie)[number] | undefined)
+              }
               formatter={(value, name) =>
                 name === "spot2"
                   ? [`$${fmtPx(Number(value))}`, `Spot ${spotMoneda}`]
