@@ -1,14 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Bar,
-  BarChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { DatoFlujo, FlujoFondosChart } from "@/components/flujo-fondos-chart";
 import type { BonoCurva, SimulacionInversion } from "@/lib/types";
 import { fmtFechaCorta } from "@/lib/fmt";
 import { NumeroInput } from "@/components/numero-input";
@@ -41,10 +34,6 @@ interface Props {
 
 const DEBOUNCE_MS = 400;
 
-// Colores del flujo (mismos que la FICHA del bono): capital y renta.
-const COLOR_AMORT = "var(--t-accent)";
-const COLOR_INTERES = "#33ccaa";
-
 const pctSigned = (v: number | null | undefined, d = 2) =>
   v === null || v === undefined ? "—" : `${(v * 100).toFixed(d)}%`;
 
@@ -66,28 +55,6 @@ const WARNINGS: Record<string, string> = {
 };
 
 /** Rótulo de cada panel del flujo: el swatch + qué es, pegado a SU chart. */
-function SubtituloFlujo({ color, texto }: { color: string; texto: string }) {
-  return (
-    <div className="flex items-center gap-1.5 px-1 pt-1 pb-0.5">
-      <span className="inline-block w-2.5 h-2.5 shrink-0" style={{ background: color }} />
-      <span className="text-[10px] text-[var(--t-text-dim)]">{texto}</span>
-    </div>
-  );
-}
-
-/** Props compartidas del tooltip de los dos paneles del flujo. */
-const tooltipFlujo = (nombre: string) => ({
-  contentStyle: {
-    background: "var(--t-surface)",
-    border: "1px solid var(--t-border-2)",
-    fontSize: 11,
-    fontFamily: "JetBrains Mono, monospace",
-  },
-  labelStyle: { color: "var(--t-text-dim)" },
-  labelFormatter: (v: unknown) => fmtFechaCorta(String(v)),
-  formatter: (v: unknown) => [fmt0(Number(v)), nombre] as [string, string],
-});
-
 /** Fila label → valor. Es la unidad de TASAS AL PRECIO: se lee en vertical. */
 function Fila({ label, valor, tip }: { label: string; valor: React.ReactNode; tip?: string }) {
   return (
@@ -463,13 +430,10 @@ export function SimularInversionModal({ bonos, onClose }: Props) {
                   )}
                 </div>
 
-                {/* El mapa del flujo de fondos. NO es un chart apilado ni de
-                    doble eje: en un bullet la amortización (~4.800) aplasta a
-                    los cupones (~90) y el perfil de renta se vuelve invisible,
-                    y el doble eje Y es el anti-patrón #1 (misma moneda en dos
-                    escalas → el ojo compara alturas que no son comparables).
-                    Son DOS paneles con el MISMO eje de fechas y cada uno su
-                    propia escala: arriba el capital, abajo la renta. */}
+                {/* El mismo gráfico que la FICHA DEL BONO (`flujo-fondos-chart.tsx`):
+                    capital en barras contra el eje izquierdo, cupones en línea con
+                    el número encima contra el derecho. Acá en MONTOS, escalados al
+                    importe, no por 100 VN. */}
                 <Panel
                   titulo="FLUJO DE FONDOS"
                   extra={
@@ -484,55 +448,26 @@ export function SimularInversionModal({ bonos, onClose }: Props) {
                       No quedan pagos futuros cargados para este bono.
                     </p>
                   ) : (
-                    <div className="p-2">
-                      <SubtituloFlujo color={COLOR_AMORT} texto="CAPITAL — amortización (te devuelven lo invertido)" />
-                      <div className="h-[160px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={chart} margin={{ top: 4, right: 12, bottom: 0, left: 4 }} barCategoryGap="25%" syncId="flujo">
-                            <XAxis dataKey="fecha" tick={false} axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false} height={4} />
-                            <YAxis
-                              tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
-                              axisLine={{ stroke: "var(--t-border-2)" }}
-                              tickLine={false}
-                              width={64}
-                              tickFormatter={(v: number) => v.toLocaleString("es-AR", { notation: "compact" })}
-                            />
-                            <Tooltip {...tooltipFlujo("Amortización")} />
-                            <Bar dataKey="amortizacion" fill={COLOR_AMORT} isAnimationActive={false} />
-                          </BarChart>
-                        </ResponsiveContainer>
+                    <div className="p-2 flex flex-col">
+                      <div className="h-[340px] flex flex-col">
+                        <FlujoFondosChart puntos={chart} decimales={0} ejeCompacto />
                       </div>
-                      <SubtituloFlujo color={COLOR_INTERES} texto="RENTA — interés (el cupón, en su propia escala)" />
-                      <div className="h-[170px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={chart} margin={{ top: 4, right: 12, bottom: 28, left: 4 }} barCategoryGap="25%" syncId="flujo">
-                            <XAxis
-                              dataKey="fecha"
-                              tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
-                              axisLine={{ stroke: "var(--t-border-2)" }}
-                              tickLine={false}
-                              angle={-35}
-                              textAnchor="end"
-                              height={44}
-                              tickFormatter={fmtFechaCorta}
-                              interval={Math.max(0, Math.floor(chart.length / 12))}
-                            />
-                            <YAxis
-                              tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
-                              axisLine={{ stroke: "var(--t-border-2)" }}
-                              tickLine={false}
-                              width={64}
-                              tickFormatter={(v: number) => v.toLocaleString("es-AR", { notation: "compact" })}
-                            />
-                            <Tooltip {...tooltipFlujo("Interés")} />
-                            <Bar dataKey="interes" fill={COLOR_INTERES} isAnimationActive={false} />
-                          </BarChart>
-                        </ResponsiveContainer>
+                      <div className="shrink-0 flex flex-wrap items-baseline gap-x-4 gap-y-1 mt-1.5 pt-1.5 border-t border-[var(--t-border-2)]">
+                        <DatoFlujo label="Pagos futuros" valor={sim.n_pagos} />
+                        <DatoFlujo
+                          label="Próximo pago"
+                          valor={`${fmtFechaCorta(sim.flujos[0].fecha)} · ${fmt0(sim.flujos[0].monto)}`}
+                        />
+                        <DatoFlujo
+                          label="Último pago"
+                          valor={fmtFechaCorta(sim.flujos[sim.flujos.length - 1].fecha)}
+                        />
+                        <DatoFlujo
+                          label="Total a cobrar"
+                          valor={fmt0(sim.total_a_cobrar)}
+                          tip="Suma nominal de los pagos que faltan, sin descontar. No es el valor presente."
+                        />
                       </div>
-                      <p className="text-[9px] text-[var(--t-text-muted)] px-1 mt-1 leading-snug">
-                        Mismas fechas, dos escalas: el capital y la renta viven en órdenes de
-                        magnitud distintos — en una sola escala el cupón desaparece.
-                      </p>
                     </div>
                   )}
                 </Panel>
