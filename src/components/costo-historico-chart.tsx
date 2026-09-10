@@ -212,7 +212,7 @@ export function CostoHistoricoChart({
   if (!data.length) {
     return (
       <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
-        Sin histórico disponible para esta estrategia en el OPEX en curso.
+        Sin histórico disponible para esta estrategia.
       </p>
     );
   }

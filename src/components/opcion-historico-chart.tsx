@@ -37,10 +37,11 @@ interface TradeDoc {
  * Histórico de un contrato individual (call o put). Plotea `last` vs tiempo.
  *
  * El endpoint backend `/api/cotizaciones/historico/opciones?instrumento=X`
- * trae todas las operaciones de los últimos 21 días (Opciones.Data),
- * orden desc. Lo revertimos a ascendente y usamos índice como eje X
- * para no dejar huecos en fines de semana/feriados (mismo criterio que
- * CostoHistoricoChart).
+ * trae los ticks intradía de HOY (options_data, que se purga de noche) más
+ * un punto de CIERRE (17:00) por cada día anterior en que el contrato operó
+ * (options_data_hist, el rollup diario). Orden desc. Lo revertimos a
+ * ascendente y usamos índice como eje X para no dejar huecos en fines de
+ * semana/feriados (mismo criterio que CostoHistoricoChart).
  */
 export function OpcionHistoricoChart({
   instrumento,
@@ -210,7 +211,7 @@ export function OpcionHistoricoChart({
   if (!data.length) {
     return (
       <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
-        Sin trades de los últimos 21 días para {instrumento}.
+        Sin histórico para {instrumento}.
       </p>
     );
   }
