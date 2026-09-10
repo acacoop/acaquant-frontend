@@ -68,9 +68,11 @@ function Fila({ label, valor, tip }: { label: string; valor: React.ReactNode; ti
   );
 }
 
-/** Combobox tipeable de bonos (mismo patrón que tenía Comparar Inversión: el
- *  <select> nativo salta a la primera coincidencia y cierra — acá se filtra
- *  por texto mientras escribís y Enter elige el primero). */
+/** Combobox tipeable de bonos. Las sugerencias aparecen SOLO cuando hay algo
+ *  escrito (feedback del user 2026-09-10: abrir la lista entera al enfocar,
+ *  221 bonos en orden cronológico, era confuso y no se entendía qué era eso).
+ *  Se busca por el TICKER (lo que la mesa tipea), empezando por lo escrito
+ *  primero y conteniendo después; Enter elige el primero. */
 function BonoCombo({ bonos, selected, onChange }: {
   bonos: BonoCurva[]; selected: string; onChange: (ticker: string) => void;
 }) {
@@ -86,15 +88,15 @@ function BonoCombo({ bonos, selected, onChange }: {
       : "";
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const base = q
-      ? bonos.filter((b) =>
-          `${b.ticker_corto} ${b.emisor ?? ""} ${b.lado} ${b.pill} ${b.vencimiento ?? ""}`
-            .toLowerCase()
-            .includes(q))
-      : bonos;
-    return base.slice(0, 60);
+    const q = query.trim().toUpperCase();
+    if (!q) return [];
+    const empieza = bonos.filter((b) => b.ticker_corto.toUpperCase().startsWith(q));
+    const contiene = bonos.filter(
+      (b) => !b.ticker_corto.toUpperCase().startsWith(q) && b.ticker_corto.toUpperCase().includes(q),
+    );
+    return [...empieza, ...contiene].slice(0, 12);
   }, [bonos, query]);
+  const abierta = open && query.trim().length > 0;
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -117,17 +119,17 @@ function BonoCombo({ bonos, selected, onChange }: {
         placeholder="tipeá un ticker (ej. AL30)"
         autoFocus
         onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
-        onFocus={() => { setQuery(""); setOpen(true); }}
+        onFocus={() => { setQuery(""); setOpen(true); }}   // abre, pero sin texto no lista nada
         onKeyDown={(e) => {
           if (e.key === "Enter" && filtered.length > 0) pick(filtered[0]);
           else if (e.key === "Escape") setOpen(false);
         }}
         className="w-full bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-1 text-xs text-[var(--t-text)] focus:border-[var(--t-accent)] outline-none"
       />
-      {open && (
+      {abierta && (
         <div className="absolute z-50 top-full left-0 right-0 mt-0.5 max-h-72 overflow-y-auto bg-[var(--t-panel)] border border-[var(--t-border-2)] shadow-lg">
           {filtered.length === 0 ? (
-            <div className="px-2 py-1 text-[10px] text-[var(--t-text-muted)] italic">sin resultados</div>
+            <div className="px-2 py-1 text-[10px] text-[var(--t-text-muted)] italic">ningún ticker empieza así</div>
           ) : (
             filtered.map((b) => (
               <button
