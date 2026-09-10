@@ -173,7 +173,7 @@ export function BonoModal({ ticker, onClose }: Props) {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] w-full max-w-6xl h-[88vh] max-h-[88vh] flex flex-col"
+        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] w-full max-w-6xl max-h-[88vh] flex flex-col"
       >
         {/* ── cabecera ── */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--t-border-2)] shrink-0">
@@ -207,7 +207,13 @@ export function BonoModal({ ticker, onClose }: Props) {
           </button>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden p-3 flex flex-col gap-3">
+        {/* El modal mide lo que su CONTENIDO mide (pedido del user 2026-09-10:
+            una Lecap con un solo pago dejaba media pantalla negra) y recién a
+            partir del 88 % del alto se achica y scrollea el cronograma. Por eso
+            el cuerpo y la grilla llevan `flex-[0_1_auto]` (base = contenido,
+            pueden ACHICARSE, no se estiran) y no `flex-1`: con base 0 dentro de
+            un contenedor de alto automático, el cuerpo mediría cero. */}
+        <div className="flex-[0_1_auto] min-h-0 overflow-y-auto lg:overflow-hidden p-3 flex flex-col gap-3">
           {loading ? (
             <p className="text-[var(--t-text-muted)] text-xs text-center py-8">cargando…</p>
           ) : error ? (
@@ -292,7 +298,7 @@ export function BonoModal({ ticker, onClose }: Props) {
                   (paso 27): dos escalas en un dibujo no se leían y una sola
                   aplastaba los cupones; la tabla con ACUMULADO dice lo mismo
                   sin ambigüedad. */}
-              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,34fr)_minmax(0,66fr)] lg:grid-rows-[minmax(0,1fr)] gap-3 lg:flex-1 lg:min-h-0">
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,34fr)_minmax(0,66fr)] lg:grid-rows-[minmax(0,1fr)] gap-3 lg:flex-[0_1_auto] lg:min-h-0">
 
               {/* ── COLUMNA IZQUIERDA: la ficha ── */}
               <div className="flex flex-col gap-3 min-h-0 order-2 lg:order-1">
@@ -316,7 +322,7 @@ export function BonoModal({ ticker, onClose }: Props) {
               </div>{/* /columna izquierda */}
 
               {/* ── COLUMNA DERECHA: CRONOGRAMA a toda la altura ── */}
-              <div className="border border-[var(--t-border-2)] p-2 flex flex-col min-h-0 order-1 lg:order-2 lg:flex-1">
+              <div className="border border-[var(--t-border-2)] p-2 flex flex-col min-h-0 order-1 lg:order-2">
                 <div className="flex items-center gap-2 mb-1.5 flex-wrap shrink-0">
                   <span className="text-[10px] tracking-wide text-[var(--t-accent)]">
                     CRONOGRAMA
@@ -355,7 +361,7 @@ export function BonoModal({ ticker, onClose }: Props) {
                       : "Sin cronograma cargado para este bono."}
                   </p>
                 ) : (
-                  <div className="flex-1 min-h-0 overflow-y-auto">
+                  <div className="flex-[1_1_auto] min-h-0 overflow-y-auto">
                     <table className="w-full">
                       <thead className="sticky top-0 bg-[var(--t-surface)]">
                         <tr>
