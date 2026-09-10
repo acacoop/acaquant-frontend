@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { fmtPrice, fmtVol } from "./ui";
+import { fmtPrice } from "./ui";
 import { TableHelp } from "./help-tooltip";
 import type { OpcionDoc } from "@/lib/estrategias";
 
@@ -202,7 +202,7 @@ export function OpcionesTableCompact({
                       {r.vega !== undefined ? r.vega.toFixed(2) : "--"}
                     </td>
                     <td className="!px-1 text-right text-[#ffaa00]">
-                      {fmtVol(r.ev)}
+                      {fmtVolReal(r.ev)}
                     </td>
                   </tr>
                 );
@@ -236,4 +236,11 @@ function FilterBtn({
       {children}
     </button>
   );
+}
+
+// VOL sin abreviar: el volumen efectivo del día en pesos, entero, con separador
+// de miles es-AR. La mesa quiere leer el número real, no "240.4M".
+function fmtVolReal(n?: number): string {
+  if (n === undefined || n === null) return "--";
+  return Math.round(n).toLocaleString("es-AR");
 }
