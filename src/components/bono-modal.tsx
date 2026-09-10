@@ -147,25 +147,22 @@ export function BonoModal({ ticker, onClose }: Props) {
   // La FICHA, en filas verticales. Lo condicional (industria, ley, CER) entra o
   // no entra según el bono — una fila vacía en una lista vertical se lee como un
   // dato faltante, no como un campo que no aplica.
+  // Sin SÍMBOLO (el ticker ya está en el título; el símbolo de mercado es un
+  // dato de Primary, no de la mesa), sin TIPO EMISOR (repetía a TIPO y al
+  // filtro de la tabla), sin AJUSTE ni CUPÓN ANUAL (pedido del user 2026-09-10:
+  // el alto que se libera se lo lleva el CRONOGRAMA). Las patas del dual ya se
+  // muestran en la tira de tasas de arriba.
   const filasFicha: { label: string; valor: React.ReactNode; tip?: string }[] = ficha ? [
-    { label: "Símbolo", valor: data?.instrumento || "--", tip: "El símbolo que se le manda a Primary" },
     { label: "Emisor", valor: ficha.emisor || "--" },
-    { label: "Tipo emisor", valor: ficha.emisor_tipo || "--" },
     ...(ficha.industria ? [{ label: "Industria", valor: ficha.industria }] : []),
     { label: "Tipo", valor: ficha.tipo || "--" },
     { label: "Moneda", valor: ficha.moneda || "--" },
-    {
-      label: "Ajuste",
-      valor: ficha.ajuste_alt ? `${ficha.ajuste} + ${ficha.ajuste_alt}` : ficha.ajuste || "--",
-      tip: ficha.ajuste_alt ? "Bono DUAL: tiene dos patas de rendimiento" : undefined,
-    },
     ...(ficha.ley
       ? [{ label: "Ley", valor: ficha.ley === "local" ? "Local (Bonar)" : "NY (Global)" }]
       : []),
     { label: "Emisión", valor: ficha.fecha_emision ? fmtFechaCorta(ficha.fecha_emision) : "--" },
     { label: "Vencimiento", valor: ficha.fecha_vencimiento ? fmtFechaCorta(ficha.fecha_vencimiento) : "--" },
     { label: "Valor nominal", valor: fmt2(ficha.valor_nominal, 0) },
-    { label: "Cupón anual", valor: ficha.cupon_anual == null ? "--" : fmt2(ficha.cupon_anual, 4) },
     ...(ficha.cer_emision != null
       ? [{ label: "CER emisión", valor: fmt2(ficha.cer_emision, 4) }]
       : []),
@@ -347,7 +344,7 @@ export function BonoModal({ ticker, onClose }: Props) {
 
                 {/* ── CRONOGRAMA ── el dato duro que respalda los gráficos ── */}
                 {flujos.length > 0 && (
-                  <div className="border border-[var(--t-border-2)] p-2 flex flex-col min-h-0">
+                  <div className="border border-[var(--t-border-2)] p-2 flex flex-col min-h-0 lg:flex-1">
                     <div className="shrink-0 text-[10px] tracking-wide text-[var(--t-accent)] mb-2">
                       CRONOGRAMA
                       <span className="ml-2 text-[var(--t-text-muted)]">{flujos.length}</span>
