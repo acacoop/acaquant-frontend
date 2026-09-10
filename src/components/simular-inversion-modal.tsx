@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { DatoFlujo, FlujoFondosChart } from "@/components/flujo-fondos-chart";
 import type { BonoCurva, SimulacionInversion } from "@/lib/types";
 import { fmtFechaCorta } from "@/lib/fmt";
 import { NumeroInput } from "@/components/numero-input";
@@ -54,7 +53,6 @@ const WARNINGS: Record<string, string> = {
   cer_sin_serie: "Sin serie CER cargada: no se pudieron ajustar los flujos.",
 };
 
-/** Rótulo de cada panel del flujo: el swatch + qué es, pegado a SU chart. */
 /** Fila label → valor. Es la unidad de TASAS AL PRECIO: se lee en vertical. */
 function Fila({ label, valor, tip }: { label: string; valor: React.ReactNode; tip?: string }) {
   return (
@@ -241,15 +239,6 @@ export function SimularInversionModal({ bonos, onClose }: Props) {
 
   const sim = data && !data.error ? data.simulacion : null;
 
-  const chart = useMemo(
-    () => (sim?.flujos || []).map((f) => ({
-      fecha: f.fecha,
-      amortizacion: +f.amortizacion.toFixed(2),
-      interes: +f.interes.toFixed(2),
-    })),
-    [sim?.flujos],
-  );
-
   const inputCls =
     "w-28 bg-transparent border border-[var(--t-border-2)] px-2 py-1 text-xs text-right " +
     "text-[var(--t-text)] focus:border-[var(--t-accent)] outline-none";
@@ -373,7 +362,7 @@ export function SimularInversionModal({ bonos, onClose }: Props) {
                 />
               </div>
 
-              {/* ── RESULTADO detallado + FLUJO DE FONDOS ── */}
+              {/* ── TASAS AL PRECIO | CUÁNDO COBRO ── */}
               <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-3 items-start">
                 <div className="flex flex-col gap-3 min-w-0">
                   <Panel titulo={`TASAS AL PRECIO ${fmt2(sim.precio)}`}>
@@ -392,84 +381,58 @@ export function SimularInversionModal({ bonos, onClose }: Props) {
                     )}
                   </Panel>
 
-                  {/* CUÁNDO COBRO: el dato duro que respalda el gráfico */}
-                  {sim.flujos.length > 0 && (
-                    <Panel
-                      titulo="CUÁNDO COBRO"
-                      extra={<span className="text-[10px] text-white/80">{sim.n_pagos} pago{sim.n_pagos === 1 ? "" : "s"}</span>}
-                    >
-                      <div className="max-h-[220px] overflow-y-auto">
-                        <table className="w-full">
-                          <thead>
-                            <tr>
-                              <th className="!px-3 text-left">Fecha</th>
-                              <th className="!px-2 text-right">Amortización</th>
-                              <th className="!px-2 text-right">Interés</th>
-                              <th className="!px-3 text-right">Total</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {sim.flujos.map((f) => (
-                              <tr key={f.fecha}>
-                                <td className="!px-3 text-left">{fmtFechaCorta(f.fecha)}</td>
-                                <td className="!px-2 text-right">{fmt0(f.amortizacion)}</td>
-                                <td className="!px-2 text-right">{fmt0(f.interes)}</td>
-                                <td className="!px-3 text-right font-medium">{fmt0(f.monto)}</td>
-                              </tr>
-                            ))}
-                            <tr className="border-t border-[var(--t-border-2)]">
-                              <td className="!px-3 text-left font-semibold text-[var(--t-text)]">TOTAL</td>
-                              <td className="!px-2" />
-                              <td className="!px-2" />
-                              <td className="!px-3 text-right font-semibold text-[var(--t-text)]">
-                                {fmt0(sim.total_a_cobrar)}
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-                    </Panel>
-                  )}
                 </div>
 
-                {/* El mismo gráfico que la FICHA DEL BONO (`flujo-fondos-chart.tsx`):
-                    capital en barras contra el eje izquierdo, cupones en línea con
-                    el número encima contra el derecho. Acá en MONTOS, escalados al
-                    importe, no por 100 VN. */}
+                {/* CUÁNDO COBRO, a toda la altura de la derecha: cada pago con
+                    lo que llevás cobrado hasta ahí (ACUMULADO, lo calcula el
+                    backend). El gráfico del flujo se sacó el 2026-09-10: la
+                    tabla dice lo mismo sin pelearse con las escalas. */}
                 <Panel
-                  titulo="FLUJO DE FONDOS"
+                  titulo="CUÁNDO COBRO"
                   extra={
                     <span className="text-[10px] text-white/80">
-                      {data?.moneda_flujo ?? ""} · {fmt0(sim.vn_nominal)} VN
+                      {sim.n_pagos} pago{sim.n_pagos === 1 ? "" : "s"} · {data?.moneda_flujo ?? ""} · {fmt0(sim.vn_nominal)} VN
                       {sim.cer_proyectado ? " · CER proyectado" : ""}
                     </span>
                   }
                 >
-                  {chart.length === 0 ? (
+                  {sim.flujos.length === 0 ? (
                     <p className="text-[var(--t-text-muted)] text-xs text-center py-6">
                       No quedan pagos futuros cargados para este bono.
                     </p>
                   ) : (
-                    <div className="p-2 flex flex-col">
-                      <div className="h-[340px] flex flex-col">
-                        <FlujoFondosChart puntos={chart} decimales={0} ejeCompacto />
-                      </div>
-                      <div className="shrink-0 flex flex-wrap items-baseline gap-x-4 gap-y-1 mt-1.5 pt-1.5 border-t border-[var(--t-border-2)]">
-                        <DatoFlujo label="Pagos futuros" valor={sim.n_pagos} />
-                        <DatoFlujo
-                          label="Próximo pago"
-                          valor={`${fmtFechaCorta(sim.flujos[0].fecha)} · ${fmt0(sim.flujos[0].monto)}`}
-                        />
-                        <DatoFlujo
-                          label="Último pago"
-                          valor={fmtFechaCorta(sim.flujos[sim.flujos.length - 1].fecha)}
-                        />
-                        <DatoFlujo
-                          label="Total a cobrar"
-                          valor={fmt0(sim.total_a_cobrar)}
-                          tip="Suma nominal de los pagos que faltan, sin descontar. No es el valor presente."
-                        />
-                      </div>
+                    <div className="max-h-[60vh] overflow-y-auto">
+                      <table className="w-full">
+                        <thead className="sticky top-0 bg-[var(--t-surface)]">
+                          <tr>
+                            <th className="!px-3 text-left">Fecha</th>
+                            <th className="!px-2 text-right">Amortización</th>
+                            <th className="!px-2 text-right">Interés</th>
+                            <th className="!px-2 text-right">Total</th>
+                            <th className="!px-3 text-right" title="Lo cobrado hasta este pago inclusive">Acumulado</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sim.flujos.map((f) => (
+                            <tr key={f.fecha}>
+                              <td className="!px-3 text-left">{fmtFechaCorta(f.fecha)}</td>
+                              <td className="!px-2 text-right">{fmt0(f.amortizacion)}</td>
+                              <td className="!px-2 text-right">{fmt0(f.interes)}</td>
+                              <td className="!px-2 text-right font-medium">{fmt0(f.monto)}</td>
+                              <td className="!px-3 text-right font-medium text-[var(--t-accent)]">{fmt0(f.acumulado)}</td>
+                            </tr>
+                          ))}
+                          <tr className="border-t border-[var(--t-border-2)]">
+                            <td className="!px-3 text-left font-semibold text-[var(--t-text)]">TOTAL</td>
+                            <td className="!px-2" />
+                            <td className="!px-2" />
+                            <td className="!px-2 text-right font-semibold text-[var(--t-text)]">
+                              {fmt0(sim.total_a_cobrar)}
+                            </td>
+                            <td className="!px-3" />
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </Panel>

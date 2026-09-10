@@ -248,6 +248,7 @@ export interface FlujoBono {
   interes:              number;    // por 100 VN
   monto:                number;    // amortizacion + interes, por 100 VN
   residual_previo_pct:  number | null;
+  acumulado:            number | null;   // cobrado hasta este pago inclusive (solo futuros)
   futuro:               boolean;   // >= hoy
   bullet?:              boolean;   // sintetizado de `flujo_vencimiento` (Lecap/Boncap)
 }
@@ -315,6 +316,7 @@ export interface FlujoSimulado {
   interes:       number;
   monto:         number;
   monto_por_100: number;   // por 100 VN (CER ya ajustado), para auditar la escala
+  acumulado:     number;   // cobrado hasta este pago inclusive
 }
 
 export interface SimulacionInversion {

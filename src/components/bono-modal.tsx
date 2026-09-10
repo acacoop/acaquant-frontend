@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { FlujoFondosChart } from "@/components/flujo-fondos-chart";
 import type { BonoDetalle, PataBono } from "@/lib/types";
 import { fmtFechaCorta } from "@/lib/fmt";
 
@@ -125,20 +124,6 @@ export function BonoModal({ ticker, onClose }: Props) {
     [data?.flujos, soloFuturos],
   );
 
-  // El gráfico apila amortización e interés: son cosas distintas para quien mira
-  // (una devuelve capital, la otra no) y el total sigue siendo la altura de la
-  // barra. Un único total escondería el perfil de amortización, que es justo lo
-  // que distingue a un bullet de un amortizante con la misma duration.
-  const chart = useMemo(
-    () => flujos.map((f) => ({
-      fecha: f.fecha,
-      amortizacion: +f.amortizacion.toFixed(4),
-      interes: +f.interes.toFixed(4),
-      futuro: f.futuro,
-    })),
-    [flujos],
-  );
-
   const ficha = data?.ficha;
   // La pata PRINCIPAL para el bloque de tasas: la del `ajuste` del bono. Un dual
   // tiene dos y las dos se muestran, cada una con su tasa y su procedencia.
@@ -155,7 +140,6 @@ export function BonoModal({ ticker, onClose }: Props) {
   const filasFicha: { label: string; valor: React.ReactNode; tip?: string }[] = ficha ? [
     { label: "Emisor", valor: ficha.emisor || "--" },
     ...(ficha.industria ? [{ label: "Industria", valor: ficha.industria }] : []),
-    { label: "Tipo", valor: ficha.tipo || "--" },
     { label: "Moneda", valor: ficha.moneda || "--" },
     ...(ficha.ley
       ? [{ label: "Ley", valor: ficha.ley === "local" ? "Local (Bonar)" : "NY (Global)" }]
@@ -302,30 +286,18 @@ export function BonoModal({ ticker, onClose }: Props) {
                 </div>
               ))}
 
-              {/* ── EL CUERPO ── a la izquierda la FICHA y, DEBAJO, el
-                  CRONOGRAMA: los dos son texto y contestan lo mismo (qué bono
-                  es / qué paga), así que se leen juntos y se reparten una sola
-                  columna. A la derecha, a toda la altura, los dos gráficos del
-                  flujo, cada uno en su panel. Antes la FICHA ocupaba sola toda
-                  la mitad izquierda —sobraba media columna vacía— y el
-                  cronograma le comía la mitad de la altura a los gráficos: las
-                  barras quedaban aplastadas y la tabla, estirada al pedo. */}
-              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,38fr)_minmax(0,62fr)] lg:grid-rows-[minmax(0,1fr)] gap-3 lg:flex-1 lg:min-h-0">
+              {/* ── EL CUERPO ── a la izquierda la FICHA (texto, alto natural);
+                  a la derecha, a toda la altura, el CRONOGRAMA con lo que se
+                  va cobrando. El gráfico del flujo se sacó el 2026-09-10
+                  (paso 27): dos escalas en un dibujo no se leían y una sola
+                  aplastaba los cupones; la tabla con ACUMULADO dice lo mismo
+                  sin ambigüedad. */}
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,34fr)_minmax(0,66fr)] lg:grid-rows-[minmax(0,1fr)] gap-3 lg:flex-1 lg:min-h-0">
 
-              {/* ── COLUMNA IZQUIERDA: ficha arriba, cronograma abajo ── */}
+              {/* ── COLUMNA IZQUIERDA: la ficha ── */}
               <div className="flex flex-col gap-3 min-h-0 order-2 lg:order-1">
-
-                {/* ── FICHA ── el lomo con el rótulo en vertical y las filas
-                    label→valor. Los dos paneles de esta columna van a su ALTO
-                    NATURAL —así un bono de 8 pagos no deja una tabla estirada
-                    con la mitad vacía— y el que se achica cuando no entran es
-                    el CRONOGRAMA, que ya se lee scrolleando. La ficha no: son
-                    quince renglones distintos y recortarla a seis esconde
-                    justo el dato que se vino a buscar. El tope del 60% es para
-                    que un CER con todas sus filas opcionales no se coma la
-                    columna entera. */}
                 {ficha && (
-                  <div className="flex shrink-0 min-h-0 lg:max-h-[60%] border border-[var(--t-border-2)]">
+                  <div className="flex shrink-0 min-h-0 border border-[var(--t-border-2)]">
                     <div className="shrink-0 flex items-start justify-center px-1.5 pt-2 border-r border-[var(--t-border-2)] bg-[var(--t-surface)]">
                       <span
                         className="text-[10px] tracking-[0.35em] text-[var(--t-accent)]"
@@ -341,52 +313,14 @@ export function BonoModal({ ticker, onClose }: Props) {
                     </div>
                   </div>
                 )}
-
-                {/* ── CRONOGRAMA ── el dato duro que respalda los gráficos ── */}
-                {flujos.length > 0 && (
-                  <div className="border border-[var(--t-border-2)] p-2 flex flex-col min-h-0 lg:flex-1">
-                    <div className="shrink-0 text-[10px] tracking-wide text-[var(--t-accent)] mb-2">
-                      CRONOGRAMA
-                      <span className="ml-2 text-[var(--t-text-muted)]">{flujos.length}</span>
-                    </div>
-                    <div className="max-h-[240px] lg:max-h-none lg:min-h-0 overflow-y-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr>
-                            <th className="!px-1 text-left">Fecha</th>
-                            <th className="!px-1 text-right">Amortización</th>
-                            <th className="!px-1 text-right">Interés</th>
-                            <th className="!px-1 text-right">Total</th>
-                            <th className="!px-1 text-right" title="Nominal que quedaba vivo antes de este pago">
-                              Residual
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {flujos.map((f) => (
-                            <tr key={f.fecha} className={f.futuro ? "" : "opacity-45"}>
-                              <td className="!px-1 text-left">{fmtFechaCorta(f.fecha)}</td>
-                              <td className="!px-1 text-right">{fmt2(f.amortizacion, 3)}</td>
-                              <td className="!px-1 text-right">{fmt2(f.interes, 3)}</td>
-                              <td className="!px-1 text-right font-medium">{fmt2(f.monto, 3)}</td>
-                              <td className="!px-1 text-right">
-                                {f.residual_previo_pct == null ? "--" : fmt2(f.residual_previo_pct, 2)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
               </div>{/* /columna izquierda */}
 
-              {/* ── COLUMNA DERECHA: FLUJO DE FONDOS a toda la altura ── */}
+              {/* ── COLUMNA DERECHA: CRONOGRAMA a toda la altura ── */}
               <div className="border border-[var(--t-border-2)] p-2 flex flex-col min-h-0 order-1 lg:order-2 lg:flex-1">
                 <div className="flex items-center gap-2 mb-1.5 flex-wrap shrink-0">
                   <span className="text-[10px] tracking-wide text-[var(--t-accent)]">
-                    FLUJO DE FONDOS
+                    CRONOGRAMA
+                    <span className="ml-2 text-[var(--t-text-muted)]">{flujos.length}</span>
                   </span>
                   <span className="text-[9px] text-[var(--t-text-muted)]">
                     {data?.unidad_flujo}
@@ -406,7 +340,7 @@ export function BonoModal({ ticker, onClose }: Props) {
 
                 {/* La NOTA no es decorativa: en un CER los montos son
                     contractuales y lo que se cobra es cada uno por
-                    CER(liq)/CER(emisión). Sin decirlo, el gráfico se lee como si
+                    CER(liq)/CER(emisión). Sin decirlo, la tabla se lee como si
                     el bono pagara la mitad de lo que paga. */}
                 {data?.nota_flujo && (
                   <p className="text-[9px] text-[var(--t-text-muted)] mb-2 leading-snug">
@@ -414,16 +348,47 @@ export function BonoModal({ ticker, onClose }: Props) {
                   </p>
                 )}
 
-                {chart.length === 0 ? (
+                {flujos.length === 0 ? (
                   <p className="text-[var(--t-text-muted)] text-xs text-center py-6">
                     {soloFuturos
                       ? "No quedan pagos futuros cargados para este bono."
                       : "Sin cronograma cargado para este bono."}
                   </p>
                 ) : (
-                  /* El gráfico vive en `flujo-fondos-chart.tsx`, compartido con
-                     SIMULAR INVERSIÓN: un solo dibujo para los dos modales. */
-                  <FlujoFondosChart puntos={chart} decimales={3} />
+                  <div className="flex-1 min-h-0 overflow-y-auto">
+                    <table className="w-full">
+                      <thead className="sticky top-0 bg-[var(--t-surface)]">
+                        <tr>
+                          <th className="!px-1 text-left">Fecha</th>
+                          <th className="!px-1 text-right">Amortización</th>
+                          <th className="!px-1 text-right">Interés</th>
+                          <th className="!px-1 text-right">Total</th>
+                          <th className="!px-1 text-right" title="Lo cobrado hasta este pago inclusive, sumando solo los pagos futuros">
+                            Acumulado
+                          </th>
+                          <th className="!px-1 text-right" title="Nominal que quedaba vivo antes de este pago">
+                            Residual
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {flujos.map((f) => (
+                          <tr key={f.fecha} className={f.futuro ? "" : "opacity-45"}>
+                            <td className="!px-1 text-left">{fmtFechaCorta(f.fecha)}</td>
+                            <td className="!px-1 text-right">{fmt2(f.amortizacion, 3)}</td>
+                            <td className="!px-1 text-right">{fmt2(f.interes, 3)}</td>
+                            <td className="!px-1 text-right font-medium">{fmt2(f.monto, 3)}</td>
+                            <td className="!px-1 text-right text-[var(--t-accent)] font-medium">
+                              {f.acumulado == null ? "--" : fmt2(f.acumulado, 2)}
+                            </td>
+                            <td className="!px-1 text-right">
+                              {f.residual_previo_pct == null ? "--" : fmt2(f.residual_previo_pct, 2)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
 
                 {data?.resumen && (
@@ -454,7 +419,7 @@ export function BonoModal({ ticker, onClose }: Props) {
                 )}
               </div>{/* /columna derecha */}
 
-              </div>{/* /grilla ficha+cronograma | gráficos */}
+              </div>{/* /grilla ficha | cronograma */}
             </>
           )}
         </div>
