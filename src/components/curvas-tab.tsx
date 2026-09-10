@@ -409,12 +409,11 @@ export function CurvasTab({ barra, inicial, fairValueInicial }: Props) {
   // Filtro de EMISOR: client-side a propósito. El emisor viaja en cada bono, así
   // que cambiarlo NO le pega al backend.
   //
-  // ⚠️ NUNCA queda vacío. Antes "ninguno seleccionado" significaba "todos", y eso
-  // hacía que la pantalla contradijera a sus propios controles: con las 4 pills
-  // apagadas la tabla igual mostraba 129 bonos. Peor: como en ARS mandan los
-  // soberanos y en USD los corporativos, parecía un filtro aplicado al revés.
-  // Ahora el último activo no se puede apagar → lo que se ve es SIEMPRE lo que
-  // está encendido.
+  // ⚠️ EXACTAMENTE UNO activo (pedido del user 2026-09-10). Antes las pills se
+  // sumaban (SOBERANO + CORPORATIVO a la vez) y "ninguno" significaba "todos";
+  // ahora tocar un TIPO deja solo ese, y tocar el que ya está no hace nada.
+  // Sigue siendo un array de una posición para no tocar la cadena de filtros
+  // de abajo (`includes`), que no cambió.
   const [emisores, setEmisores] = useState<string[]>(["soberano"]);
   // Los emisores por NOMBRE (las CLAVES, no los nombres — ver `FiltroEmisor`).
   // Vacío = todos, y acá eso NO es ambiguo: el botón dice cuántos hay activos.
@@ -555,12 +554,10 @@ export function CurvasTab({ barra, inicial, fairValueInicial }: Props) {
   );
 
   const toggle = (cod: string) => {
-    const proximos = !emisores.includes(cod)
-      ? [...emisores, cod]
-      // Apagar el ÚLTIMO no hace nada: un filtro vacío no tiene lectura honesta
-      // (o miente mostrando todo, o deja la pantalla muerta).
-      : emisores.length === 1 ? emisores : emisores.filter((x) => x !== cod);
-    if (proximos === emisores) return;
+    // Excluyente: el TIPO tocado reemplaza al que estaba. Tocar el activo no
+    // hace nada (un filtro vacío no tiene lectura honesta).
+    if (emisores.includes(cod)) return;
+    const proximos = [cod];
     setEmisores(proximos);
     // Y se SUELTAN los emisores tildados que el nuevo TIPO ya no muestra. Sin
     // esto, sacar CORPORATIVO dejaba "EMISOR · YPF" encendido sobre una tabla

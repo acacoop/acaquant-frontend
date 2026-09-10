@@ -197,13 +197,15 @@ export function BonoModal({ ticker, onClose }: Props) {
   const numerosDelCupon = anchoGrafico > 0 && anchoGrafico / Math.max(1, chart.length) >= 46;
 
   // El TECHO del eje de la renta. Fijarlo (y no dejar que recharts lo saque del
-  // máximo) hace dos cosas: manda a los cupones al TERCIO DE ABAJO, así no le
-  // pelean la altura a las barras de capital, y deja el eje en números redondos
-  // — con `max × 2,2` crudo las marcas salían 3,78 / 2,85 / 1,90.
+  // máximo) deja el eje en números redondos y con aire arriba para los números
+  // de cada cupón. Hasta el 2026-09-10 era `max × 2,2`: los cupones vivían en el
+  // tercio de abajo y dos tercios del gráfico quedaban vacíos — la mesa lo leía
+  // como "la escala no se ajusta". Ahora es `max × 1,25`: la línea usa casi
+  // todo el alto y sigue habiendo lugar para el número encima del punto más alto.
   const techoRenta = useMemo(() => {
     const max = Math.max(0, ...chart.map((c) => c.interes));
     if (max <= 0) return 1;
-    const paso = max * 2.2 / 4;                     // 4 intervalos = 5 marcas
+    const paso = max * 1.25 / 4;                    // 4 intervalos = 5 marcas
     const mag = Math.pow(10, Math.floor(Math.log10(paso)));
     const lindo = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].find((k) => k * mag >= paso) ?? 10;
     return lindo * mag * 4;
@@ -497,8 +499,8 @@ export function BonoModal({ ticker, onClose }: Props) {
                   /* UN gráfico, DOS ejes y DOS formas distintas de dibujar.
                      El capital son barras contra el eje IZQUIERDO; los cupones,
                      una línea de puntos con el número escrito encima, contra el
-                     eje DERECHO, que se escala al doble del cupón más grande
-                     para que la serie viva en la mitad de abajo.
+                     eje DERECHO, con su propia escala (un 25 % de aire sobre
+                     el cupón más grande).
 
                      Por qué así y no de otra forma. En una sola escala, en un
                      bullet la amortización (100) aplasta al cupón (1,89): la
@@ -551,10 +553,10 @@ export function BonoModal({ ticker, onClose }: Props) {
                             width={52}
                             tickFormatter={(v: number) => fmt2(v, 0)}
                           />
-                          {/* El eje de la renta arranca en 0 y llega al DOBLE del
-                              cupón más grande: la línea queda en la mitad de
-                              abajo, con aire arriba para los números y sin
-                              pelearle la altura a las barras de capital. */}
+                          {/* El eje de la renta arranca en 0 y llega a un número
+                              redondo apenas arriba del cupón más grande: la
+                              línea usa el alto del gráfico y queda aire para el
+                              número sobre cada punto. */}
                           <YAxis
                             yAxisId="renta"
                             orientation="right"
