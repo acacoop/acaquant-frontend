@@ -22,9 +22,9 @@ import type { CedearScannerRow, CclLive } from "@/lib/types-scanner";
  *
  * Sin click todavía, el chart arranca con el PRIMER papel de la tabla en su
  * orden por defecto (INTRA desc): el panel nunca está vacío. Se fueron
- * MÉTRICAS (PULSO / PIVOTS / VOL / RETORNOS) y CHART & RETORNOS;
- * `pivot-points-panel.tsx` y `retornos-chart.tsx` quedan en el repo sin
- * importador porque se van a reusar en otro lado (decisión del user).
+ * MÉTRICAS (PULSO / PIVOTS / VOL / RETORNOS) y CHART & RETORNOS. Los pivots
+ * del ADR (`pivot-points-panel.tsx`) viven hoy en TRADING → MONITOR, ventana
+ * PIVOTS; retornos y vol/beta se borraron del todo.
  */
 // Real-time: el motor escribe cedears_snapshot cada 1s y el service cachea 2s.
 // Pollear a 2s mantiene la tabla viva sin pegarle al cache viejo.
