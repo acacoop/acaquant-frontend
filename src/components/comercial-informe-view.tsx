@@ -138,12 +138,12 @@ function ComoSeCalcula({ onClose, diasActiva, diasDormida }: {
               <li><b>Volumen</b>: monto bruto operado. Excluye los cierres de caución (evita doble conteo).</li>
               <li><b>Arancel</b>: comisión cobrada. <b>Incluye</b> los cierres (ahí vive el arancel de caución). El detalle solo lista filas con arancel &gt; 0.</li>
               <li>Siempre se excluyen las solicitudes sin liquidar (solo operaciones concretadas).</li>
-              <li><b>Ctas Ops</b> (y los modos <b>Ctas. operativas mes</b> / <b>Op. año</b>) cuentan la
+              <li><b>Ctas Ops</b> (y los modos <b>Ctas. operativas mes</b> / <b>Ctas. operativas año</b>) cuentan la
                 <b>cuenta, no el boleto</b>: vale 1 si tuvo al menos una operación en la ventana, opere una
                 vez o mil. Cuentan <b>cualquier boleto no anulado</b> —el mismo criterio que <i>días sin
                 operar</i>—, así que incluyen lo que no suma volumen: cuentas OTC, rescates de FCI, futuros.</li>
               <li><b>Ojo con la ventana.</b> <b>Ctas Ops</b> y <b>Ctas. operativas mes</b> son el <b>mes del
-                Hasta</b>; <b>Op. año</b> es <b>del 1 de enero al Hasta</b>. Son preguntas distintas:
+                Hasta</b>; <b>Ctas. operativas año</b> es <b>del 1 de enero al Hasta</b>. Son preguntas distintas:
                 una cuenta que operó en marzo y paró NO cuenta en el mes y SÍ cuenta en el año. <b>El Desde
                 no cambia ninguna de las dos</b> — solo mueve el volumen y el arancel.</li>
             </ul>
@@ -172,7 +172,7 @@ function ComoSeCalcula({ onClose, diasActiva, diasDormida }: {
             <p>
               El <b>segmento</b> es el <i>nivel 1</i> del cliente (Productores, Empleados, etc.).
               <b>Cuentas</b> = padrón del segmento; <b>Arancel</b> = comisión total del período.
-              <b>Ctas. operativas mes</b>, <b>Op. año</b> y <b>Activas + enfr.</b> cuentan las que
+              <b>Ctas. operativas mes</b>, <b>Ctas. operativas año</b> y <b>Activas + enfr.</b> cuentan las que
               califican, y el % es siempre la <b>penetración</b>: sobre el total de cuentas de ESE
               segmento, no sobre la mesa. <b>Click en cualquiera de esas tres barras</b> baja ese
               segmento al Detalle con el mismo filtro puesto — para ver <i>quiénes</i>, no solo cuántos.
@@ -209,7 +209,10 @@ function Panel({ title, extra, children, fill, headerless }: {
         extra ? <div className="absolute top-1 right-2 z-20 flex items-center gap-2">{extra}</div> : null
       ) : (
         <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
-          <span className="text-[9px] text-[var(--t-text-dim)] tracking-widest uppercase mr-auto">{title}</span>
+          {/* min-w-0 + truncate: el título es largo ("Cuentas operativas de ago 2026 por
+              segmento · 567") y sin esto empuja al grupo de botones fuera del panel,
+              que tiene overflow-hidden — se perdía el último modo y el ⬇ XLS. */}
+          <span className="text-[9px] text-[var(--t-text-dim)] tracking-widest uppercase mr-auto min-w-0 truncate" title={title}>{title}</span>
           {extra}
         </div>
       )}
@@ -390,7 +393,7 @@ export function ComercialInforme({
       { header: "Segmento", key: "segmento", format: "text", width: 28 },
       { header: "Cuentas", key: "n", format: "integer" },
       { header: "Ctas. operativas (mes)", key: "ctas_ops", format: "integer", width: 21 },
-      { header: "Operaron (año)", key: "ctas_ops_ano", format: "integer", width: 15 },
+      { header: "Ctas. operativas (año)", key: "ctas_ops_ano", format: "integer", width: 21 },
       { header: "Activas + enfriándose", key: "ctas_semaforo", format: "integer", width: 21 },
     ] }],
   });
@@ -470,7 +473,7 @@ export function ComercialInforme({
         fill
         title={`${q1mode === "aranceles" ? "Aranceles"
           : q1mode === "operativas" ? `Cuentas operativas de ${mes ? ymLabel(mes) : ""}`
-          : q1mode === "operativas_ano" ? `Operaron ${seg?.ano ?? ""}`
+          : q1mode === "operativas_ano" ? `Cuentas operativas ${seg?.ano ?? ""}`
           : q1mode === "semaforo" ? `Activas + enfriándose${diasDormida ? ` (últimos ${diasDormida} días)` : ""}`
           : "Cuentas"} por segmento${comercialNombre ? ` · ${comercialNombre}` : ""}${
           q1mode === "cuentas" && seg ? ` · ${seg.total}` : q1conPct ? ` · ${q1total}` : ""}`}
@@ -478,17 +481,20 @@ export function ComercialInforme({
           <div className="flex items-center gap-1">
             {/* Cinco modos: padrón (Cuentas), dos de VENTANA (operativas del mes / del año),
                 uno de SEMÁFORO (activas + enfriándose) y uno de plata (Arancel). */}
-            <div className="inline-flex border border-[var(--t-border-2)] mr-1">
+            {/* `divide-x`: sin la línea entre botones los rótulos se leen corridos y no
+                se ve dónde corta uno y arranca el otro. Mismo patrón que el grupo de
+                filtros de Q4 y que el toggle ARS/USD de la barra madre. */}
+            <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)] mr-1">
               {(["cuentas", "operativas", "operativas_ano", "semaforo", "aranceles"] as const).map((m) => (
                 <button key={m} onClick={() => setQ1mode(m)}
                   title={m === "operativas" ? "CUENTAS OPERATIVAS DEL MES — cuentas que operaron (≥1 boleto) dentro del mes del corte"
-                    : m === "operativas_ano" ? "Cuentas que operaron en lo que va del AÑO, hasta el corte"
+                    : m === "operativas_ano" ? "CUENTAS OPERATIVAS DEL AÑO — cuentas que operaron (≥1 boleto) en lo que va del año, hasta el corte"
                     : m === "semaforo" ? `ACTIVAS + ENFRIÁNDOSE — cuentas cuya última operación es de hace ${diasDormida ?? "…"} días o menos (activa hasta ${diasActiva ?? "…"}, enfriándose de ahí a ${diasDormida ?? "…"}). Mismo semáforo que Análisis Comercial, y NO es lo mismo que operativas del mes: una cuenta que operó el 2 del mes pasado sigue contando acá.`
                     : undefined}
                   className={"px-1.5 py-0.5 text-[9px] uppercase tracking-wider whitespace-nowrap " + (q1mode === m ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>
                   {m === "cuentas" ? "Cuentas"
                     : m === "operativas" ? "Ctas. operativas mes"
-                    : m === "operativas_ano" ? `Op. ${seg?.ano ?? "año"}`
+                    : m === "operativas_ano" ? `Ctas. operativas ${seg?.ano ?? "año"}`
                     : m === "semaforo" ? "Activas + enfr."
                     : "Arancel"}
                 </button>
@@ -521,7 +527,7 @@ export function ComercialInforme({
                     const p = it?.payload;
                     return [`${fmtN(n)} de ${fmtN(p?.base ?? 0)} · ${p?.pct ?? 0}% del segmento`,
                       q1mode === "operativas" ? "Ctas. operativas (mes)"
-                      : q1mode === "operativas_ano" ? "Operaron (año)"
+                      : q1mode === "operativas_ano" ? "Ctas. operativas (año)"
                       : "Activas + enfriándose"];
                   }
                   return [fmtN(n), "Cuentas"];
@@ -699,9 +705,10 @@ export function ComercialInforme({
                 ["mes", mes ? `Operativas ${ymLabel(mes)}` : "Ctas. operativas (mes)",
                  "CUENTAS OPERATIVAS DEL MES: operaron dentro del MES del corte — las mismas "
                  + "que cuenta CTAS OPS en el ranking."],
-                ["ano", seg?.ano ? `Operaron ${seg.ano}` : "Operaron (año)",
-                 "Operaron en lo que va del AÑO, hasta el corte. Incluye a las que operaron "
-                 + "en enero y pararon — que en Análisis Comercial figuran DORMIDAS."],
+                ["ano", seg?.ano ? `Operativas ${seg.ano}` : "Ctas. operativas (año)",
+                 "CUENTAS OPERATIVAS DEL AÑO: operaron en lo que va del AÑO, hasta el corte. "
+                 + "Incluye a las que operaron en enero y pararon — que en Análisis Comercial "
+                 + "figuran DORMIDAS."],
                 ["semaforo", "Activas + enfr.",
                  `ACTIVAS + ENFRIÁNDOSE: última operación hace ${diasDormida ?? "…"} días o `
                  + `menos (activa hasta ${diasActiva ?? "…"}, enfriándose de ahí a `
