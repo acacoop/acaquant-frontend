@@ -360,6 +360,17 @@ export function ComercialInforme({
   // porque el LabelList de recharts solo recibe el valor.
   // Los TRES modos que se miden CONTRA LA BASE del segmento (los que llevan %).
   const q1conPct = q1mode === "operativas" || q1mode === "operativas_ano" || q1mode === "semaforo";
+  // ⚠️ CERO NO ES LO MISMO QUE "NO ME LO MANDARON".
+  //
+  // `ctas_semaforo` es un campo NUEVO del backend. Contra un backend viejo llega
+  // `undefined`, y un `?? 0` dibujaba cinco barras en cero — indistinguible de "no hay
+  // ninguna cuenta activa", que es lo contrario de la verdad. Es el mismo error que
+  // `getJSON` devolviendo null para un 403: la pantalla afirma algo que no sabe.
+  //
+  // Si NINGÚN segmento trae el campo, el dato no está: se dice, no se dibuja.
+  const segs = seg?.segmentos ?? [];
+  const faltaSemaforo = segs.length > 0 && segs.every((x) => x.ctas_semaforo == null);
+  const faltaSemaforoQ4 = !!detalle && detalle.n_semaforo == null;
   const q1valorDe = (s: SegCount) =>
     q1mode === "operativas" ? (s.ctas_ops ?? 0)
     : q1mode === "operativas_ano" ? (s.ctas_ops_ano ?? 0)
@@ -510,6 +521,18 @@ export function ComercialInforme({
         }
       >
         <div className="absolute inset-0 p-2">
+          {q1mode === "semaforo" && faltaSemaforo ? (
+            <div className="h-full flex flex-col items-center justify-center gap-1 px-6 text-center">
+              <span className="text-[11px] text-[var(--t-text)]">
+                El backend todavía no manda este dato.
+              </span>
+              <span className="text-[10px] text-[var(--t-text-muted)] leading-relaxed">
+                Activas + enfriándose es una métrica nueva: el servidor de la API tiene que
+                actualizarse para devolverla. No es que no haya cuentas — todavía no se
+                calculó. Las demás solapas del gráfico siguen andando.
+              </span>
+            </div>
+          ) : (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={q1data} layout="vertical" margin={{ top: 4, right: 56, bottom: 4, left: 4 }}>
               <CartesianGrid stroke="var(--t-border)" horizontal={false} />
@@ -561,6 +584,7 @@ export function ComercialInforme({
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          )}
         </div>
       </Panel>
 
@@ -729,6 +753,7 @@ export function ComercialInforme({
                 >
                   {label}
                   {v !== null && v === opFiltro && nOpFiltro != null ? ` · ${fmtN(nOpFiltro)}` : ""}
+                  {v === "semaforo" && faltaSemaforoQ4 ? " ⚠" : ""}
                 </button>
               ))}
             </div>
@@ -752,7 +777,9 @@ export function ComercialInforme({
                 <tr><td colSpan={3} className="text-center text-[var(--t-text-muted)] py-4">
                   {opFiltro === "mes" ? "Ninguna de estas cuentas operó en el mes."
                     : opFiltro === "ano" ? "Ninguna de estas cuentas operó en el año."
-                    : opFiltro === "semaforo" ? `Ninguna de estas cuentas operó en los últimos ${diasDormida ?? 90} días.`
+                    : opFiltro === "semaforo" ? (faltaSemaforoQ4
+                        ? "El backend todavía no manda este dato — hay que actualizar el servidor de la API. No es que no haya cuentas."
+                        : `Ninguna de estas cuentas operó en los últimos ${diasDormida ?? 90} días.`)
                     : "Sin aranceles."}
                 </td></tr>
               )}
