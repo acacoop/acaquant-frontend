@@ -42,8 +42,11 @@ export async function getJSON<T>(url: string): Promise<T | null> {
  * error: se ve como una pantalla que se quedó quieta, y por eso el único
  * arreglo que funcionaba era F5.
  *
- * No se usa en las ESCRITURAS: abortar un POST no deshace lo que el backend ya
- * escribió, y deja la pantalla sin saber si pasó — peor que esperar.
+ * ⚠️ **La excepción son las ESCRITURAS, no «los POST»**: abortar un POST que
+ * escribió no deshace nada y deja la pantalla sin saber si pasó — peor que
+ * esperar. Un POST que sólo CALCULA (un preview) sí lleva techo: abortarlo no
+ * pierde nada, y sin él la fila queda «trabajando…» para siempre (§0.fh del
+ * backend — el preview de CARTERA censaba 1816 y no podía contestar nunca).
  */
 export function conTecho(ms: number): AbortSignal | undefined {
   try {

@@ -69,6 +69,15 @@ export function useAgente(abierto: boolean): Datos {
   // A las ESCRITURAS no se les pone techo a propósito: abortar un POST no
   // deshace lo que el backend ya escribió, y dejaría la pantalla sin saber si
   // el arreglo se aplicó — que es peor que esperar.
+  //
+  // ⚠️⚠️ **`calcular` SÍ lleva techo, y tardó en tenerlo.** La excepción de
+  // arriba es de las escrituras, no «de los POST», y `calcular` es un POST que
+  // NO MUTA (lo dice el encabezado de este archivo). Sin techo, el preview de
+  // CARTERA —el único que le pedía a 1816 un censo de ~29 llamadas con 2,5 s de
+  // throttle, o sea 72 s contra los 30 del proxy— dejaba la promesa sin
+  // resolver: el `finally` que libera `ocupado` nunca corría y la fila quedaba
+  // en «trabajando…» hasta recargar la pestaña, con sus tres botones grises.
+  // Abortar un cálculo no pierde nada (backend §0.fh).
   const leer = useCallback(<T,>(url: string) => fetchJson<T>(url, { signal: conTecho(25_000) }), []);
 
   const releer = useCallback(async (...rs: Recurso[]) => {
@@ -94,6 +103,10 @@ export function useAgente(abierto: boolean): Datos {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body ?? {}),
+      // 25 s: más que el `maxDuration = 30` del proxy no tiene sentido esperar
+      // —lo que tarde más que eso ya no va a contestar nada útil— y el backend
+      // acota a 20 s lo que un preview puede pedirle a 1816.
+      signal: conTecho(25_000),
     });
   }, []);
 
