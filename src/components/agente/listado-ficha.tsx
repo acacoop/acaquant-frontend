@@ -37,20 +37,29 @@ export type FilaFicha = {
   ticker?: string;
   clase_activo?: string;
   emisor?: string;
-  // ⚠️ **EL VALOR PROPUESTO Y DE DÓNDE SALIÓ** (backend `agente/emisor.py`).
-  // Solo viene para el EMISOR: la cartera y la clase de activo son criterio de
-  // la mesa y no hay de dónde derivarlas, así que proponerlas sería inventar.
+  // ⚠️ **EL VALOR PROPUESTO Y DE DÓNDE SALIÓ** (backend `agente/emisor.py`,
+  // `agente/clase.py`, `agente/cartera.py`). Viene para los TRES campos: el
+  // emisor (con modelo) y la clase y la cartera (solo reglas determinísticas,
+  // sin modelo — lo que ninguna regla resuelve queda para la mesa).
   //
   // `fuente` NO es decorado. Confirmar «Finnhub dice Chevron Corp» y confirmar
   // «el modelo eligió IEB» son dos actos distintos, y el que mira tiene que
   // poder distinguirlos SIN abrir nada. Vacío = nadie supo, y la fila queda
   // como estaba: en blanco y tipeable.
   propuesto?: string;
-  fuente?: "regla" | "nombre" | "finnhub" | "modelo" | "primary" | "curva" | "1816" | "";
-  // Por qué NO hay propuesta (o por qué la que hay conviene revisar), en texto
-  // ya armado por el backend — p. ej. «la regla dice "PUT OPCIONES", pero ese
-  // valor todavía no existe en clase_activo: cargalo una vez a mano». El front
-  // no arma este texto, solo lo dibuja.
+  fuente?: "regla" | "nombre" | "finnhub" | "modelo" | "primary" | "curva"
+          | "1816" | "fci" | "";
+  // ⚠️⚠️ Por qué NO hay propuesta, en texto ya armado por el backend — p. ej.
+  // «la regla dice "PUT OPCIONES", pero ese valor todavía no existe en
+  // clase_activo: cargalo una vez a mano». El front no arma este texto, solo lo
+  // dibuja.
+  //
+  // Para `clase_activo` viene SIEMPRE que no hay propuesta (backend §0.fg):
+  // antes se llenaba en un solo caso y el resto de las filas mostraban un guion
+  // pelado, donde «no hay nada que proponer» y «la regla no encontró su fuente»
+  // se leían igual. Dos de esos motivos ni son de este campo (un bono sin ejes
+  // en el master, una cartera ARS con curva en USD) y es la única pantalla
+  // donde hoy se ven.
   nota?: string;
 };
 
@@ -58,7 +67,7 @@ export type FilaFicha = {
 // elige el dibujo — si el mapa viviera allá, la pantalla no podría cambiar una
 // etiqueta sin un deploy del backend, y si la clave viviera acá serían dos
 // listas para desincronizar (REGLA #9).
-// `regla`, `primary`, `curva` y `1816` son determinísticas: son las fuentes
+// `regla`, `fci`, `primary`, `curva` y `1816` son determinísticas: son las fuentes
 // que el agente puede escribir solo, sin que una persona confirme (AGENT.md
 // §0.ei). `modelo` nunca — siempre necesita que alguien la confirme acá.
 const FUENTE: Record<string, { txt: string; ayuda: string }> = {
@@ -66,6 +75,7 @@ const FUENTE: Record<string, { txt: string; ayuda: string }> = {
   nombre: { txt: "nombre", ayuda: "el emisor está escrito en el nombre del título" },
   finnhub: { txt: "finnhub", ayuda: "la ficha del subyacente, según Finnhub" },
   modelo: { txt: "IA", ayuda: "lo eligió el modelo, de los emisores que ya existen" },
+  fci: { txt: "link FCI", ayuda: "el fondo está linkeado a este título en mercado.fci (el link lo confirmó la mesa en Manager) y su tipo de renta y moneda dicen la clase" },
   primary: { txt: "primary", ayuda: "el fondo está en la lista de instrumentos de Primary con su tipo (Mercado de Dinero / Renta Fija / Renta Variable) y su moneda: la clase sale de ahí" },
   curva: { txt: "curva", ayuda: "el bono está en el master de renta fija y su ajuste dice la clase: CER, FIJA, TAMAR, o DUAL si tiene dos" },
   "1816": { txt: "1816", ayuda: "el bono está en el catálogo de 1816 y su curva dice los ejes: dólar linked → DL, en dólares → HD, en pesos → ARS" },
