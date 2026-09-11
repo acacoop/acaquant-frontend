@@ -29,6 +29,23 @@ export type Hallazgo = {
   arreglo: string;
   arreglo_titulo?: string;
   arreglo_donde?: string;
+  // ⚠️ El botón no escribe: ABRE EL LISTADO (la ficha, los CEDEARs, las ONs,
+  // las contrapartes). Lo declara el arreglo en el backend — apretarlo sin
+  // valores cargados devuelve «no se cargó ningún valor», así que sin este dato
+  // el front dibujaba un botón que no podía funcionar nunca.
+  arreglo_pide_datos?: boolean;
+  // El sujeto es una FAMILIA (un campo de la ficha, no un título): aplicarlo de
+  // nuevo es lo normal y no duplica nada.
+  arreglo_repetible?: boolean;
+  // ⚠️⚠️ **«ESPERANDO AL DETECTOR» ES UN HECHO MEDIDO, NO EL ESTADO.**
+  // `en_curso` dice que se aplicó el arreglo; lo que no dice es si el detector
+  // ya volvió a mirar. Para una familia vuelve cada hora, lo sigue viendo
+  // —quedan otros títulos— y el estado no se mueve nunca: la tarjeta decía
+  // «esperando que el detector confirme» durante semanas. Lo resuelve
+  // `agente.v_encontro` comparando `visto_ultima_vez` con `arreglo_aplicado_at`
+  // (el navegador no compara fechas — invariante 11).
+  espera_al_detector?: boolean;
+  arreglo_aplicado_at?: string | null;
   evidencia: Record<string, unknown>;
   detectado_at: string;
   visto_ultima_vez?: string;

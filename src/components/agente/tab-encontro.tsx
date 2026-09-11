@@ -237,11 +237,34 @@ export function TabEncontro({
                     </span>
                     <Confirmado desde={f.detectado_at} ultima={f.visto_ultima_vez} />
                     <Recurrencia episodios={f.episodios} cronico={f.cronico} />
-                    {f.estado === "en_curso" && (
+                    {/* ⚠️⚠️ **«ESPERANDO» SOLO SI DE VERDAD ESTÁ ESPERANDO.**
+
+                        `en_curso` dice «se aplicó el arreglo», y esta tarjeta
+                        lo dibujaba como ESPERA a secas. Cuando el sujeto es una
+                        FAMILIA —un campo de la ficha con 170 títulos sin
+                        cargar— el detector vuelve cada hora, lo sigue viendo
+                        porque quedan otros, y el estado no se mueve NUNCA: el
+                        cartel decía «esperando que el detector confirme»
+                        durante semanas al lado de un «confirmado» de hace diez
+                        minutos, y el botón que hacía falta apretar salía gris.
+
+                        Es el mismo malentendido que HISTORIAL ya había
+                        arreglado (user, 2026-08-28: *«¿confirmación de qué?? si
+                        yo ya lo apliqué»*), en la pantalla donde nadie lo
+                        había mirado. El veredicto lo da el BACKEND
+                        (`espera_al_detector`): acá no se comparan fechas. */}
+                    {f.estado === "en_curso" && (f.espera_al_detector ? (
                       <span className="text-[8px] uppercase tracking-widest text-[var(--t-accent)]">
                         aplicado · esperando que el detector confirme
                       </span>
-                    )}
+                    ) : (
+                      <span className="text-[8px] uppercase tracking-widest text-[var(--t-text-dim)]"
+                            title="El detector volvió a mirar después de la escritura y lo sigue encontrando: no hay nada que esperar, queda trabajo.">
+                        aplicado{f.arreglo_aplicado_at
+                          ? ` ${fechaHora(f.arreglo_aplicado_at)}` : ""}
+                        {" "}· el detector ya volvió y sigue abierto
+                      </span>
+                    ))}
                     {f.estado === "reincidio" && (
                       <span className="text-[8px] uppercase tracking-widest text-[var(--t-neg)]">
                         ⚠ volvió después de un arreglo
@@ -274,15 +297,30 @@ export function TabEncontro({
                 >
                   ver qué haría
                 </button>
-                {/* Los que PIDEN DATOS no tienen botón de aplicar acá: su
-                    escritura sale del listado, que no puede guardar nada hasta
-                    que se cargue un valor. Un botón «aplicar» al lado de un
-                    listado vacío promete escribir sin tener qué. */}
+                {/* ⚠️⚠️ **EL BOTÓN DEL ARREGLO — Y LOS QUE PIDEN DATOS NO
+                    ESCRIBEN: ABREN EL LISTADO.**
+
+                    Antes este botón llamaba a `aplicar` siempre. Para un
+                    arreglo que PIDE DATOS eso devuelve «no se cargó ningún
+                    valor» —la escritura sale del listado—, así que era un botón
+                    que no podía funcionar nunca; y encima quedaba GRIS con el
+                    hallazgo `en_curso`, o sea que el único cartel visible era
+                    uno apagado, con la cola de trabajo intacta detrás.
+
+                    Ahora el click va a donde tiene que ir (`pide_datos` lo
+                    declara el backend) y el gris se reserva para lo único que
+                    lo justifica: que el efecto todavía no se pueda medir
+                    (`espera_al_detector`) — relanzar dos veces un job de ocho
+                    minutos. Abrir un listado, en cambio, no escribe nada. */}
                 {!p?.filas && !p?.cedears && !p?.ons && !p?.contrapartes && (
                   <button
-                    disabled={ocupado === f.id || f.estado === "en_curso"}
-                    onClick={() => void hacer(f.id)}
-                    title={f.arreglo_donde || ""}
+                    disabled={ocupado === f.id
+                      || (!!f.espera_al_detector && !f.arreglo_pide_datos)}
+                    onClick={() => void (f.arreglo_pide_datos
+                      ? ver(f.id) : hacer(f.id))}
+                    title={f.arreglo_pide_datos
+                      ? "Abre el listado: se completa ahí y se guarda desde ahí."
+                      : (f.arreglo_donde || "")}
                     className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-bg)] disabled:opacity-40"
                   >
                     {ocupado === f.id ? "…" : (f.arreglo_titulo || f.arreglo)}
