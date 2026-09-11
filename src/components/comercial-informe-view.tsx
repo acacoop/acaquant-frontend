@@ -387,8 +387,20 @@ export function ComercialInforme({
         })
         .sort((a, b) => b.valor - a.valor)
     : (seg?.segmentos ?? []).map((s) => ({ segmento: s.segmento, valor: s.n, base: 0, pct: 0, etiqueta: "" }));
-  // Total de la mesa en el modo actual (solo para el subtítulo del panel).
-  const q1total = q1data.reduce((a, d) => a + d.valor, 0);
+  // CONSOLIDADO de la mesa en el modo actual, con su share sobre el padrón. Va en el
+  // título del panel: cada barra trae su número y su %, pero el total de todas no
+  // estaba en ninguna parte y había que sumarlas a ojo.
+  //
+  // Sale del BACKEND, no de un reduce sobre las barras: la regla del repo es que el
+  // front no suma nada. Un total sumado acá puede terminar diciendo algo que la lista
+  // de al lado no dice — y encima el reduce se rompería solo si algún día el gráfico
+  // filtrara o capeara segmentos.
+  const q1total = q1mode === "operativas" ? seg?.total_ctas_ops
+    : q1mode === "operativas_ano" ? seg?.total_ctas_ops_ano
+    : q1mode === "semaforo" ? seg?.total_ctas_semaforo
+    : undefined;
+  const q1base = seg?.total ?? 0;
+  const q1pct = q1total != null && q1base > 0 ? Math.round((q1total / q1base) * 100) : null;
   // Qué recorte de Q4 abre cada barra. Click = ver QUIÉNES, con el MISMO criterio
   // con el que la barra contó — si la barra dice ENFRIÁNDOSE, la lista también.
   const q1filtro: OpFiltro =
@@ -482,12 +494,14 @@ export function ComercialInforme({
       {/* Q1 — Cuentas / Aranceles por segmento (barras HORIZONTALES) + toggle */}
       <Panel
         fill
-        title={`${q1mode === "aranceles" ? "Aranceles"
-          : q1mode === "operativas" ? `Cuentas operativas de ${mes ? ymLabel(mes) : ""}`
-          : q1mode === "operativas_ano" ? `Cuentas operativas ${seg?.ano ?? ""}`
-          : q1mode === "semaforo" ? `Activas + enfriándose${diasDormida ? ` (últimos ${diasDormida} días)` : ""}`
-          : "Cuentas"} por segmento${comercialNombre ? ` · ${comercialNombre}` : ""}${
-          q1mode === "cuentas" && seg ? ` · ${seg.total}` : q1conPct ? ` · ${q1total}` : ""}`}
+        title={`${q1mode === "aranceles" ? "Aranceles por segmento"
+          : q1mode === "operativas" ? `Ctas. operativas ${mes ? ymLabel(mes) : ""}`
+          : q1mode === "operativas_ano" ? `Ctas. operativas ${seg?.ano ?? ""}`
+          : q1mode === "semaforo" ? "Activas + enfr."
+          : "Cuentas"}${comercialNombre ? ` · ${comercialNombre}` : ""}${
+          q1mode === "cuentas" && seg ? ` · ${fmtN(seg.total)}`
+          : q1total != null ? ` · ${fmtN(q1total)}${q1pct != null ? ` · ${q1pct}%` : ""}`
+          : ""}`}
         extra={
           <div className="flex items-center gap-1">
             {/* Cinco modos: padrón (Cuentas), dos de VENTANA (operativas del mes / del año),
