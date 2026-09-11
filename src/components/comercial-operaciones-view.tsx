@@ -1296,7 +1296,10 @@ function AnalisisComercial(
   };
 
   const sortArrow = (col: SortCol) => (sortCol === col ? (sortDir === "asc" ? " ↑" : " ↓") : "");
-  const [umbral, setUmbral] = useState<{ activa: number; dormida: number }>({ activa: 30, dormida: 90 });
+  // Placeholder hasta que conteste el backend, que es quien fija los umbrales
+  // (comercial_sql.DIAS_ACTIVA / DIAS_DORMIDA). Se arranca en el mismo valor para que
+  // ningún tooltip llegue a decir un número que no es.
+  const [umbral, setUmbral] = useState<{ activa: number; dormida: number }>({ activa: 45, dormida: 90 });
 
   useEffect(() => {
     if (!operador) { setClientes([]); return; }
@@ -1347,20 +1350,50 @@ function AnalisisComercial(
     return { trans, usado, libre, pct };
   }, [clientes]);
 
-  // Distribución por nivel_1 — cuentas totales, activas del mes (operó en el mes
-  // calendario) + % activas/total y AuM consolidado.
+  // Distribución por nivel_1 — cuentas totales, el SEMÁFORO (activas + enfriándose)
+  // con su penetración combinada, las que operaron en el mes y AuM consolidado.
+  //
+  // ⚠️ Hasta acá la columna ACTIVAS de esta tabla contaba `opero_mtd` (operó en el mes
+  // calendario) mientras la tabla de NIVEL 3, tres centímetros más abajo y en la misma
+  // pantalla, contaba `estado === "ACTIVA"` (días desde la última op). Misma palabra,
+  // dos números, ninguna de las dos fallaba — el modo de falla de la REGLA #9. Ahora
+  // ACTIVAS es el SEMÁFORO en las dos (y en el Informe), y lo que operó en el mes tiene
+  // su propia columna con su propio nombre: son preguntas distintas y las dos importan.
+  //
+  // El % es la penetración de ACTIVAS + ENFRIÁNDOSE sobre el total del segmento, o sea
+  // "cuentas con actividad dentro de la ventana del semáforo": las dos juntas contestan
+  // cuánto del padrón sigue vivo, que es la lectura comercial de la fila.
   const porNivel = useMemo(() => {
-    const m = new Map<string, { nivel: string; aum: number; n: number; activas: number }>();
+    const m = new Map<string, {
+      nivel: string; aum: number; n: number; activas: number; enfriandose: number; op_mes: number;
+    }>();
     for (const c of clientes) {
       const k = nivelDe(c);
-      const cur = m.get(k) ?? { nivel: k, aum: 0, n: 0, activas: 0 };
-      cur.aum += c.aum; cur.n += 1; if (c.opero_mtd) cur.activas += 1;
+      const cur = m.get(k) ?? { nivel: k, aum: 0, n: 0, activas: 0, enfriandose: 0, op_mes: 0 };
+      cur.aum += c.aum;
+      cur.n += 1;
+      if (c.estado === "ACTIVA") cur.activas += 1;
+      if (c.estado === "ENFRIANDOSE") cur.enfriandose += 1;
+      if (c.opero_mtd) cur.op_mes += 1;
       m.set(k, cur);
     }
     return [...m.values()]
-      .map((r) => ({ ...r, pctActivas: r.n > 0 ? (r.activas / r.n) * 100 : 0 }))
+      .map((r) => ({
+        ...r,
+        pctActivas: r.n > 0 ? ((r.activas + r.enfriandose) / r.n) * 100 : 0,
+      }))
       .sort((a, b) => b.aum - a.aum);
   }, [clientes]);
+
+  // Fila TOTAL de la distribución. Se suma acá y no a ojo: una tabla con seis filas
+  // igual obliga a sumar de memoria para contestar "¿cuántas activas tengo?".
+  const totNivel = useMemo(() => {
+    const t = porNivel.reduce((a, r) => ({
+      n: a.n + r.n, activas: a.activas + r.activas,
+      enfriandose: a.enfriandose + r.enfriandose, op_mes: a.op_mes + r.op_mes, aum: a.aum + r.aum,
+    }), { n: 0, activas: 0, enfriandose: 0, op_mes: 0, aum: 0 });
+    return { ...t, pctActivas: t.n > 0 ? ((t.activas + t.enfriandose) / t.n) * 100 : 0 };
+  }, [porNivel]);
 
   const nivel3De = (c: AnalisisCliente) => c.nivel_3 || "(sin nivel 3)";
 
@@ -1464,8 +1497,10 @@ function AnalisisComercial(
     sheets: [{ name: "Distribución nivel 1", rows: porNivel, columns: [
       { header: "Nivel 1", key: "nivel", format: "text", width: 24 },
       { header: "Cuentas totales", key: "n", format: "integer" },
-      { header: "Activas (mes)", key: "activas", format: "integer" },
-      { header: "% activas", key: "pctActivas", format: "integer" },
+      { header: "Activas", key: "activas", format: "integer" },
+      { header: "Enfriándose", key: "enfriandose", format: "integer", width: 14 },
+      { header: "% activas + enfriándose", key: "pctActivas", format: "integer", width: 22 },
+      { header: "Operaron (mes)", key: "op_mes", format: "integer", width: 15 },
       { header: "AuM", key: "aum", format: "currency", width: 16 },
     ] }],
   });
@@ -1643,8 +1678,10 @@ function AnalisisComercial(
                   <tr>
                     <th className="px-3 py-1.5 text-left bg-[var(--t-surface)] border-b border-[var(--t-border-2)]">Nivel 1</th>
                     <th className="px-2 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]" title="Cuentas totales asignadas al segmento">Ctas. Tot.</th>
-                    <th className="px-2 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]" title="Cuentas que operaron en el mes calendario actual">Activas</th>
-                    <th className="px-2 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]" title="% activas sobre el total del segmento">%</th>
+                    <th className="px-2 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]" title={`Cuentas ACTIVAS: última operación hace ${umbral.activa} días o menos. Es el semáforo, NO "operó este mes" — una cuenta que operó el 2 del mes pasado sigue activa.`}>Activas</th>
+                    <th className="px-2 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]" title={`Cuentas ENFRIÁNDOSE: última operación hace entre ${umbral.activa} y ${umbral.dormida} días.`}>Enfr.</th>
+                    <th className="px-2 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]" title={`% de (activas + enfriándose) sobre el total del segmento: cuánto del padrón operó dentro de los últimos ${umbral.dormida} días.`}>% A+E</th>
+                    <th className="px-2 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]" title="Cuentas que operaron dentro del MES calendario del corte. Otra pregunta que el semáforo: mira una ventana de calendario, no cuánto hace que la cuenta no aparece.">Op. mes</th>
                     <th className="px-3 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]">AuM</th>
                   </tr>
                 </thead>
@@ -1669,12 +1706,27 @@ function AnalisisComercial(
                         <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[180px]" title={n.nivel}>{n.nivel}</td>
                         <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{n.n}</td>
                         <td className="px-2 py-1.5 text-right text-[var(--t-pos)]">{n.activas}</td>
+                        <td className="px-2 py-1.5 text-right text-[var(--t-text)]">{n.enfriandose}</td>
                         <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{n.pctActivas.toFixed(0)}%</td>
+                        <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{n.op_mes}</td>
                         <td className="px-3 py-1.5 text-right font-semibold text-[var(--t-accent)]">{fmtAum(n.aum)}</td>
                       </tr>
                     );
                   })}
                 </tbody>
+                {porNivel.length > 0 && (
+                  <tfoot className="sticky bottom-0">
+                    <tr className="border-t-2 border-[var(--t-border-2)] bg-[var(--t-surface)] font-semibold">
+                      <td className="px-3 py-1.5 text-[var(--t-text)]">TOTAL</td>
+                      <td className="px-2 py-1.5 text-right text-[var(--t-text)]">{totNivel.n}</td>
+                      <td className="px-2 py-1.5 text-right text-[var(--t-pos)]">{totNivel.activas}</td>
+                      <td className="px-2 py-1.5 text-right text-[var(--t-text)]">{totNivel.enfriandose}</td>
+                      <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{totNivel.pctActivas.toFixed(0)}%</td>
+                      <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{totNivel.op_mes}</td>
+                      <td className="px-3 py-1.5 text-right text-[var(--t-accent)]">{fmtAum(totNivel.aum)}</td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           </div>

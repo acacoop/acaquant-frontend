@@ -29,11 +29,15 @@ type Op = {
   bruto: number; arancel: number; cantidad: number | null;
   etapa: string | null; es_cierre: boolean; cuenta_volumen: boolean;
 };
-type Ventana = "mes" | "ano";
+// "reciente" = la ventana del SEMÁFORO (últimos `dias_dormida` días hasta el corte).
+// Es la que abre una fila filtrada por ACTIVA / ENFRIÁNDOSE: esas se definen por su
+// ÚLTIMA op, que puede ser de hace dos meses —y del año pasado si el corte es de
+// enero—, así que con "mes" o "ano" el modal se abriría vacío.
+type Ventana = "mes" | "ano" | "reciente";
 type Resp = {
   id_cuenta: string; denominacion: string; operador_nombre: string | null;
   nivel_1: string | null; mes: string; ano: number; ventana: Ventana;
-  desde: string; hasta: string;
+  desde: string; hasta: string; dias_dormida?: number;
   n_boletos: number; volumen: number; arancel: number; operaciones: Op[];
 };
 
@@ -92,15 +96,20 @@ export function InformeClienteOpsModal(
             <span className="text-[10px] opacity-80 truncate max-w-[220px]">{d.operador_nombre}</span>
           )}
           <div className="inline-flex items-stretch border border-white/40 divide-x divide-white/40">
-            {(["mes", "ano"] as const).map((v) => (
+            {(["mes", "ano", "reciente"] as const).map((v) => (
               <button
                 key={v}
                 onClick={() => setWin(v)}
-                title={v === "mes" ? "Boletos del mes del corte" : "Boletos de todo el año, hasta el corte"}
+                title={v === "mes" ? "Boletos del mes del corte"
+                  : v === "ano" ? "Boletos de todo el año, hasta el corte"
+                  : `Boletos de los últimos ${d?.dias_dormida ?? 90} días — la ventana del semáforo `
+                    + "(activa / enfriándose)"}
                 className={"px-2 py-0.5 text-[10px] uppercase tracking-wider " +
                   (win === v ? "bg-white text-[#094293]" : "text-white hover:bg-white/20")}
               >
-                {v === "mes" ? (d ? mesLabel(d.mes) : "mes") : (d ? String(d.ano) : "año")}
+                {v === "mes" ? (d ? mesLabel(d.mes) : "mes")
+                  : v === "ano" ? (d ? String(d.ano) : "año")
+                  : `${d?.dias_dormida ?? 90} días`}
               </button>
             ))}
           </div>
@@ -109,7 +118,11 @@ export function InformeClienteOpsModal(
         </div>
 
         <div className="flex border-b border-[var(--t-border)] shrink-0">
-          <Dato label="Ventana" valor={d ? (d.ventana === "ano" ? String(d.ano) : mesLabel(d.mes)) : "…"} />
+          <Dato label="Ventana" valor={d
+            ? d.ventana === "ano" ? String(d.ano)
+            : d.ventana === "reciente" ? `últimos ${d.dias_dormida ?? 90} días`
+            : mesLabel(d.mes)
+            : "…"} />
           <Dato label="Boletos" valor={d ? String(d.n_boletos) : "…"} />
           <Dato label="Volumen" valor={d ? fmtMoneyFull(d.volumen) : "…"} />
           <Dato label="Arancel" valor={d ? fmtMoneyFull(d.arancel) : "…"} />
@@ -122,7 +135,9 @@ export function InformeClienteOpsModal(
           )}
           {d && d.operaciones.length === 0 && (
             <div className="p-6 text-center text-[11px] text-[var(--t-text-muted)]">
-              Sin boletos en {d.ventana === "ano" ? d.ano : mesLabel(d.mes)}.
+              Sin boletos en {d.ventana === "ano" ? d.ano
+                : d.ventana === "reciente" ? `los últimos ${d.dias_dormida ?? 90} días`
+                : mesLabel(d.mes)}.
               {d.ventana === "mes" && (
                 <>
                   {" "}
