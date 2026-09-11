@@ -62,7 +62,7 @@ export function FciFichaPanel({ fila, ficha, cargando, error }: {
     <div className="h-full min-h-0 overflow-y-auto text-[10px] flex flex-col gap-3 pr-1">
       <div className="grid grid-cols-4 gap-x-3 gap-y-1">
         <Dato label="GERENTE" valor={fila.gerente} />
-        <Dato label="ESTANTE" valor={fila.categoria ?? "—"} />
+        <Dato label="CLASE" valor={fila.categoria ?? "—"} />
         <Dato label="MONEDA" valor={fila.moneda} />
         <Dato label="LIQUIDACIÓN" valor={fila.plazo != null ? `T+${fila.plazo}` : "—"} />
         <Dato label="TIPO RENTA" valor={fila.tipo_renta} />

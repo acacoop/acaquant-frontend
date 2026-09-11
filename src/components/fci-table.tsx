@@ -6,37 +6,29 @@ import type { FciFila } from "@/lib/types-fci";
 /**
  * Tabla de fondos — el lado izquierdo de /fci.
  *
- * Agrupada por ESTANTE (la `categoria`) cuando no hay un estante filtrado: cada
- * grupo lleva su cabecera y el ranking se hace ADENTRO del grupo con la columna
- * elegida — como se lee el informe semanal (1°, 2°, 3° por categoría, por 30D).
- * Click en un header cambia la columna; segundo click invierte. Default: 30D desc.
+ * Agrupada por CLASE DE ACTIVO (la de Manager → ASSETS) cuando no hay una
+ * clase filtrada: cada grupo lleva su cabecera y el ranking se hace ADENTRO
+ * del grupo con la columna elegida — como se lee el informe semanal (1°, 2°,
+ * 3° por clase, por 30D). Click en un header cambia la columna; segundo click
+ * invierte. Default: 30D desc.
  *
- * Dos juegos de ventanas (toggle en la barra): CALENDARIO = 1D · WTD · MTD · YTD;
- * CORRIDAS = 7D · 30D · 90D · 365D. Las dos muestran la TNA según 30D.
+ * Columnas fijas, las del informe: FONDO · GERENTE · VCP · 1D · WTD · MTD · YTD
+ * · 30D · TNA 30D. Las otras ventanas (7D, 90D, 365D) están en la ficha.
  */
-export type Ventanas = "calendario" | "corridas";
-
 type SortKey =
-  | "nombre" | "gerente" | "vcp" | "plazo"
-  | "r_1d" | "r_wtd" | "r_mtd" | "r_ytd" | "r_7d" | "r_30d" | "r_90d" | "r_365d" | "tna_30d";
+  | "nombre" | "gerente" | "vcp"
+  | "r_1d" | "r_wtd" | "r_mtd" | "r_ytd" | "r_30d" | "tna_30d";
 type SortDir = "asc" | "desc";
 
-const COLS: Record<Ventanas, { key: SortKey; label: string; title: string; dec: number }[]> = {
-  calendario: [
-    { key: "r_1d",  label: "1D",  title: "Rendimiento directo vs la rueda anterior con VCP", dec: 2 },
-    { key: "r_wtd", label: "WTD", title: "Desde el último VCP antes del lunes de esta semana (el viernes)", dec: 2 },
-    { key: "r_mtd", label: "MTD", title: "Desde el último VCP del mes anterior", dec: 2 },
-    { key: "r_ytd", label: "YTD", title: "Desde el último VCP del año anterior", dec: 1 },
-  ],
-  corridas: [
-    { key: "r_7d",   label: "7D",   title: "Rendimiento directo en 7 días corridos", dec: 2 },
-    { key: "r_30d",  label: "30D",  title: "Rendimiento directo en 30 días corridos", dec: 2 },
-    { key: "r_90d",  label: "90D",  title: "Rendimiento directo en 90 días corridos", dec: 2 },
-    { key: "r_365d", label: "365D", title: "Rendimiento directo en 365 días corridos", dec: 1 },
-  ],
-};
+const COLS: { key: SortKey; label: string; title: string; dec: number }[] = [
+  { key: "r_1d",   label: "1D",  title: "Rendimiento directo vs la rueda anterior con VCP", dec: 2 },
+  { key: "r_wtd",  label: "WTD", title: "Desde el último VCP antes del lunes de esta semana (el viernes)", dec: 2 },
+  { key: "r_mtd",  label: "MTD", title: "Desde el último VCP del mes anterior", dec: 2 },
+  { key: "r_ytd",  label: "YTD", title: "Desde el último VCP del año anterior", dec: 1 },
+  { key: "r_30d",  label: "30D", title: "Rendimiento directo en 30 días corridos", dec: 2 },
+];
 
-export const SIN_CATEGORIA = "(SIN ESTANTE)";
+export const SIN_CLASE = "(SIN CLASE)";
 
 export function pct(v: number | null | undefined, dec = 2): string {
   if (v == null) return "—";
@@ -49,9 +41,8 @@ export function fmtVcp(v: number | null | undefined): string {
   return v.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 }
 
-export function FciTable({ filas, ventanas, agrupar, seleccionada, onSelect }: {
+export function FciTable({ filas, agrupar, seleccionada, onSelect }: {
   filas: FciFila[];
-  ventanas: Ventanas;
   agrupar: boolean;
   seleccionada: number | null;
   onSelect: (fciId: number) => void;
@@ -78,15 +69,14 @@ export function FciTable({ filas, ventanas, agrupar, seleccionada, onSelect }: {
     const orden: string[] = [];
     const por = new Map<string, FciFila[]>();
     for (const f of filas) {
-      const k = f.categoria ?? SIN_CATEGORIA;
+      const k = f.categoria ?? SIN_CLASE;
       if (!por.has(k)) { por.set(k, []); orden.push(k); }
       por.get(k)!.push(f);
     }
     return orden.map((k) => ({ nombre: k, filas: por.get(k)!.sort(cmp) }));
   }, [filas, sortKey, sortDir, agrupar]);
 
-  const cols = COLS[ventanas];
-  const nCols = 6 + cols.length;
+  const nCols = 5 + COLS.length;
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -97,9 +87,8 @@ export function FciTable({ filas, ventanas, agrupar, seleccionada, onSelect }: {
               <th className="!px-1 text-left w-5">#</th>
               <Th label="FONDO"   col="nombre"  align="left"  {...{ sortKey, sortDir, toggleSort }} />
               <Th label="GERENTE" col="gerente" align="left"  {...{ sortKey, sortDir, toggleSort }} />
-              <Th label="T+" col="plazo" align="right" title="Días de liquidación (settlType de Primary)" {...{ sortKey, sortDir, toggleSort }} />
               <Th label="VCP" col="vcp" align="right" title="Último valor de cuotaparte (la fecha y la fuente, al pasar el mouse por la fila)" {...{ sortKey, sortDir, toggleSort }} />
-              {cols.map((c) => (
+              {COLS.map((c) => (
                 <Th key={c.key} label={c.label} col={c.key} align="right" title={c.title} {...{ sortKey, sortDir, toggleSort }} />
               ))}
               <Th label="TNA 30D" col="tna_30d" align="right" title="30D × 365 / 30 — la TNA «según 30D» del informe" {...{ sortKey, sortDir, toggleSort }} />
@@ -127,16 +116,15 @@ export function FciTable({ filas, ventanas, agrupar, seleccionada, onSelect }: {
                       className={`cursor-pointer ${sel ? "bg-[var(--t-accent)]/15" : "hover:bg-[var(--t-border)]"}`}
                     >
                       <td className="!px-1 text-[var(--t-text-muted)] tabular-nums">{i + 1}</td>
-                      <td className="!px-1 truncate max-w-[210px]">
+                      <td className="!px-1 truncate max-w-[220px]">
                         <span className="text-[var(--t-text)]">{r.nombre}</span>
                         {r.moneda === "USD" && <span className="ml-1 text-[8px] text-[var(--t-accent)]">USD</span>}
                         {r.en_tenencia && <span className="ml-1 text-[8px] text-[var(--t-text-muted)]" title="La ALyC lo tiene en tenencia (linkeado a Manager → ASSETS)">●</span>}
                         {!r.simbolo_primary && <span className="ml-1 text-[8px] text-[var(--t-text-muted)]" title="Bilateral: no está en Primary, el VCP sale de la tenencia o de carga manual">BIL</span>}
                       </td>
                       <td className="!px-1 text-[var(--t-text-dim)] truncate max-w-[90px]">{r.gerente ?? "—"}</td>
-                      <td className="!px-1 text-right tabular-nums text-[var(--t-text-dim)]">{r.plazo ?? "—"}</td>
                       <td className="!px-1 text-right tabular-nums">{fmtVcp(r.vcp)}</td>
-                      {cols.map((c) => <Pct key={c.key} v={r[c.key] as number | null} dec={c.dec} />)}
+                      {COLS.map((c) => <Pct key={c.key} v={r[c.key] as number | null} dec={c.dec} />)}
                       <td className="!px-1 text-right tabular-nums font-semibold">{pct(r.tna_30d, 1)}</td>
                     </tr>
                   );
