@@ -248,7 +248,12 @@ export default function AgenteModal() {
               {tab === "lab" && (
                 <TabLab
                   preguntar={(pregunta, historial) => d.calcular(
-                    "/api/agente/lab/preguntar", { pregunta, historial })} />
+                    "/api/agente/lab/preguntar", { pregunta, historial })}
+                  leer={d.leer}
+                  // `calcular` y no `escribir`: elegir un modelo no invalida
+                  // ninguna de las vistas del agente, y el panel se refresca
+                  // solo cuando la elección vuelve OK.
+                  guardar={(url, body) => d.calcular(url, body)} />
               )}
               {v && tab === "habilidades" && (
                 <PanelHabilidades habilidades={v.habilidades}

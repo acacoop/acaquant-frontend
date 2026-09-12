@@ -300,3 +300,60 @@ export type RespuestaLab = {
   // la pantalla.
   mensajes: Record<string, unknown>[];
 };
+
+// ── EL PANEL DEL LAB: qué gastamos y con qué modelo corremos ───────────────
+//
+// Sale de `asistente/panel.py`. Dos cosas que no son el chat: el libro de
+// llamadas al modelo (`ia.llamadas`, que existía hace meses y no miraba nadie)
+// y qué modelo cumple cada rol, que se elige acá y se guarda sin deploy.
+
+export type GastoTarea = {
+  tarea: string;
+  modelo: string;
+  llamadas: number;
+  fallidas: number;
+  tokens_in: number;
+  tokens_out: number;
+  cache_hit: number;
+  cache_miss: number;
+  // null = ese modelo no tiene tarifa cargada. NO es "no gastó".
+  usd: number | null;
+  ultima: string | null;
+};
+
+export type Gasto = {
+  error?: string;
+  dias: number;
+  total: {
+    llamadas: number; tokens_in: number; tokens_out: number;
+    cache_hit: number; cache_miss: number; usd: number | null;
+  };
+  hoy: { llamadas: number; tokens: number };
+  // De todo lo que ENTRÓ, qué % salió del caché del proveedor. El caché cuesta
+  // una fracción, así que subir este número es la palanca más barata que hay.
+  cache_pct: number | null;
+  por_tarea: GastoTarea[];
+  // Los modelos a los que les falta la tarifa. Sin esta lista, un `usd: null`
+  // se lee como "no gastó".
+  sin_precio: string[];
+};
+
+export type ProveedorLab = {
+  proveedor: string;
+  configurado: boolean;
+  // false = puede entrenar con lo que se le manda → no puede ver datos del
+  // negocio. Se muestra igual, deshabilitado y con el motivo: si desapareciera,
+  // dentro de seis meses alguien lo "arregla" sin saber qué rompe.
+  usable: boolean;
+  motivo: string | null;
+  modelos: string[];
+  roles: Record<string, { elegido: string | null; default: string }>;
+};
+
+export type PanelLab = {
+  gasto: Gasto;
+  proveedores: ProveedorLab[];
+  // Con qué corre HOY el asistente. Lo resuelve el backend aplicando su propia
+  // precedencia (elección > env > default) — acá no se recalcula nada.
+  asistente: { tarea: string; proveedor: string; modelo: string };
+};

@@ -27,6 +27,7 @@
 //    dólares?» sin repetir el contexto.
 import { useState } from "react";
 
+import { PanelLabIA } from "@/components/agente/panel-lab";
 import {
   ICONO_EVENTO,
   type EventoLab, type RespuestaLab,
@@ -38,9 +39,13 @@ const EJEMPLO = "¿qué bonos me vencen en los próximos 90 días?";
 // que volvió. Se guarda entero porque el punto de la tab es poder revisarlo.
 type Turno = { pregunta: string; r: RespuestaLab | null; error?: string };
 
-export function TabLab({ preguntar }: {
+export function TabLab({ preguntar, leer, guardar }: {
   // Manda la pregunta MÁS el historial. Devuelve la respuesta y el ciclo.
   preguntar: (pregunta: string, historial: Record<string, unknown>[]) => Promise<RespuestaLab>;
+  // Para el panel de arriba (gasto y modelo). Va plegado: es información de
+  // fondo, y a esta tab se entra a preguntar.
+  leer: <T>(url: string) => Promise<T>;
+  guardar: <T>(url: string, body?: unknown) => Promise<T>;
 }) {
   const [texto, setTexto] = useState("");
   const [turnos, setTurnos] = useState<Turno[]>([]);
@@ -70,6 +75,8 @@ export function TabLab({ preguntar }: {
 
   return (
     <div className="flex flex-col gap-3">
+      <PanelLabIA leer={leer} guardar={guardar} />
+
       <p className="text-[10px] text-[var(--t-text-dim)]">
         Preguntale por la cartera. <b>Todo dato sale de una herramienta</b> — si no
         lo trajo una consulta, no lo dice. <b>No escribe nada.</b> El alcance de
