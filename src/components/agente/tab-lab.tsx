@@ -13,8 +13,7 @@
 //
 // 1. **SE ESCRIBE, NO SE ELIGE.** Al revés que la tab vieja: acá no hay una
 //    lista de casos, porque el asistente no atiende hallazgos — contesta
-//    preguntas del negocio. El ejemplo de abajo del campo es un empujón, no un
-//    menú.
+//    preguntas del negocio.
 //
 // 2. **EL CICLO VA PLEGADO, PERO ESTÁ.** La respuesta primero. Los pasos se
 //    abren aparte, y hay que poder abrirlos: es lo único que distingue «eligió
@@ -32,8 +31,6 @@ import {
   ICONO_EVENTO,
   type EventoLab, type RespuestaLab,
 } from "@/components/agente/tipos";
-
-const EJEMPLO = "¿qué bonos me vencen en los próximos 90 días?";
 
 // Un turno de la conversación tal como se dibuja: lo que se preguntó y todo lo
 // que volvió. Se guarda entero porque el punto de la tab es poder revisarlo.
@@ -90,7 +87,7 @@ export function TabLab({ preguntar, leer, guardar }: {
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") void enviar(); }}
-            placeholder={EJEMPLO}
+            placeholder="Escribí…"
             className="bg-[var(--t-surface)] border border-[var(--t-border)] text-[11px] px-2 py-1.5 flex-1 text-[var(--t-text)] placeholder:text-[var(--t-text-dim)]"
           />
           <button
@@ -113,11 +110,6 @@ export function TabLab({ preguntar, leer, guardar }: {
       </div>
 
       {/* ── LA CONVERSACIÓN ─────────────────────────────────────────── */}
-      {!turnos.length && (
-        <p className="text-[10px] text-[var(--t-text-muted)]">
-          Probá con: <i>{EJEMPLO}</i>
-        </p>
-      )}
       {turnos.map((t, i) => <VerTurno key={i} t={t} />)}
     </div>
   );
