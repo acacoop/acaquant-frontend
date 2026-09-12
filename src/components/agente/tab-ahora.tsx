@@ -20,19 +20,9 @@ import { useState } from "react";
 import { COLOR, fechaHora, type Hallazgo } from "@/components/agente/tipos";
 import { Recurrencia, Confirmado, Evidencia, Detalle } from "./evidencia";
 
-export function TabAhora({ filas, marcarLeidos, investigar, ignorar }: {
+export function TabAhora({ filas, marcarLeidos, ignorar }: {
   filas: Hallazgo[];
   marcarLeidos: (ids: number[]) => Promise<void>;
-  // ⚠️ **EL BOTÓN QUE FALTABA.** La mayoría de estas filas son AVISOS: dicen
-  // «Relanzar jobs.interbanking_sync» y no tienen ningún botón, así que el
-  // agente termina ahí y el trabajo queda sin dueño. Esto no ejecuta nada —
-  // manda a investigar POR QUÉ pasó, que es lo que hoy hace una persona
-  // abriendo logs.
-  // ⚠️ Sólo se dibuja donde `f.investigable` viene en true — lo decide el
-  // BACKEND. Una copia acá de qué se puede investigar serían dos verdades sin
-  // árbitro: agregar una investigación no mostraría el botón y sacar una
-  // dejaría uno que falla.
-  investigar?: (sujeto: string) => void;
   // ⚠️ **«LEÍDO» NO ALCANZA, Y ESA ERA LA MITAD QUE FALTABA.** Marcar leído
   // saca la fila de AHORA y nada más: el detector la vuelve a encontrar en la
   // pasada siguiente y mañana está de nuevo. Para lo que NO se va a hacer
@@ -167,15 +157,6 @@ export function TabAhora({ filas, marcarLeidos, investigar, ignorar }: {
                   className="text-[9px] px-1.5 py-0.5 border border-[var(--t-border)] text-[var(--t-text-dim)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-40"
                 >
                   ✕
-                </button>
-              )}
-              {investigar && f.investigable && (
-                <button
-                  onClick={() => investigar(f.sujeto)}
-                  title="Averiguar por qué pasó — no ejecuta nada"
-                  className="text-[9px] px-1.5 py-0.5 border border-[var(--t-border)] text-[var(--t-text-dim)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
-                >
-                  🔍
                 </button>
               )}
             </div>

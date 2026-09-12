@@ -53,8 +53,6 @@ export type Hallazgo = {
   estado?: string;
   dominio: string | null;
   accionable?: boolean;
-  // ¿El laboratorio sabe investigar esta habilidad? Lo decide el backend.
-  investigable?: boolean;
   // ⚠️ CUÁNTAS VECES apareció ESTE MISMO problema en los últimos 30 días —
   // no cuántas veces se lo vio (eso es `veces`). Tres episodios son tres veces
   // que apareció, se fue y volvió: eso ya no es un incidente, es una
@@ -263,87 +261,42 @@ export type Explicacion = {
   at?: string | null;
 };
 
-// ── EL LAB (el INVESTIGADOR) ───────────────────────────────────────────────
+// ── EL LAB (el ASISTENTE conversacional) ──────────────────────────────────
 //
-// El agente detecta y frena: la mayoría de sus habilidades son avisos sin botón.
-// El investigador averigua POR QUÉ y propone qué hacer.
+// Una pregunta en castellano → el backend corre el ciclo (`asistente/ciclo.py`:
+// el modelo pide herramientas, el backend las ejecuta, y así hasta que
+// contesta) → vuelve la respuesta MÁS todo lo que pasó por el camino.
 //
-// ⚠️ **No se pide y se espera: se pide y se pregunta.** Una investigación son
-// uno o dos minutos y el proxy corta a los 30 s — ese corte se ve idéntico a
-// un backend caído. Por eso hay un PEDIDO con estado, y los pasos van
-// apareciendo mientras corre.
+// ⚠️ **UN request y se espera**: está medido en 4,5 s con una herramienta, y el
+// techo de vueltas del backend deja el peor caso por debajo de los 30 s del
+// proxy. Por eso acá no hay pedido con estado ni poll — hay un `await`.
 
-export type PasoClase =
-  | "pide" | "trajo" | "repetido" | "freno" | "corte" | "antecedentes" | "error";
+// Cada paso del ciclo, tal cual lo va contando el backend. El `tipo` lo decide
+// `ciclo.py`; acá sólo se elige cómo se dibuja.
+export type EventoLab =
+  | { tipo: "pregunta"; texto: string; herramientas: string[] }
+  | { tipo: "vuelta"; n: number }
+  | { tipo: "pide"; herramienta: string; argumentos: Record<string, unknown> }
+  | { tipo: "resultado"; herramienta: string; resultado: unknown }
+  | { tipo: "texto"; texto: string }
+  | { tipo: "corte"; motivo: string };
 
-export type Paso = { clase: PasoClase; que: string; detalle: string };
-
-export type EstadoPedido = "pendiente" | "corriendo" | "listo" | "error";
-
-export type Pedido = {
-  id: number;
-  at: string;
-  tipo: string;
-  caso: string;
-  por: string;
-  estado: EstadoPedido;
-  arrancado_at: string | null;
-  terminado_at: string | null;
-  pasos: Paso[];
-  investigacion_id: number | null;
-  error: string;
-  // El veredicto, cuando ya terminó. Viene del JOIN con el diario.
-  //
-  // ⚠️ Los campos que ENUMERAN son listas, no texto. El modelo está obligado
-  // por el esquema: un párrafo de ochenta palabras no se lee, y el arreglo va
-  // en el lugar donde se decide qué devolver, no en el que dibuja.
-  titulo?: string | null;
-  de_quien_es?: "nuestro" | "dato" | "proveedor" | "no_se" | null;
-  que_paso?: string[] | null;
-  por_que?: string[] | null;
-  que_haria?: string[] | null;
-  lo_que_no_se?: string[] | null;
-  de_donde?: string[] | null;
+export const ICONO_EVENTO: Record<EventoLab["tipo"], string> = {
+  pregunta: "💬", vuelta: "↻", pide: "🔧", resultado: "📄",
+  texto: "✅", corte: "⛔",
 };
 
-// Un caso que se PUEDE investigar ahora mismo. Sale de los hallazgos y las
-// reincidencias abiertas del agente — no es una lista de ejemplos.
-export type CasoInvestigable = {
-  // De QUÉ vista salió — la misma que dibuja cada tab del modal, así que el
-  // desplegable no puede ofrecer algo que la pantalla no muestre.
-  origen: "reincidencia" | "encontro" | "ahora";
-  sujeto: string;
-  habilidad: string;
-  regla: string;
-  cuando: string;
-  que: string;
-  tipo: string;
-};
-
-export type TipoInvestigacion = {
-  nombre: string;
-  que_es: string;
-  // Lo que hay que haber mirado antes de poder concluir. Se muestra porque es
-  // lo que distingue «se le ocurrió mirar eso» de «tuvo que mirarlo».
-  piso: string[];
-};
-
-export type Lab = {
-  ok: boolean;
-  // ⚠️ `error` viaja aparte de la lista: una lista vacía y una lectura fallida
-  // NO se pueden dibujar iguales.
-  error: string;
-  pedidos: Pedido[];
-  // Lo que se puede investigar AHORA. Reemplaza al campo de texto libre donde
-  // había que adivinar qué escribir.
-  casos: CasoInvestigable[];
-  casos_error: string;
-  tipos: TipoInvestigacion[];
-};
-
-// El ícono de cada paso. La CLASE la decide el backend (`servicio.pasos_de`),
-// que es la misma que alimenta la terminal: acá sólo se elige el dibujo.
-export const ICONO_PASO: Record<PasoClase, string> = {
-  pide: "🔧", trajo: "📄", repetido: "♻", freno: "⛔",
-  corte: "⏳", antecedentes: "📚", error: "⚠",
+export type RespuestaLab = {
+  respuesta: string | null;
+  // ⚠️ `error` viaja aparte de `respuesta`: «no contestó» y «contestó vacío»
+  // no se pueden dibujar iguales.
+  error: string | null;
+  vueltas: number;
+  tokens_in: number;
+  tokens_out: number;
+  eventos: EventoLab[];
+  // Los mensajes de esta pregunta y las anteriores. Se devuelven tal cual en la
+  // pregunta siguiente: el modelo no recuerda nada, la conversación la sostiene
+  // la pantalla.
+  mensajes: Record<string, unknown>[];
 };

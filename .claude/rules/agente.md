@@ -13,12 +13,12 @@ a **TRES pantallas de trabajo más tres de lectura**:
 
 | Tab | Qué muestra | Botones |
 |---|---|---|
-| **AHORA** | los hallazgos de **HOY** sin leer y sin resolver | ✓ leído · **✕ silenciar** · 🔍 investigar (donde el backend marca `investigable`) |
+| **AHORA** | los hallazgos de **HOY** sin leer y sin resolver | ✓ leído · **✕ silenciar** |
 | **ENCONTRÓ** | lo abierto que **tiene arreglo** | ver qué haría · aplicar · no me interesa |
 | **PATRONES** | **lo que pasa SIEMPRE**: el ranking de crónicos, activos e históricos aparte | ninguno |
 | **HISTORIAL** | el libro: qué escribió el agente, de qué valor a qué valor | ninguno |
 | **HABILIDADES** | qué sabe hacer y **cuándo miró cada cosa**, en tres lecturas: LISTA · MAPA·DOMINIO · MAPA·RITMO | correr una · explicámelo |
-| **LAB** | el INVESTIGADOR: pedir por qué pasó algo y seguir los pasos | investigar |
+| **LAB** | el ASISTENTE: preguntarle por la cartera en castellano y ver el ciclo (qué herramienta pidió, qué le volvió) | preguntar |
 
 ⚠️ **HABILIDADES es una TAB PROPIA, no un panel al costado.** Lo dice el
 comentario del `modal.tsx` y hay que respetarlo: lo que el agente sabe hacer y

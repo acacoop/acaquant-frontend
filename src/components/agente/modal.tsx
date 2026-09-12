@@ -33,18 +33,6 @@ type Tab = "ahora" | "encontro" | "patrones" | "historial" | "habilidades" | "la
 export default function AgenteModal() {
   const [abierto, setAbierto] = useState(false);
   const [tab, setTab] = useState<Tab>("ahora");
-  // Lo que el botón «investigar» de una fila le pasa a la tab LAB.
-  const [aInvestigar, setAInvestigar] = useState<{ caso: string } | null>(null);
-
-  // ⚠️ El TIPO lo decide el BACKEND: la fila viene con `investigable` y la tab
-  // LAB elige el caso de su propia lista. Acá no hay ninguna copia de qué se
-  // puede investigar — tenerla sería la REGLA #9 otra vez: dos verdades sin
-  // árbitro, donde agregar una investigación no mostraría el botón y sacar una
-  // dejaría uno que falla, sin que nada avise.
-  function investigarFila(sujeto: string) {
-    setAInvestigar({ caso: sujeto });
-    setTab("lab");
-  }
   const d = useAgente(abierto);
   const v = d.vista;
 
@@ -203,8 +191,8 @@ export default function AgenteModal() {
                 // cosa no es un accesorio de la lista de hoy.
                 ["habilidades", "HABILIDADES", v?.habilidades.length ?? null,
                  "qué sabe hacer y cuándo miró"],
-                // LAB: donde el agente frena, esto sigue.
-                ["lab", "LAB", null, "investigá por qué pasó"],
+                // LAB: el asistente. No mira hallazgos — contesta preguntas.
+                ["lab", "LAB", null, "preguntale por la cartera"],
               ] as [Tab, string, number | null, string][]).map(([k, label, n, pie]) => (
                 <button key={k} onClick={() => setTab(k)}
                         className={`px-3 py-1.5 text-[10px] font-semibold tracking-widest border-b-2 -mb-px transition-colors ${
@@ -232,7 +220,6 @@ export default function AgenteModal() {
               {v && tab === "ahora" && (
                 <TabAhora
                   filas={v.ahora.filas}
-                  investigar={investigarFila}
                   marcarLeidos={async (ids) => {
                     await d.escribir("/api/agente/leidos", { ids }, ["vista"]);
                   }}
@@ -260,14 +247,8 @@ export default function AgenteModal() {
               {tab === "historial" && <TabHistorial leer={d.leer} />}
               {tab === "lab" && (
                 <TabLab
-                  // La `key` remonta la tab cuando se llega desde otra fila:
-                  // así el caso nuevo entra como valor inicial y no hay que
-                  // sincronizar una prop hacia el estado.
-                  key={aInvestigar?.caso ?? "libre"}
-                  leer={d.leer}
-                  casoInicial={aInvestigar}
-                  investigar={(tipo, caso) => d.calcular(
-                    "/api/agente/lab/investigar", { tipo, caso })} />
+                  preguntar={(pregunta, historial) => d.calcular(
+                    "/api/agente/lab/preguntar", { pregunta, historial })} />
               )}
               {v && tab === "habilidades" && (
                 <PanelHabilidades habilidades={v.habilidades}
