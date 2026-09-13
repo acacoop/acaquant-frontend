@@ -350,6 +350,21 @@ export type Gasto = {
   // Los modelos a los que les falta la tarifa. Sin esta lista, un `usd: null`
   // se lee como "no gastó".
   sin_precio: string[];
+  // Todos los modelos que aparecieron en el libro, con su tarifa si la tiene.
+  // Se listan también los que NO la tienen: son justamente los que hay que
+  // cargar.
+  tarifas: TarifaLab[];
+};
+
+// ⚠️ TRES precios, no dos — en USD por millón de tokens. El del caché es el que
+// más cambia el número: la entrada que pega en el caché del proveedor cuesta
+// una fracción (en gpt-5.6-luna, diez veces menos). Cobrar todo a precio de
+// entrada infla la factura justo en la parte que venimos optimizando.
+export type TarifaLab = {
+  modelo: string;
+  entrada: number | null;
+  cache: number | null;
+  salida: number | null;
 };
 
 export type ProveedorLab = {

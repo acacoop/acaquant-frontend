@@ -24,7 +24,7 @@
 // en el navegador daría dos respuestas que se desincronizan sin que nada falle.
 import { useCallback, useEffect, useState } from "react";
 
-import type { PanelLab, ProveedorLab, TareaLab } from "@/components/agente/tipos";
+import type { PanelLab, ProveedorLab, TareaLab, TarifaLab } from "@/components/agente/tipos";
 
 const miles = (n: number) => n.toLocaleString("es-AR");
 
@@ -96,6 +96,9 @@ export function PanelLabIA({ leer, guardar }: {
           {g?.error && <p className="text-[10px] text-[var(--t-neg)]">{g.error}</p>}
 
           {g && !g.error && <Gasto g={g} />}
+          {g && !g.error && g.tarifas.length > 0 && (
+            <Tarifas tarifas={g.tarifas} guardar={guardar} refrescar={cargar} />
+          )}
           {p && (
             <div className="flex flex-col gap-2">
               <p className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
@@ -300,6 +303,117 @@ function Tarea({ t, proveedores, guardar, refrescar }: {
           msg.ok ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]"}`}>
           {msg.ok ? "✔" : "✕"} {msg.texto}
         </p>
+      )}
+    </div>
+  );
+}
+
+
+// ── LAS TARIFAS ───────────────────────────────────────────────────────────
+//
+// ⚠️ TRES precios por modelo, y van JUNTOS. Una tarifa a medias —entrada
+// cargada, caché en blanco— calcula un costo equivocado sin fallar, y encima
+// al revés de lo que uno espera: sobrecobra justo la parte más barata.
+//
+// Lo que el número NO modela, y conviene saberlo antes de creerle: las
+// escrituras de caché cuestan un poco más que la entrada normal (y el libro no
+// las distingue), el contexto largo cuesta el doble a partir de cierto tamaño,
+// y DeepSeek cobra distinto en horario pico. El total es un piso.
+function Tarifas({ tarifas, guardar, refrescar }: {
+  tarifas: TarifaLab[];
+  guardar: <T>(url: string, body?: unknown) => Promise<T>;
+  refrescar: () => Promise<void>;
+}) {
+  const [abierto, setAbierto] = useState(false);
+  return (
+    <div>
+      <button
+        onClick={() => setAbierto(!abierto)}
+        className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
+      >
+        {abierto ? "▾" : "▸"} tarifas · usd por millón de tokens
+      </button>
+      {abierto && (
+        <div className="flex flex-col gap-1 mt-1">
+          <p className="text-[9px] text-[var(--t-text-dim)]">
+            Los tres van juntos. El del <b>caché</b> es el que más cambia el
+            total: esa entrada cuesta una fracción, y sin él se sobrecobra justo
+            la parte que venimos optimizando.
+          </p>
+          {tarifas.map((t) => (
+            <FilaTarifa key={t.modelo} t={t} guardar={guardar} refrescar={refrescar} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FilaTarifa({ t, guardar, refrescar }: {
+  t: TarifaLab;
+  guardar: <T>(url: string, body?: unknown) => Promise<T>;
+  refrescar: () => Promise<void>;
+}) {
+  const n = (v: number | null) => (v === null ? "" : String(v));
+  const [entrada, setEntrada] = useState(n(t.entrada));
+  const [cache, setCache] = useState(n(t.cache));
+  const [salida, setSalida] = useState(n(t.salida));
+  const [msg, setMsg] = useState("");
+  const [guardando, setGuardando] = useState(false);
+
+  const completo = entrada !== "" && cache !== "" && salida !== "";
+
+  async function enviar() {
+    if (!completo || guardando) return;
+    setGuardando(true);
+    setMsg("");
+    try {
+      const r = await guardar<{ ok: boolean; error?: string }>(
+        "/api/agente/lab/precio", {
+          modelo: t.modelo, entrada: Number(entrada),
+          cache: Number(cache), salida: Number(salida),
+        });
+      setMsg(r.ok ? "✔ guardada" : `✕ ${r.error || "no se pudo"}`);
+      if (r.ok) await refrescar();
+    } catch (e) {
+      setMsg(`✕ ${String(e)}`);
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  const input = (v: string, set: (s: string) => void, ph: string) => (
+    <input
+      value={v}
+      onChange={(e) => set(e.target.value)}
+      onKeyDown={(e) => { if (e.key === "Enter") void enviar(); }}
+      placeholder={ph}
+      inputMode="decimal"
+      className="bg-[var(--t-surface)] border border-[var(--t-border)] text-[10px] px-1 py-0.5 w-20 text-right tabular-nums text-[var(--t-text)] placeholder:text-[var(--t-text-dim)]"
+    />
+  );
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-[10px]">
+      <span className="text-[var(--t-text)] min-w-[150px]">{t.modelo}</span>
+      <span className="text-[var(--t-text-dim)] text-[9px]">entrada</span>
+      {input(entrada, setEntrada, "0.20")}
+      <span className="text-[var(--t-text-dim)] text-[9px]">caché</span>
+      {input(cache, setCache, "0.02")}
+      <span className="text-[var(--t-text-dim)] text-[9px]">salida</span>
+      {input(salida, setSalida, "1.20")}
+      <button
+        onClick={() => void enviar()}
+        disabled={!completo || guardando}
+        className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-30"
+      >
+        {guardando ? "…" : "guardar"}
+      </button>
+      {msg && (
+        <span className={msg.startsWith("✔")
+          ? "text-[9px] text-[var(--t-pos)]" : "text-[9px] text-[var(--t-neg)]"}>
+          {msg}
+        </span>
       )}
     </div>
   );
