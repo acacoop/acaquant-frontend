@@ -7,9 +7,15 @@
 //   GASTO   — el libro de llamadas al modelo (`ia.llamadas`). Existía desde
 //             hace meses y no lo miraba nadie: cada llamada quedaba anotada con
 //             sus tokens, su latencia y cuánto pegó en el caché.
-//   MODELOS — qué modelo cumple cada rol, por proveedor. Se guarda en la base y
-//             aplica sin deploy: el código pide un ROL (light/pro), nunca un
-//             nombre, porque los nombres cambian cada pocos meses.
+//   TAREAS  — con qué proveedor y modelo corre CADA COSA que usa IA: el chat
+//             del LAB, el texto de los avisos del agente, el botón explicámelo.
+//             Se guarda en la base y aplica sin deploy.
+//
+// ⚠️ **UNA FILA ES UNA TAREA, no un `proveedor × rol`.** Antes era lo segundo y
+// el resultado fue un desplegable que no hacía nada: se configuraba «deepseek ·
+// pro» y el asistente seguía andando con openai, porque a esa tarea nunca le
+// tocaba esa combinación. No fallaba — simplemente no tenía efecto, y no había
+// forma de saberlo desde la pantalla.
 //
 // ⚠️ **NINGÚN NÚMERO SE CALCULA ACÁ.** Los totales, el % de caché y el modelo
 // en uso vienen del backend, de la misma consulta que dibuja cada lista. Es la
@@ -18,11 +24,7 @@
 // en el navegador daría dos respuestas que se desincronizan sin que nada falle.
 import { useCallback, useEffect, useState } from "react";
 
-import type { PanelLab, ProveedorLab } from "@/components/agente/tipos";
-
-// Cómo se llama cada rol en la pantalla. El backend los conoce como flash/pro;
-// acá se muestran con la palabra que usa el user.
-const NOMBRE_ROL: Record<string, string> = { flash: "LIGHT", pro: "PRO" };
+import type { PanelLab, ProveedorLab, TareaLab } from "@/components/agente/tipos";
 
 const miles = (n: number) => n.toLocaleString("es-AR");
 
@@ -68,8 +70,16 @@ export function PanelLabIA({ leer, guardar }: {
         </span>
         {p && (
           <span className="text-[9px] text-[var(--t-text-muted)]">
-            corriendo con <b className="text-[var(--t-accent)]">{p.asistente.modelo}</b>
-            {" · "}{p.asistente.proveedor}
+            {/* El chat corre con lo que diga la tarea `asistente`. El nombre
+                sale del backend: buscarlo por string acá sería una segunda
+                lista que queda vieja sin que nada falle. */}
+            {(() => {
+              const a = p.tareas.find((t) => t.tarea === "asistente");
+              return a ? (
+                <>este chat corre con <b className="text-[var(--t-accent)]">{a.modelo}</b>
+                  {" · "}{a.proveedor}</>
+              ) : null;
+            })()}
             {g && !g.error && (
               <> · hoy {miles(g.hoy.llamadas)} llamada(s), {miles(g.hoy.tokens)} tokens</>
             )}
@@ -86,10 +96,25 @@ export function PanelLabIA({ leer, guardar }: {
           {g?.error && <p className="text-[10px] text-[var(--t-neg)]">{g.error}</p>}
 
           {g && !g.error && <Gasto g={g} />}
-          {p?.proveedores.map((pr) => (
-            <Proveedor key={pr.proveedor} pr={pr}
+          {p && (
+            <div className="flex flex-col gap-2">
+              <p className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
+                con qué corre cada cosa
+              </p>
+              {p.tareas.map((t) => (
+                <Tarea key={t.tarea} t={t} proveedores={p.proveedores}
                        guardar={guardar} refrescar={cargar} />
-          ))}
+              ))}
+              {/* El aviso del proveedor va UNA vez abajo, no repetido en cada
+                  fila: es una propiedad del proveedor, no de la tarea. */}
+              {p.proveedores.filter((pr) => pr.aviso).map((pr) => (
+                <p key={pr.proveedor}
+                   className="text-[9px] text-[var(--t-neg)] leading-snug">
+                  ⚠ <b>{pr.proveedor}</b>: {pr.aviso}
+                </p>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -182,79 +207,93 @@ function Dato({ k, v, destacado }: { k: string; v: string; destacado?: boolean }
 }
 
 
-// ── UN PROVEEDOR Y SUS ROLES ──────────────────────────────────────────────
-function Proveedor({ pr, guardar, refrescar }: {
-  pr: ProveedorLab;
+// ── UNA TAREA: con qué corre, y con qué la podés hacer correr ─────────────
+//
+// ⚠️ Una fila = una cosa que corre. Antes esto era `proveedor × rol` y el
+// resultado fue un desplegable que no hacía nada: se elegía «deepseek · pro» y
+// el asistente seguía andando con openai, porque a esa tarea nunca le tocaba
+// esa combinación. No fallaba — simplemente no tenía efecto.
+function Tarea({ t, proveedores, guardar, refrescar }: {
+  t: TareaLab;
+  proveedores: ProveedorLab[];
   guardar: <T>(url: string, body?: unknown) => Promise<T>;
   refrescar: () => Promise<void>;
 }) {
-  const [guardando, setGuardando] = useState("");
+  const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; texto: string } | null>(null);
 
-  async function elegir(rol: string, modelo: string) {
-    if (!modelo) return;
-    setGuardando(rol);
+  // `proveedor/modelo` en un solo valor, igual que lo guarda el backend: dos
+  // desplegables separados dejarían elegir un modelo de un proveedor con otro
+  // seleccionado, que es un pedido que nadie entiende.
+  const actual = `${t.proveedor}/${t.modelo}`;
+
+  async function elegir(valor: string) {
+    setGuardando(true);
     setMsg(null);
+    const [proveedor, modelo] = valor ? valor.split("/") : ["", ""];
     try {
-      // ⚠️ El backend PRUEBA el modelo antes de guardarlo — le da una
-      // herramienta de mentira y mira si la pide. Un modelo que ignora `tools`
-      // dejaría al asistente contestando de memoria, sin un solo error. Por eso
-      // la prueba no es un botón acá: es parte de guardar, allá.
+      // ⚠️ El backend PRUEBA el modelo antes de guardarlo, y qué le exige
+      // depende de la tarea: si ofrece herramientas, tiene que pedir una.
+      // Por eso la prueba no es un botón acá: es parte de guardar, allá.
       const r = await guardar<{ ok: boolean; error?: string; modelo?: string }>(
-        "/api/agente/lab/modelo", { proveedor: pr.proveedor, rol, modelo });
+        "/api/agente/lab/modelo", { tarea: t.tarea, proveedor, modelo });
       setMsg(r.ok
-        ? { ok: true, texto: `listo: ${r.modelo} probado y guardado` }
+        ? { ok: true, texto: modelo ? `${r.modelo} probado y guardado` : "vuelve al default" }
         : { ok: false, texto: r.error || "no se pudo guardar" });
       if (r.ok) await refrescar();
     } catch (e) {
       setMsg({ ok: false, texto: String(e) });
     } finally {
-      setGuardando("");
+      setGuardando(false);
     }
   }
 
   return (
-    <div className="flex flex-col gap-1">
-      <p className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
-        {pr.proveedor}
-        {!pr.configurado && <span className="text-[var(--t-neg)]"> · sin API key</span>}
-        {!pr.usable && <span className="text-[var(--t-neg)]"> · no habilitado</span>}
-      </p>
+    <div className="flex flex-col gap-0.5 border-l-2 border-[var(--t-border)] pl-2">
+      <div className="flex flex-wrap items-baseline gap-x-2">
+        <b className="text-[10px] text-[var(--t-text)]">{t.tarea}</b>
+        <span className="text-[9px] text-[var(--t-text-dim)]">{t.para_que}</span>
+        {t.usa_herramientas && (
+          <span className="text-[9px] text-[var(--t-text-dim)]">· usa herramientas</span>
+        )}
+      </div>
 
-      {/* ⚠️ El aviso se ESCRIBE aunque el proveedor SE PUEDA elegir. Un permiso
-          que no se explica se vuelve un default que nadie recuerda haber
-          decidido — y acá lo que se decidió es que los datos de las cuentas
-          habilitadas pueden terminar en un modelo de un tercero. */}
-      {pr.aviso && (
-        <p className="text-[9px] text-[var(--t-neg)] leading-snug">⚠ {pr.aviso}</p>
-      )}
-
-      {Object.entries(pr.roles).map(([rol, r]) => (
-        <div key={rol} className="flex flex-wrap items-center gap-2">
-          <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] w-12">
-            {NOMBRE_ROL[rol] ?? rol}
-          </span>
-          <select
-            value={r.elegido ?? ""}
-            disabled={!pr.usable || !pr.configurado || guardando === rol}
-            onChange={(e) => void elegir(rol, e.target.value)}
-            className="bg-[var(--t-surface)] border border-[var(--t-border)] text-[10px] px-2 py-1 flex-1 min-w-[200px] text-[var(--t-text)] disabled:opacity-40"
-          >
-            <option value="">— default: {r.default} —</option>
-            {pr.modelos.map((m) => <option key={m} value={m}>{m}</option>)}
-          </select>
-          {guardando === rol && (
-            <span className="text-[9px] text-[var(--t-accent)]">probando…</span>
-          )}
-        </div>
-      ))}
-
-      {!pr.modelos.length && pr.configurado && pr.usable && (
-        <p className="text-[9px] text-[var(--t-text-dim)]">
-          No pude pedirle la lista de modelos al proveedor. Sigue corriendo con
-          el default.
-        </p>
-      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={actual}
+          disabled={guardando}
+          onChange={(e) => void elegir(e.target.value)}
+          className="bg-[var(--t-surface)] border border-[var(--t-border)] text-[10px] px-2 py-1 flex-1 min-w-[240px] text-[var(--t-text)] disabled:opacity-40"
+        >
+          {/* Volver al default es una opción del mismo desplegable: «elegí mal»
+              no se arregla eligiendo otra cosa. */}
+          <option value="">
+            — default del código: {t.declarado.proveedor} · {t.declarado.tier} —
+          </option>
+          {proveedores.map((pr) => (
+            <optgroup key={pr.proveedor}
+                      label={pr.proveedor + (pr.configurado ? "" : " (sin API key)")
+                             + (pr.usable ? "" : " (no habilitado)")}>
+              {/* Lo que corre hoy aparece aunque el proveedor no liste sus
+                  modelos: si no, el desplegable mostraría vacío el valor
+                  seleccionado y parecería que no hay nada configurado. */}
+              {(pr.modelos.includes(t.modelo) || pr.proveedor !== t.proveedor
+                ? pr.modelos : [t.modelo, ...pr.modelos]).map((m) => (
+                <option key={m} value={`${pr.proveedor}/${m}`}
+                        disabled={!pr.usable || !pr.configurado}>
+                  {pr.proveedor} · {m}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+        {guardando && (
+          <span className="text-[9px] text-[var(--t-accent)]">probando…</span>
+        )}
+        {!t.elegido && (
+          <span className="text-[9px] text-[var(--t-text-dim)]">del código</span>
+        )}
+      </div>
 
       {msg && (
         <p className={`text-[9px] leading-snug ${

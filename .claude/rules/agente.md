@@ -18,7 +18,7 @@ a **TRES pantallas de trabajo más tres de lectura**:
 | **PATRONES** | **lo que pasa SIEMPRE**: el ranking de crónicos, activos e históricos aparte | ninguno |
 | **HISTORIAL** | el libro: qué escribió el agente, de qué valor a qué valor | ninguno |
 | **HABILIDADES** | qué sabe hacer y **cuándo miró cada cosa**, en tres lecturas: LISTA · MAPA·DOMINIO · MAPA·RITMO | correr una · explicámelo |
-| **LAB** | el ASISTENTE: preguntarle por la cartera en castellano y ver el ciclo (qué herramienta pidió, qué le volvió). Arriba, plegado, el panel de IA: gasto por tarea, hit rate del caché, y qué modelo corre | preguntar · elegir modelo |
+| **LAB** | el ASISTENTE: preguntarle por la cartera en castellano y ver el ciclo (qué herramienta pidió, qué le volvió). Arriba, plegado, el panel de IA: gasto por tarea, hit rate del caché, y con qué proveedor/modelo corre **cada tarea** (una fila = una cosa que corre, no un `proveedor × rol`) | preguntar · elegir modelo por tarea |
 
 ⚠️ **HABILIDADES es una TAB PROPIA, no un panel al costado.** Lo dice el
 comentario del `modal.tsx` y hay que respetarlo: lo que el agente sabe hacer y

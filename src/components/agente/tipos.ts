@@ -366,13 +366,33 @@ export type ProveedorLab = {
   // vuelve un default que nadie recuerda haber decidido.
   aviso: string | null;
   modelos: string[];
-  roles: Record<string, { elegido: string | null; default: string }>;
+};
+
+// ⚠️ UNA FILA DE LA PANTALLA ES UNA TAREA: una cosa que corre. Antes era
+// `proveedor × rol` —una abstracción interna— y el resultado fue un desplegable
+// que no hacía nada: se configuraba «deepseek · pro» y el asistente seguía
+// andando con openai, porque a esa tarea nunca le tocaba esa combinación.
+export type TareaLab = {
+  tarea: string;
+  // Qué es, en criollo. Sale de `core/ai.py::_TAREAS`, no de una tabla de
+  // nombres acá — una copia en el front queda vieja sin que nada falle.
+  para_que: string;
+  // Con qué corre HOY. Lo resuelve el backend aplicando su precedencia
+  // (elegido > declarado > default): acá no se recalcula nada.
+  proveedor: string;
+  modelo: string;
+  // ¿Viene de una elección en esta pantalla, o del default del código? Sin
+  // esto, «lo configuré» y «viene así de fábrica» se ven igual.
+  elegido: boolean;
+  declarado: { proveedor: string; tier: string };
+  // Si la tarea ofrece herramientas, el modelo que se elija tiene que saber
+  // pedirlas — el backend lo prueba antes de guardar.
+  usa_herramientas: boolean;
+  datos_negocio: boolean;
 };
 
 export type PanelLab = {
   gasto: Gasto;
+  tareas: TareaLab[];
   proveedores: ProveedorLab[];
-  // Con qué corre HOY el asistente. Lo resuelve el backend aplicando su propia
-  // precedencia (elección > env > default) — acá no se recalcula nada.
-  asistente: { tarea: string; proveedor: string; modelo: string };
 };
