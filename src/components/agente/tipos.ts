@@ -355,11 +355,16 @@ export type Gasto = {
 export type ProveedorLab = {
   proveedor: string;
   configurado: boolean;
-  // false = puede entrenar con lo que se le manda → no puede ver datos del
-  // negocio. Se muestra igual, deshabilitado y con el motivo: si desapareciera,
-  // dentro de seis meses alguien lo "arregla" sin saber qué rompe.
+  // ¿se puede elegir? Lo decide el backend leyendo UNA constante
+  // (`config.IA_PERMITE_PROVEEDOR_QUE_ENTRENA`): la pantalla no tiene criterio
+  // propio, porque dos reglas para lo mismo terminan en una pantalla que deja
+  // elegir algo que el gateway después rechaza.
   usable: boolean;
-  motivo: string | null;
+  // Qué implica elegirlo, cuando implica algo. No es lo mismo que `usable`:
+  // un proveedor que entrena con lo que se le manda HOY se puede elegir, y
+  // aun así hay que decir qué significa. Un permiso que no se explica se
+  // vuelve un default que nadie recuerda haber decidido.
+  aviso: string | null;
   modelos: string[];
   roles: Record<string, { elegido: string | null; default: string }>;
 };

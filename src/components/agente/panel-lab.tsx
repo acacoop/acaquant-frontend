@@ -221,11 +221,12 @@ function Proveedor({ pr, guardar, refrescar }: {
         {!pr.usable && <span className="text-[var(--t-neg)]"> · no habilitado</span>}
       </p>
 
-      {/* ⚠️ El motivo se ESCRIBE, no se esconde el proveedor. Si DeepSeek
-          desapareciera del panel, dentro de seis meses alguien lo "arregla"
-          sin saber qué está rompiendo. */}
-      {pr.motivo && (
-        <p className="text-[9px] text-[var(--t-neg)] leading-snug">⛔ {pr.motivo}</p>
+      {/* ⚠️ El aviso se ESCRIBE aunque el proveedor SE PUEDA elegir. Un permiso
+          que no se explica se vuelve un default que nadie recuerda haber
+          decidido — y acá lo que se decidió es que los datos de las cuentas
+          habilitadas pueden terminar en un modelo de un tercero. */}
+      {pr.aviso && (
+        <p className="text-[9px] text-[var(--t-neg)] leading-snug">⚠ {pr.aviso}</p>
       )}
 
       {Object.entries(pr.roles).map(([rol, r]) => (
