@@ -286,8 +286,22 @@ export const ICONO_EVENTO: Record<EventoLab["tipo"], string> = {
   texto: "✅", corte: "⛔",
 };
 
+// El veredicto del control determinístico (`asistente/control.py`). Viaja AL
+// LADO de la respuesta, no en vez de ella: avisa, no bloquea. Bloquear con una
+// falsa alarma te deja sin una respuesta que estaba bien.
+export type Control = {
+  ok: boolean;
+  hallazgos: {
+    control: string;
+    que_paso: string;
+    detalle: string[];
+    cuantos: number;
+  }[];
+};
+
 export type RespuestaLab = {
   respuesta: string | null;
+  control?: Control;
   // ⚠️ `error` viaja aparte de `respuesta`: «no contestó» y «contestó vacío»
   // no se pueden dibujar iguales.
   error: string | null;

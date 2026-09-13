@@ -139,6 +139,25 @@ function VerTurno({ t }: { t: Turno }) {
         </p>
       )}
 
+      {/* ── EL CONTROL ────────────────────────────────────────────────
+          Código, no un modelo: saca los números de la respuesta y los busca en
+          lo que se le dio. Va DEBAJO de la respuesta y no en vez de ella —
+          avisa, no bloquea. Si esto tapara la respuesta, la primera falsa
+          alarma te dejaría sin una contestación que estaba bien. */}
+      {r?.control && !r.control.ok && r.control.hallazgos.map((h, i) => (
+        <p key={i} className="text-[9px] text-[var(--t-neg)] leading-snug border-l-2 border-[var(--t-neg)] pl-2">
+          ⚠ {h.que_paso}
+          {h.detalle.length > 0 && (
+            <>: <b>{h.detalle.join(", ")}</b>
+              {h.cuantos > h.detalle.length && <> (+{h.cuantos - h.detalle.length})</>}
+            </>
+          )}
+          <span className="block text-[var(--t-text-dim)]">
+            O los calculó él, o los inventó. Verificá antes de usarlos.
+          </span>
+        </p>
+      ))}
+
       {/* EL CICLO. Plegado, con el resumen a la vista: cuántas vueltas dio y
           cuánto costó son las dos cosas que se miran sin abrir. */}
       {r && (
