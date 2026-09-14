@@ -46,6 +46,7 @@ type Fila = {
 
 type Payload = {
   fecha: string | null;
+  fuente: string;
   fecha_aunesa: string | null;
   actualizado_aunesa: string | null;
   filas: Fila[];
@@ -62,7 +63,7 @@ type Payload = {
 };
 
 const VACIO: Payload = {
-  fecha: null, fecha_aunesa: null, actualizado_aunesa: null, filas: [], total_filas: 0, cuentas: 0,
+  fecha: null, fuente: "t0", fecha_aunesa: null, actualizado_aunesa: null, filas: [], total_filas: 0, cuentas: 0,
   sin_asset: 0, trabado: 0, difieren: 0, sin_comparar: 0, truncado: false,
   actualizado_at: null, estados: [],
 };
@@ -98,12 +99,33 @@ export function CustodiaView() {
   const [soloTrabado, setSoloTrabado] = useState(false);
   const [soloSinInstrumento, setSoloSinInstrumento] = useState(false);
   const [soloDiferencias, setSoloDiferencias] = useState(false);
+  // Contra qué se compara Aunesa. Es lo ÚNICO que viaja al servidor: los demás
+  // filtros se aplican sobre las filas que ya están, pero esto cambia de qué
+  // tabla sale `VN AUNESA`.
+  const [fuente, setFuente] = useState<"t0" | "cierre">("t0");
 
   // Un request por la foto entera. 5 min: el dato de fondo cambia UNA VEZ POR
   // HORA (el gateway de BYMA cachea su respuesta 60 min), así que pollear más
   // seguido solo re-baja el mismo payload.
   const { data, error, lastAt } = usePoll<Payload>(
-    "/api/back-office/custodia/tenencias", VACIO, 300_000, { fetchOnMount: true });
+    `/api/back-office/custodia/tenencias?fuente=${fuente}`, VACIO, 300_000,
+    { fetchOnMount: true });
+
+  // BYMA actualiza sus tenencias DESPUÉS DE LAS 21. Durante el día su foto es
+  // la del cierre anterior, así que comparar contra T0 marca como descalce lo
+  // que solo es desfasaje: un bono comprado el viernes en T+1 liquida hoy,
+  // Hygirus ya lo muestra y la Caja todavía no.
+  //
+  // Ese dato vivía en la cabeza del que armó la vista. Puesto acá, cualquiera
+  // que abra la pantalla a las 15 entiende por qué hay diferencias en vez de
+  // salir a buscar un problema que no existe.
+  const desfasaje = useMemo(() => {
+    if (fuente !== "t0" || !data.fecha) return false;
+    const ahora = new Date();
+    const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, "0")}-${
+      String(ahora.getDate()).padStart(2, "0")}`;
+    return data.fecha === hoy && ahora.getHours() < 21;
+  }, [fuente, data.fecha]);
 
   // lastAt === 0 es "todavía no hubo ninguna respuesta". Sin esto la pantalla
   // dice «Sin filas» mientras carga — o sea afirma «no hay nada» cuando lo
@@ -157,12 +179,33 @@ export function CustodiaView() {
             contestan juntas es «¿estas dos fotos son del mismo momento?», y eso
             solo se lee de un vistazo si están escritas igual. */}
         <Fuente nombre="BYMA" valor={cuando(data.fecha, data.actualizado_at)} />
-        <Fuente nombre="AUNESA T0" valor={cuando(data.fecha_aunesa, data.actualizado_aunesa)} />
+        <Fuente nombre={fuente === "t0" ? "AUNESA T0" : "AUNESA CIERRE"}
+                valor={cuando(data.fecha_aunesa, data.actualizado_aunesa)} />
+        <div className="flex rounded overflow-hidden border border-[var(--t-border)]">
+          {(["t0", "cierre"] as const).map((f) => (
+            <button key={f} onClick={() => setFuente(f)}
+              title={f === "t0"
+                ? "Liquidada a HOY. La correcta para la conciliación nocturna."
+                : "La foto conciliada. Comparable con BYMA durante el día."}
+              className={`px-2 py-0.5 text-[10px] font-semibold ${
+                fuente === f
+                  ? "bg-[var(--t-accent)] text-[var(--t-bg)]"
+                  : "text-[var(--t-text-dim)]"}`}>
+              {f === "t0" ? "T0" : "CIERRE"}
+            </button>
+          ))}
+        </div>
 
         {/* Si no son del mismo día, cualquier diferencia puede ser eso. */}
         {data.fecha && data.fecha_aunesa && data.fecha !== data.fecha_aunesa && (
           <span className="px-2 py-0.5 rounded bg-[var(--t-warn,#fbbf24)] text-black font-semibold">
             ⚠ días distintos
+          </span>
+        )}
+        {desfasaje && (
+          <span className="px-2 py-0.5 rounded bg-[var(--t-warn,#fbbf24)] text-black font-semibold"
+                title="Un título comprado en T+1 liquida hoy: Hygirus ya lo refleja y la Caja todavía no.">
+            ⏱ BYMA actualiza tras las 21 — usá CIERRE para comparar con el día en curso
           </span>
         )}
 
