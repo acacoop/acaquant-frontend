@@ -29,7 +29,7 @@ import { useState } from "react";
 import { PanelLabIA } from "@/components/agente/panel-lab";
 import {
   ICONO_EVENTO,
-  type EventoLab, type RespuestaLab,
+  type EventoLab, type RespuestaLab, type TablaDeclarada,
 } from "@/components/agente/tipos";
 
 // Un turno de la conversación tal como se dibuja: lo que se preguntó y todo lo
@@ -139,6 +139,12 @@ function VerTurno({ t }: { t: Turno }) {
         </p>
       )}
 
+      {/* ── LAS TABLAS QUE DECLARÓ LA HERRAMIENTA ──────────────────────
+          El modelo no elige ninguna y no escribe un solo número: cada
+          herramienta dice en su resultado qué campo suyo es una tabla, y acá
+          se dibuja leyendo ESE MISMO objeto. */}
+      {r && tablasDe(r).map((t, i) => <Tabla key={i} {...t} />)}
+
       {/* ⚠️ «No pude contestar esto» vale tanto como la respuesta: sin este
           renglón, una pregunta de dos partes contestada a medias se lee como
           contestada entera. */}
@@ -223,4 +229,120 @@ function VerEvento({ e }: { e: EventoLab }) {
     case "corte":
       return linea(<>{e.motivo}</>, "text-[var(--t-neg)]");
   }
+}
+
+
+// ── LAS TABLAS ────────────────────────────────────────────────────────────
+//
+// Nada de esto está escrito por herramienta: las columnas, el campo de las
+// filas y el del total salen del `_tabla` que declara el resultado. Una
+// herramienta nueva que declare la suya se dibuja sin tocar este archivo — y
+// una que no declare nada sigue contestando en prosa, como `cobros_futuros`.
+const MAX_FILAS = 200;
+
+type Dibujo = { cols: string[]; filas: Record<string, unknown>[];
+                total: unknown; moneda?: string; cuantas: number };
+
+function tablasDe(r: RespuestaLab): Dibujo[] {
+  const fuera: Dibujo[] = [];
+  // Se recorren los resultados de ESTE turno en orden. Si una herramienta se
+  // llamó dos veces (se equivocó de cuenta y corrigió), se dibujan las dos:
+  // esconder una sería decidir cuál vale, y eso no lo sabe la pantalla.
+  for (const e of r.eventos) {
+    if (e.tipo !== "resultado") continue;
+    const res = e.resultado as Record<string, unknown> | null;
+    const decl = res?.["_tabla"] as TablaDeclarada | undefined;
+    if (!decl?.campo || !Array.isArray(decl.columnas)) continue;
+    const filas = res?.[decl.campo];
+    if (!Array.isArray(filas) || filas.length === 0) continue;
+    fuera.push({
+      cols: decl.columnas,
+      filas: filas.filter((f) => f && typeof f === "object") as Record<string, unknown>[],
+      // ⚠️ El total sale del campo que declaró el backend. **Acá no se suma
+      // nada**: si el front sumara, una lista recortada daría un total menor
+      // que el real y las dos cifras serían defendibles por separado.
+      total: decl.total ? res?.[decl.total] : undefined,
+      moneda: decl.moneda,
+      cuantas: filas.length,
+    });
+  }
+  return fuera;
+}
+
+// Los números se dibujan con separador de miles es-AR, que es como los lee la
+// mesa. No se redondea: se respetan los decimales que trajo la herramienta —
+// redondear acá haría que la tabla y la prosa digan cosas distintas.
+function celda(v: unknown): string {
+  if (v === null || v === undefined || v === "") return "—";
+  if (typeof v === "boolean") return v ? "sí" : "no";
+  if (typeof v === "number") {
+    return v.toLocaleString("es-AR", { maximumFractionDigits: 4 });
+  }
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
+}
+
+// Qué columnas van alineadas a la derecha. Se decide por el TIPO del dato de la
+// primera fila, no por el nombre de la columna: una lista de nombres acá sería
+// una copia que queda vieja con la próxima herramienta. Los números a la
+// derecha (así se comparan las magnitudes de un vistazo), el texto a la
+// izquierda — con `emisor` a la derecha la tabla se lee mal.
+function derechas(cols: string[], filas: Record<string, unknown>[]): Set<string> {
+  const prim = filas[0] ?? {};
+  return new Set(cols.filter((c) => typeof prim[c] === "number"));
+}
+
+function Tabla({ cols, filas, total, moneda, cuantas }: Dibujo) {
+  const visibles = filas.slice(0, MAX_FILAS);
+  const der = derechas(cols, visibles);
+  return (
+    <div className="border border-[var(--t-border)] bg-[var(--t-surface)]">
+      <div className="overflow-x-auto max-h-96 overflow-y-auto">
+        <table className="w-full text-[10px]">
+          <thead className="sticky top-0 bg-[var(--t-surface)]">
+            <tr className="border-b border-[var(--t-border)]">
+              {cols.map((c) => (
+                <th
+                  key={c}
+                  className={`font-normal uppercase tracking-wide text-[9px] text-[var(--t-text-dim)] px-2 py-1 whitespace-nowrap ${
+                    der.has(c) ? "text-right" : "text-left"}`}
+                >
+                  {c}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {visibles.map((f, i) => (
+              <tr key={i} className="border-t border-[var(--t-border)]">
+                {cols.map((c) => (
+                  <td
+                    key={c}
+                    className={`px-2 py-0.5 text-[var(--t-text)] whitespace-nowrap ${
+                      der.has(c) ? "text-right tabular-nums" : "text-left"}`}
+                  >
+                    {celda(f[c])}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {(total !== undefined || cuantas > visibles.length) && (
+        <div className="border-t border-[var(--t-border)] px-2 py-1 flex justify-between text-[10px]">
+          <span className="text-[var(--t-text-dim)]">
+            {cuantas > visibles.length
+              ? `${visibles.length} de ${cuantas} filas`
+              : `${cuantas} fila(s)`}
+          </span>
+          {total !== undefined && (
+            <span className="text-[var(--t-text)] tabular-nums">
+              total {moneda ? `${moneda} ` : ""}<b>{celda(total)}</b>
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }

@@ -281,6 +281,28 @@ export type EventoLab =
   | { tipo: "texto"; texto: string }
   | { tipo: "corte"; motivo: string };
 
+// ⚠️⚠️ **LA TABLA LA DECLARA LA HERRAMIENTA, NO LA ELIGE EL MODELO.**
+//
+// Hubo una versión donde el modelo nombraba qué campos dibujar; con tres
+// disponibles nombró los tres y contestó «¿cuánto tengo?» con tres tablas del
+// mismo total. Acá no hay elección: el resultado de la herramienta trae `_tabla`
+// diciendo QUÉ campo suyo es una tabla y con qué columnas, y la pantalla la
+// dibuja. Una herramienta nueva declara la suya y este archivo no cambia.
+//
+// El modelo NO recibe esta clave (el backend saca todo lo que empieza con `_`),
+// así que no re-tipea un solo número: la tabla se dibuja leyendo el MISMO objeto
+// que él leyó.
+export type TablaDeclarada = {
+  // Qué campo del resultado es la lista de filas.
+  campo: string;
+  // Qué columnas, en este orden. Salen del backend: una lista acá sería una
+  // copia que queda vieja el día que la herramienta devuelva un campo más.
+  columnas: string[];
+  // Qué campo del resultado es el total que va abajo. El front NO suma.
+  total?: string;
+  moneda?: string;
+};
+
 export const ICONO_EVENTO: Record<EventoLab["tipo"], string> = {
   pregunta: "💬", vuelta: "↻", pide: "🔧", resultado: "📄",
   texto: "✅", corte: "⛔",
