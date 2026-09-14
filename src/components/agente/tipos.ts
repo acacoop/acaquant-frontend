@@ -279,7 +279,17 @@ export type EventoLab =
   | { tipo: "pide"; herramienta: string; argumentos: Record<string, unknown> }
   | { tipo: "resultado"; herramienta: string; resultado: unknown }
   | { tipo: "texto"; texto: string }
-  | { tipo: "corte"; motivo: string };
+  | { tipo: "corte"; motivo: string }
+  // Cambió lo que queda en foco (backend: `asistente/estado.py`). Sale sólo
+  // cuando cambia: en diez preguntas sobre la misma cuenta, aparece una vez.
+  | { tipo: "estado"; estado: EstadoLab; antes: EstadoLab };
+
+// Lo que el asistente SABE de la conversación, aparte de lo que se DIJO: hoy,
+// la cuenta de la que se viene hablando. Viaja ida y vuelta como `mensajes`,
+// pero APARTE de ellos — el backend achica los mensajes viejos entre preguntas
+// y esto es lo único que sobrevive. El front no lo arma ni lo lee para decidir
+// nada: lo guarda y lo devuelve. Qué claves acepta lo declara el backend.
+export type EstadoLab = Record<string, string>;
 
 // ⚠️⚠️ **LA TABLA LA DECLARA LA HERRAMIENTA, NO LA ELIGE EL MODELO.**
 //
@@ -305,7 +315,7 @@ export type TablaDeclarada = {
 
 export const ICONO_EVENTO: Record<EventoLab["tipo"], string> = {
   pregunta: "💬", vuelta: "↻", pide: "🔧", resultado: "📄",
-  texto: "✅", corte: "⛔",
+  texto: "✅", corte: "⛔", estado: "📌",
 };
 
 // El veredicto del control determinístico (`asistente/control.py`). Viaja AL
@@ -335,6 +345,10 @@ export type RespuestaLab = {
   // pregunta siguiente: el modelo no recuerda nada, la conversación la sostiene
   // la pantalla.
   mensajes: Record<string, unknown>[];
+  // Lo que quedó en foco después de esta pregunta. Se devuelve tal cual en la
+  // siguiente, junto con `mensajes`. Opcional: un backend anterior a esto no
+  // lo manda, y la tab tiene que seguir dibujando igual.
+  estado?: EstadoLab;
 
   // Qué NO pudo contestar, dicho por el modelo (backend: `asistente/esquema.py`).
   // Vale tanto como la respuesta: es la única forma de enterarse de que la

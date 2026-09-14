@@ -23,13 +23,15 @@
 // 3. **LA CONVERSACIÓN LA SOSTIENE ESTA PANTALLA.** El modelo no recuerda nada
 //    entre preguntas. El backend devuelve `mensajes` y acá se guardan para
 //    mandarlos de vuelta en la siguiente: por eso se puede repreguntar «¿y en
-//    dólares?» sin repetir el contexto.
+//    dólares?» sin repetir el contexto. Y devuelve `estado` —lo que quedó en
+//    foco, hoy la cuenta— que viaja igual pero APARTE: el backend achica los
+//    mensajes viejos y el estado es lo único que sobrevive a eso.
 import { useState } from "react";
 
 import { PanelLabIA } from "@/components/agente/panel-lab";
 import {
   ICONO_EVENTO,
-  type EventoLab, type RespuestaLab, type TablaDeclarada,
+  type EstadoLab, type EventoLab, type RespuestaLab, type TablaDeclarada,
 } from "@/components/agente/tipos";
 
 // Un turno de la conversación tal como se dibuja: lo que se preguntó y todo lo
@@ -37,8 +39,9 @@ import {
 type Turno = { pregunta: string; r: RespuestaLab | null; error?: string };
 
 export function TabLab({ preguntar, leer, guardar }: {
-  // Manda la pregunta MÁS el historial. Devuelve la respuesta y el ciclo.
-  preguntar: (pregunta: string, historial: Record<string, unknown>[]) => Promise<RespuestaLab>;
+  // Manda la pregunta MÁS el historial MÁS el estado. Devuelve la respuesta y el ciclo.
+  preguntar: (pregunta: string, historial: Record<string, unknown>[],
+              estado: EstadoLab) => Promise<RespuestaLab>;
   // Para el panel de arriba (gasto y modelo). Va plegado: es información de
   // fondo, y a esta tab se entra a preguntar.
   leer: <T>(url: string) => Promise<T>;
@@ -51,7 +54,12 @@ export function TabLab({ preguntar, leer, guardar }: {
   // El historial que viaja: el `mensajes` del último turno que contestó. No se
   // arma acá sumando pedacitos — lo arma el backend, que es quien sabe qué
   // forma tiene que tener cada mensaje para el proveedor.
-  const historial = [...turnos].reverse().find((t) => t.r)?.r?.mensajes ?? [];
+  const ultimo = [...turnos].reverse().find((t) => t.r)?.r;
+  const historial = ultimo?.mensajes ?? [];
+  // Lo que quedó en foco: sale del mismo turno que el historial. Acá no se
+  // lee para decidir nada — se muestra y se devuelve.
+  const estado: EstadoLab = ultimo?.estado ?? {};
+  const enFoco = Object.entries(estado);
 
   async function enviar() {
     const q = texto.trim();
@@ -60,7 +68,7 @@ export function TabLab({ preguntar, leer, guardar }: {
     setPensando(true);
     setTurnos((t) => [...t, { pregunta: q, r: null }]);
     try {
-      const r = await preguntar(q, historial);
+      const r = await preguntar(q, historial, estado);
       setTurnos((t) => t.map((x, i) => (i === t.length - 1 ? { ...x, r } : x)));
     } catch (e) {
       setTurnos((t) => t.map((x, i) =>
@@ -99,13 +107,25 @@ export function TabLab({ preguntar, leer, guardar }: {
           </button>
         </div>
         {turnos.length > 0 && (
-          <button
-            onClick={() => setTurnos([])}
-            disabled={pensando}
-            className="self-start text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-40"
-          >
-            empezar de nuevo
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setTurnos([])}
+              disabled={pensando}
+              className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-40"
+            >
+              empezar de nuevo
+            </button>
+            {/* Lo que el asistente tiene en foco. «Empezar de nuevo» lo borra
+                junto con el historial: es de esta conversación. */}
+            {enFoco.length > 0 && (
+              <span className="text-[9px] text-[var(--t-text-dim)]">
+                📌 en foco:{" "}
+                {enFoco.map(([k, v]) => (
+                  <span key={k} className="text-[var(--t-text-muted)]">{k} {v} </span>
+                ))}
+              </span>
+            )}
+          </div>
         )}
       </div>
 
@@ -228,6 +248,15 @@ function VerEvento({ e }: { e: EventoLab }) {
       return linea(<>contestó</>, "text-[var(--t-pos)]");
     case "corte":
       return linea(<>{e.motivo}</>, "text-[var(--t-neg)]");
+    case "estado":
+      return linea(
+        <>en foco: {Object.entries(e.estado).map(([k, v]) => `${k} = ${v}`).join(", ")}
+          {Object.keys(e.antes).length > 0 && (
+            <span className="text-[var(--t-text-dim)]">
+              {" "}(antes {Object.entries(e.antes).map(([k, v]) => `${k} = ${v}`).join(", ")})
+            </span>
+          )}</>,
+        "text-[var(--t-accent)]");
   }
 }
 

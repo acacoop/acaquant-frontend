@@ -247,8 +247,8 @@ export default function AgenteModal() {
               {tab === "historial" && <TabHistorial leer={d.leer} />}
               {tab === "lab" && (
                 <TabLab
-                  preguntar={(pregunta, historial) => d.calcular(
-                    "/api/agente/lab/preguntar", { pregunta, historial })}
+                  preguntar={(pregunta, historial, estado) => d.calcular(
+                    "/api/agente/lab/preguntar", { pregunta, historial, estado })}
                   leer={d.leer}
                   // `calcular` y no `escribir`: elegir un modelo no invalida
                   // ninguna de las vistas del agente, y el panel se refresca
