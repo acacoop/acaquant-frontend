@@ -2,7 +2,7 @@
 
 import { memo, useDeferredValue, useMemo, useState } from "react";
 import { usePoll } from "@/lib/use-poll";
-import { Chip, SubTabs, Td, Th, type SubTab } from "./custodia-ui";
+import { Chip, Cuenta, SubTabs, Td, Th, type SubTab } from "./custodia-ui";
 
 /**
  * Back Office → CUSTODIA → MOVIMIENTOS. Las liquidaciones según la CAJA.
@@ -35,6 +35,8 @@ type Mov = {
   estado: string | null;          // solo lo trae el POST por referencia
   estado_motivo: string | null;
   fuente: string;
+  // `account_number` COMPLETO (`80074/222222222`), no el número pelado: CVSA
+  // usa tres espacios para el mismo agente y el lado derecho se repite.
   entrega: string | null;         // la cuenta que sale (volumen < 0)
   recibe: string | null;          // la cuenta que entra (volumen > 0)
   volumen: number | null;         // nominales, en positivo
@@ -46,9 +48,23 @@ type Mov = {
   descalce: boolean;
 };
 
+/** Qué ES cada cuenta que aparece. Viene del catálogo declarado del backend:
+ *  las liquidadoras y las de garantías NO son comitentes y su nombre no está en
+ *  `clientes.cuentas` — buscarlo ahí devolvería un cliente que no tiene nada
+ *  que ver con ellas. */
+type FichaCuenta = {
+  account_number: string;
+  participante: string | null;
+  id_cuenta: string;
+  espacio: string | null;
+  denominacion: string | null;
+  comitente: boolean;
+};
+
 type Payload = {
   fecha: string | null;
   dias: number;
+  cuentas: Record<string, FichaCuenta>;
   movimientos: Mov[];
   total: number;
   patas: number;
@@ -61,7 +77,7 @@ type Payload = {
 };
 
 const VACIO: Payload = {
-  fecha: null, dias: 1, movimientos: [], total: 0, patas: 0, sin_par: 0,
+  fecha: null, dias: 1, cuentas: {}, movimientos: [], total: 0, patas: 0, sin_par: 0,
   descalces: 0, sin_asset: 0, truncado: false, actualizado_at: null, estados: [],
 };
 
@@ -106,15 +122,18 @@ export function MovimientosTab({ sub, setSub }: { sub: SubTab; setSub: (s: SubTa
     return data.movimientos.filter((m) => {
       if (t && !m.referencia.toLowerCase().includes(t)
             && !(m.unidad || "").toLowerCase().includes(t)
-            && !(m.entrega || "").includes(t)
-            && !(m.recibe || "").includes(t)
+            && !(m.entrega || "").toLowerCase().includes(t)
+            && !(m.recibe || "").toLowerCase().includes(t)
+            && !(data.cuentas[m.entrega || ""]?.denominacion || "").toLowerCase().includes(t)
+            && !(data.cuentas[m.recibe || ""]?.denominacion || "").toLowerCase().includes(t)
             && !(m.contraparte || "").toLowerCase().includes(t)) return false;
       if (soloDescalces && !m.descalce) return false;
       if (soloSinPar && m.patas !== 1) return false;
       if (soloSinInstrumento && m.unidad !== null) return false;
       return true;
     });
-  }, [data.movimientos, qDiferido, soloDescalces, soloSinPar, soloSinInstrumento]);
+  }, [data.movimientos, data.cuentas, qDiferido, soloDescalces, soloSinPar,
+      soloSinInstrumento]);
 
   const hayFiltro = Boolean(q.trim() || soloDescalces || soloSinPar || soloSinInstrumento);
 
@@ -208,7 +227,8 @@ export function MovimientosTab({ sub, setSub }: { sub: SubTab; setSub: (s: SubTa
             </thead>
             <tbody>
               {filtrados.slice(0, RENDER_MAX).map((m) => (
-                <FilaMov key={`${m.fecha_liq}-${m.referencia}`} m={m} />
+                <FilaMov key={`${m.fecha_liq}-${m.referencia}`} m={m}
+                         cuentas={data.cuentas} />
               ))}
             </tbody>
           </table>
@@ -232,7 +252,9 @@ export function MovimientosTab({ sub, setSub }: { sub: SubTab; setSub: (s: SubTa
 }
 
 /** Un movimiento. MEMOIZADA por el mismo motivo que la de tenencias. */
-const FilaMov = memo(function FilaMov({ m }: { m: Mov }) {
+const FilaMov = memo(function FilaMov({ m, cuentas }: {
+  m: Mov; cuentas: Record<string, FichaCuenta>;
+}) {
   return (
     <tr className={`border-t border-[var(--t-border)] ${
       m.descalce ? "bg-[var(--t-danger,#f87171)]/10" : ""}`}>
@@ -247,8 +269,8 @@ const FilaMov = memo(function FilaMov({ m }: { m: Mov }) {
       </Td>
       <Td className="text-[var(--t-text-dim)]">{m.cvsa_id}</Td>
       {/* El signo del volumen ES el dato: entrega la cuenta con volumen < 0. */}
-      <Td className="tabular-nums">{m.entrega ?? <SinPata />}</Td>
-      <Td className="tabular-nums">{m.recibe ?? <SinPata />}</Td>
+      <Td><Lado cuenta={m.entrega} cuentas={cuentas} /></Td>
+      <Td><Lado cuenta={m.recibe} cuentas={cuentas} /></Td>
       <Td className="text-right tabular-nums">{num(m.volumen)}</Td>
       <Td className="text-right tabular-nums text-[var(--t-text-dim)]">{num(m.monto)}</Td>
       <Td className="text-[var(--t-text-dim)]"
@@ -274,12 +296,25 @@ const FilaMov = memo(function FilaMov({ m }: { m: Mov }) {
   );
 });
 
-/** Una pata sola no es un error: la otra punta es de otro agente y no la vemos. */
-function SinPata() {
+/** Un lado del movimiento. Muestra QUÉ cuenta es, no solo su número: sin la
+ *  etiqueta, `222222222` se lee como un comitente y es la Cta. Gtías. House. */
+function Lado({ cuenta, cuentas }: {
+  cuenta: string | null; cuentas: Record<string, FichaCuenta>;
+}) {
+  if (!cuenta) {
+    // Una pata sola NO es un error: la otra punta es de otro agente.
+    return (
+      <span className="text-[var(--t-text-dim)] italic"
+            title="La otra punta es de otro agente: BYMA solo nos informa nuestra pata.">
+        otro agente
+      </span>
+    );
+  }
+  // "N cuentas" cuando hay varias de un mismo lado: no hay una ficha que buscar.
+  const f = cuentas[cuenta];
+  if (!f) return <span className="tabular-nums">{cuenta}</span>;
   return (
-    <span className="text-[var(--t-text-dim)] italic"
-          title="La otra punta es de otro agente: BYMA solo nos informa nuestra pata.">
-      otro agente
-    </span>
+    <Cuenta account={f.account_number} espacio={f.espacio}
+            denominacion={f.denominacion} comitente={f.comitente} />
   );
 }

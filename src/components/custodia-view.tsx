@@ -3,7 +3,7 @@
 import { memo, useDeferredValue, useMemo, useState } from "react";
 import { usePoll } from "@/lib/use-poll";
 import { MovimientosTab } from "./custodia-movimientos";
-import { Chip, SubTabs, Td, Th, type SubTab } from "./custodia-ui";
+import { Chip, Cuenta, ESPACIOS, SubTabs, Td, Th, type SubTab } from "./custodia-ui";
 
 /**
  * Back Office → CUSTODIA. Lo que la CAJA DE VALORES (CVSA) tiene registrado.
@@ -37,6 +37,12 @@ import { Chip, SubTabs, Td, Th, type SubTab } from "./custodia-ui";
 
 type Fila = {
   id_cuenta: string;
+  // La identidad COMPLETA: `80074/222222222`. El número solo no alcanza —
+  // CVSA usa tres espacios y el lado derecho se repite entre ellos.
+  account_number: string;
+  participante: string | null;
+  espacio: string | null;        // comitentes | liquidadoras | garantias | null
+  comitente: boolean;
   cuenta: string | null;
   cvsa_id: string;
   unidad: string | null;
@@ -64,6 +70,7 @@ type Payload = {
   sin_comparar: number;
   truncado: boolean;
   actualizado_at: string | null;
+  espacios: { espacio: string; n: number }[];
   estados: { estado: string; n: number }[];
   aviso?: string;
 };
@@ -71,7 +78,7 @@ type Payload = {
 const VACIO: Payload = {
   fecha: null, fuente: "t0", fecha_aunesa: null, actualizado_aunesa: null, filas: [], total_filas: 0, cuentas: 0,
   sin_asset: 0, trabado: 0, difieren: 0, sin_comparar: 0, truncado: false,
-  actualizado_at: null, estados: [],
+  actualizado_at: null, espacios: [], estados: [],
 };
 
 // Dos nominales que difieren en centavos no son un descalce: es redondeo.
@@ -121,6 +128,10 @@ function TenenciasTab({ sub, setSub }: { sub: SubTab; setSub: (s: SubTab) => voi
   const [soloTrabado, setSoloTrabado] = useState(false);
   const [soloSinInstrumento, setSoloSinInstrumento] = useState(false);
   const [soloDiferencias, setSoloDiferencias] = useState(false);
+  // Ver SOLO las liquidadoras, o solo las de garantías. Son las cuentas por
+  // donde se mueven los títulos y no son comitentes: hasta ahora no se podían
+  // aislar porque el espacio de numeración ni siquiera se guardaba.
+  const [espacio_, setEspacio] = useState<string | null>(null);
   // Contra qué se compara Aunesa. Es lo ÚNICO que viaja al servidor: los demás
   // filtros se aplican sobre las filas que ya están, pero esto cambia de qué
   // tabla sale `VN AUNESA`.
@@ -157,9 +168,10 @@ function TenenciasTab({ sub, setSub }: { sub: SubTab; setSub: (s: SubTab) => voi
   const filtradas = useMemo(() => {
     const q = cuentaDiferida.trim().toLowerCase();
     return data.filas.filter((f) => {
-      if (q && !f.id_cuenta.toLowerCase().includes(q)
+      if (q && !f.account_number.toLowerCase().includes(q)
             && !(f.cuenta || "").toLowerCase().includes(q)
             && !(f.ticker || "").toLowerCase().includes(q)) return false;
+      if (espacio_ && f.espacio !== espacio_) return false;
       if (estado && !(f.estados || "").includes(estado)) return false;
       if (soloTrabado && f.trabado === 0) return false;
       if (soloSinInstrumento && f.unidad !== null) return false;
@@ -168,10 +180,11 @@ function TenenciasTab({ sub, setSub }: { sub: SubTab; setSub: (s: SubTab) => voi
       if (soloDiferencias && !(f.dif !== null && Math.abs(f.dif) > TOLERANCIA)) return false;
       return true;
     });
-  }, [data.filas, cuentaDiferida, estado, soloTrabado, soloSinInstrumento, soloDiferencias]);
+  }, [data.filas, cuentaDiferida, estado, soloTrabado, soloSinInstrumento,
+      soloDiferencias, espacio_]);
 
   const hayFiltro = Boolean(cuenta.trim() || estado || soloTrabado
-                            || soloSinInstrumento || soloDiferencias);
+                            || soloSinInstrumento || soloDiferencias || espacio_);
 
   return (
     <div className="h-full min-h-0 flex flex-col">
@@ -229,8 +242,17 @@ function TenenciasTab({ sub, setSub }: { sub: SubTab; setSub: (s: SubTab) => voi
                       border-b border-[var(--t-border)]">
         <Chip activo={!hayFiltro} onClick={() => {
           setEstado(null); setSoloTrabado(false); setSoloSinInstrumento(false);
-          setSoloDiferencias(false); setCuenta("");
+          setSoloDiferencias(false); setCuenta(""); setEspacio(null);
         }}>TODOS ({data.total_filas})</Chip>
+        {/* Los espacios de numeración salen de los DATOS, no de una lista fija:
+            si CVSA agrega uno, aparece acá en vez de quedar invisible. */}
+        {data.espacios.filter((e) => e.espacio !== "comitentes").map((e) => (
+          <Chip key={e.espacio} activo={espacio_ === e.espacio}
+                alerta={e.espacio === "desconocido"}
+                onClick={() => setEspacio(espacio_ === e.espacio ? null : e.espacio)}>
+            {(ESPACIOS[e.espacio] ?? e.espacio.toUpperCase())} ({e.n})
+          </Chip>
+        ))}
         <Chip activo={soloDiferencias} alerta={data.difieren > 0}
               onClick={() => setSoloDiferencias(!soloDiferencias)}>
           DIFERENCIAS ({data.difieren})
@@ -288,7 +310,7 @@ function TenenciasTab({ sub, setSub }: { sub: SubTab; setSub: (s: SubTab) => voi
             </thead>
             <tbody>
               {filtradas.slice(0, RENDER_MAX).map((f, i) => (
-                <FilaTabla key={`${f.id_cuenta}-${f.cvsa_id}-${i}`} f={f} />
+                <FilaTabla key={`${f.account_number}-${f.cvsa_id}-${i}`} f={f} />
               ))}
             </tbody>
           </table>
@@ -312,7 +334,10 @@ const FilaTabla = memo(function FilaTabla({ f }: { f: Fila }) {
   return (
     <tr className={`border-t border-[var(--t-border)] ${
       rojo ? "bg-[var(--t-danger,#f87171)]/10" : ""}`}>
-      <Td>{f.id_cuenta}</Td>
+      <Td>
+        <Cuenta account={f.account_number} espacio={f.espacio}
+                denominacion={f.cuenta} comitente={f.comitente} />
+      </Td>
       <Td className="text-[var(--t-text-dim)]">{f.cuenta ?? "—"}</Td>
       <Td>
         {f.ticker || f.unidad || (
