@@ -4,13 +4,18 @@ import { NextResponse } from "next/server";
 //
 // SOLO GET. El backend no expone una sola escritura en este prefijo y acá
 // tampoco: `POST`/`PUT`/`DELETE` no existen como handlers, así que Next
-// devuelve 405 sin que haya nada que revisar. La API de custodia de BYMA sí
-// tiene un método que escribe (`transactionsbyreference`), y el cliente del
-// backend lo deja deliberadamente afuera — este proxy es el segundo cerrojo.
+// devuelve 405 sin que haya nada que revisar.
 //
-// Es catch-all `[[...path]]` a propósito: hoy cuelga `/tenencias` y mañana van a
-// colgar más. Con una ruta por path, el próximo endpoint daría 404 de Next —
-// que el componente se traga en silencio y parece "no hay datos".
+// Hacia BYMA hay un método que se pide por POST (`transactionsbyreference`),
+// pero es una CONSULTA —manda la lista de referencias en el cuerpo porque no
+// entra en una query string—. Nuestro endpoint para eso es un GET, así que este
+// proxy no necesita abrirse: mantener la superficie de escritura en CERO es
+// gratis y no hay que revisarla nunca.
+//
+// Es catch-all `[[...path]]` a propósito: hoy cuelgan `/tenencias` y
+// `/movimientos`, y mañana van a colgar más. Con una ruta por path, el próximo
+// endpoint daría 404 de Next — que el componente se traga en silencio y parece
+// "no hay datos".
 //
 // El gate real es el backend (`require_module("back-office")`); acá se propaga
 // la identidad para que ese gate pueda decidir.

@@ -2,9 +2,15 @@
 
 import { memo, useDeferredValue, useMemo, useState } from "react";
 import { usePoll } from "@/lib/use-poll";
+import { MovimientosTab } from "./custodia-movimientos";
+import { Chip, SubTabs, Td, Th, type SubTab } from "./custodia-ui";
 
 /**
- * Back Office → CUSTODIA. La tenencia según la CAJA DE VALORES (CVSA).
+ * Back Office → CUSTODIA. Lo que la CAJA DE VALORES (CVSA) tiene registrado.
+ *
+ * Dos tabs, dos preguntas distintas:
+ *   · **TENENCIAS** — qué hay hoy, y en qué difiere de lo que dice Aunesa.
+ *   · **MOVIMIENTOS** — qué se liquidó (`custodia-movimientos.tsx`).
  *
  * Es OTRA FUENTE, no otra vista de la misma: todo lo demás del sistema sale de
  * Aunesa (el back-office tercerizado) y esto es lo que la Caja tiene REGISTRADO.
@@ -95,7 +101,17 @@ function num(n: number | null): string {
   return n === null ? "—" : n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
 }
 
+/** Las dos tabs comparten la barra y no el estado: cada una hace su propio
+ *  request, con sus filtros y su cadencia. Un componente que sirviera a las dos
+ *  tendría que mezclar dos payloads con nada en común salvo la fuente. */
 export function CustodiaView() {
+  const [sub, setSub] = useState<SubTab>("tenencias");
+  return sub === "tenencias"
+    ? <TenenciasTab sub={sub} setSub={setSub} />
+    : <MovimientosTab sub={sub} setSub={setSub} />;
+}
+
+function TenenciasTab({ sub, setSub }: { sub: SubTab; setSub: (s: SubTab) => void }) {
   const [cuenta, setCuenta] = useState("");
   // El texto tipeado se ve al instante; el filtrado de 2.800 filas y el redibujo
   // de la tabla van DIFERIDOS. Sin esto, cada tecla bloqueaba el input hasta
@@ -164,10 +180,7 @@ export function CustodiaView() {
           encabezado le comía la pantalla a los datos. */}
       <div className="border-b border-[var(--t-border)] px-3 flex items-center gap-3
                       text-xs shrink-0">
-        <span className="py-1.5 font-semibold border-b-2 -mb-px
-                         border-[var(--t-accent)] text-[var(--t-text)]">
-          TENENCIAS
-        </span>
+        <SubTabs sub={sub} setSub={setSub} />
 
         <span className="ml-auto text-[var(--t-text-dim)]" title={data.fecha ?? ""}>
           BYMA <b className="text-[var(--t-text)] tabular-nums">
@@ -337,28 +350,3 @@ const FilaTabla = memo(function FilaTabla({ f }: { f: Fila }) {
     </tr>
   );
 });
-
-function Chip({ activo, onClick, children, alerta }: {
-  activo: boolean; onClick: () => void; children: React.ReactNode; alerta?: boolean;
-}) {
-  const estilo = activo
-    ? "bg-[var(--t-accent)] text-[var(--t-bg)] border-[var(--t-accent)]"
-    : alerta
-      ? "border-[var(--t-danger,#f87171)] text-[var(--t-danger,#f87171)]"
-      : "border-[var(--t-border)] text-[var(--t-text-dim)]";
-  return (
-    <button onClick={onClick} className={`px-2 py-0.5 rounded text-[10px] border ${estilo}`}>
-      {children}
-    </button>
-  );
-}
-
-function Th({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <th className={`px-2 py-1.5 font-semibold ${className}`}>{children}</th>;
-}
-
-function Td({ children, className = "", title }: {
-  children: React.ReactNode; className?: string; title?: string;
-}) {
-  return <td className={`px-2 py-1 ${className}`} title={title}>{children}</td>;
-}
