@@ -139,29 +139,12 @@ function VerTurno({ t }: { t: Turno }) {
         </p>
       )}
 
-      {/* ── LAS TABLAS ────────────────────────────────────────────────
-          El modelo NO las escribe: nombra qué parte del resultado hay que
-          dibujar (`mostrar`) y las filas se leen del evento `resultado` de esa
-          misma herramienta. Es el MISMO objeto que vio él, así que un número
-          de acá no puede diferir del que leyó. */}
-      {r && (r.mostrar ?? []).map((nombre) => (
-        <Tabla key={nombre} nombre={nombre} filas={filasDe(r, nombre)} />
-      ))}
-
       {/* ⚠️ «No pude contestar esto» vale tanto como la respuesta: sin este
           renglón, una pregunta de dos partes contestada a medias se lee como
           contestada entera. */}
       {r?.falta && (
         <p className="text-[10px] text-[var(--t-accent)] leading-snug">
           ⌀ {r.falta}
-        </p>
-      )}
-
-      {/* El cinturón del esquema. Dice QUÉ LE FALTA A LA HERRAMIENTA: el
-          modelo quiso mostrar algo que ninguna devuelve. */}
-      {r?.aviso_esquema && (
-        <p className="text-[9px] text-[var(--t-text-dim)] leading-snug">
-          {r.aviso_esquema}
         </p>
       )}
 
@@ -240,89 +223,4 @@ function VerEvento({ e }: { e: EventoLab }) {
     case "corte":
       return linea(<>{e.motivo}</>, "text-[var(--t-neg)]");
   }
-}
-
-
-// ── LAS TABLAS QUE PIDIÓ EL MODELO ────────────────────────────────────────
-//
-// `mostrar` trae nombres COMPLETOS: `cobros_futuros.por_mes`. El nombre corto
-// no alcanzaría — dos herramientas de un mismo turno pueden devolver las dos un
-// campo `filas`, y dibujar la tabla equivocada no falla: se ve bien.
-//
-// ⚠️ **NINGUNA COLUMNA ESTÁ ESCRITA ACÁ.** Salen de las claves de las filas, así
-// que una herramienta nueva —o un campo nuevo en una que ya existe— se dibuja
-// solo. Una lista de columnas por herramienta sería la misma lista paralela que
-// el backend evitó armando el `enum` desde los resultados reales.
-const MAX_FILAS = 100;
-
-function filasDe(r: RespuestaLab, nombre: string): Record<string, unknown>[] {
-  const corte = nombre.indexOf(".");
-  if (corte < 0) return [];
-  const herramienta = nombre.slice(0, corte);
-  const campo = nombre.slice(corte + 1);
-  // El ÚLTIMO resultado de esa herramienta: si el modelo la llamó dos veces
-  // (se equivocó de cuenta y corrigió), la que vale es la última.
-  const ev = [...r.eventos].reverse().find(
-    (e): e is Extract<EventoLab, { tipo: "resultado" }> =>
-      e.tipo === "resultado" && e.herramienta === herramienta);
-  const valor = (ev?.resultado as Record<string, unknown> | undefined)?.[campo];
-  if (!Array.isArray(valor)) return [];
-  return valor.filter((f) => f !== null && typeof f === "object") as Record<string, unknown>[];
-}
-
-// ⚠️ **NO SE FORMATEA UN NÚMERO ACÁ.** Se dibuja tal cual vino, con la cantidad
-// de decimales que trajo la herramienta. Redondear en la pantalla haría que el
-// número de la tabla y el de la prosa —que es el que leyó el modelo, sin tocar—
-// digan cosas distintas, y el control de números marcaría un invento que no
-// existe. Si hay que redondear, se redondea en la query.
-function celda(v: unknown): string {
-  if (v === null || v === undefined || v === "") return "—";
-  if (typeof v === "boolean") return v ? "sí" : "no";
-  if (typeof v === "object") return JSON.stringify(v);
-  return String(v);
-}
-
-function Tabla({ nombre, filas }: { nombre: string; filas: Record<string, unknown>[] }) {
-  // Un nombre que el modelo pidió y no trajo filas no dibuja un cuadro vacío:
-  // no dibuja nada. La respuesta ya lo dijo en prosa.
-  if (filas.length === 0) return null;
-  const cols = [...new Set(filas.flatMap((f) => Object.keys(f)))];
-  const visibles = filas.slice(0, MAX_FILAS);
-
-  return (
-    <div className="border border-[var(--t-border)] bg-[var(--t-surface)]">
-      <p className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] px-2 py-1 border-b border-[var(--t-border)]">
-        {nombre}
-        {filas.length > visibles.length && (
-          <span className="text-[var(--t-accent)]">
-            {" "}· {visibles.length} de {filas.length}
-          </span>
-        )}
-      </p>
-      <div className="overflow-x-auto max-h-72 overflow-y-auto">
-        <table className="w-full text-[10px]">
-          <thead className="sticky top-0 bg-[var(--t-surface)]">
-            <tr>
-              {cols.map((c) => (
-                <th key={c} className="text-left font-normal uppercase tracking-wide text-[9px] text-[var(--t-text-dim)] px-2 py-1 whitespace-nowrap">
-                  {c}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {visibles.map((f, i) => (
-              <tr key={i} className="border-t border-[var(--t-border)]">
-                {cols.map((c) => (
-                  <td key={c} className="px-2 py-0.5 text-[var(--t-text)] tabular-nums whitespace-nowrap">
-                    {celda(f[c])}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
 }

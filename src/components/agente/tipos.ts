@@ -278,7 +278,7 @@ export type EventoLab =
   | { tipo: "vuelta"; n: number }
   | { tipo: "pide"; herramienta: string; argumentos: Record<string, unknown> }
   | { tipo: "resultado"; herramienta: string; resultado: unknown }
-  | { tipo: "texto"; texto: string; mostrar?: string[] }
+  | { tipo: "texto"; texto: string }
   | { tipo: "corte"; motivo: string };
 
 export const ICONO_EVENTO: Record<EventoLab["tipo"], string> = {
@@ -314,29 +314,12 @@ export type RespuestaLab = {
   // la pantalla.
   mensajes: Record<string, unknown>[];
 
-  // ── LO QUE SALE DEL ESQUEMA (backend: `asistente/esquema.py`) ───────────
-  //
-  // ⚠️⚠️ **EL MODELO NO ESCRIBE LOS DATOS DE LA TABLA, SÓLO DICE CUÁL
-  // DIBUJAR.** `mostrar` son NOMBRES —`cobros_futuros.por_mes`—, y las filas
-  // salen del evento `resultado` de esa misma herramienta, que ya viaja en
-  // `eventos`. Por eso no hay forma de que un número de la tabla difiera del
-  // que vio el modelo: es el mismo objeto.
-  //
-  // La alternativa —que el modelo arme la tabla— hacía pagar tokens de salida
-  // por re-tipear lo que ya teníamos, y creaba un lugar NUEVO donde inventar
-  // plata justo después de poner un control para detectarla.
-  //
-  // Llegan vacíos cuando el proveedor no soporta esquema (DeepSeek contesta
-  // HTTP 400 a `json_schema`, medido): ahí la respuesta es prosa y la pantalla
-  // dibuja el párrafo de siempre. Una capacidad de menos, no un camino cortado.
-  mostrar?: string[];
-  // Qué NO pudo contestar, dicho por él. Vale tanto como la respuesta: es la
-  // única forma de enterarse de que la pregunta tenía dos partes y sólo una
-  // tenía herramienta.
+  // Qué NO pudo contestar, dicho por el modelo (backend: `asistente/esquema.py`).
+  // Vale tanto como la respuesta: es la única forma de enterarse de que la
+  // pregunta tenía dos partes y sólo una tenía herramienta. Llega vacío cuando
+  // el proveedor no soporta structured output (DeepSeek contesta HTTP 400 a
+  // `json_schema`, medido) y la respuesta viene como prosa.
   falta?: string | null;
-  // El cinturón del `enum`: un campo que pidió y no existe. No rompe nada —
-  // y dice QUÉ LE FALTA A LA HERRAMIENTA, que es información de producto.
-  aviso_esquema?: string | null;
 };
 
 // ── EL PANEL DEL LAB: qué gastamos y con qué modelo corremos ───────────────
