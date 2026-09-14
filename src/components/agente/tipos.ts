@@ -280,6 +280,11 @@ export type EventoLab =
   | { tipo: "resultado"; herramienta: string; resultado: unknown }
   | { tipo: "texto"; texto: string }
   | { tipo: "corte"; motivo: string }
+  // Cuánto se ACHICÓ (peso) y cuánto se PODÓ (cantidad) del historial viejo
+  // antes de empezar. Lo que se poda se pierde para el modelo; lo que sabe
+  // (el foco) vive en `estado` y no se toca.
+  | { tipo: "achicado"; chars: number }
+  | { tipo: "podado"; turnos: number; mensajes: number }
   // Cambió lo que queda en foco (backend: `asistente/estado.py`). Sale sólo
   // cuando cambia: en diez preguntas sobre la misma cuenta, aparece una vez.
   | { tipo: "estado"; estado: EstadoLab; antes: EstadoLab };
@@ -315,7 +320,7 @@ export type TablaDeclarada = {
 
 export const ICONO_EVENTO: Record<EventoLab["tipo"], string> = {
   pregunta: "💬", vuelta: "↻", pide: "🔧", resultado: "📄",
-  texto: "✅", corte: "⛔", estado: "📌",
+  texto: "✅", corte: "⛔", estado: "📌", achicado: "🗜", podado: "✂️",
 };
 
 // El veredicto del control determinístico (`asistente/control.py`). Viaja AL

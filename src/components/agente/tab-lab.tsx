@@ -248,6 +248,12 @@ function VerEvento({ e }: { e: EventoLab }) {
       return linea(<>contestó</>, "text-[var(--t-pos)]");
     case "corte":
       return linea(<>{e.motivo}</>, "text-[var(--t-neg)]");
+    case "achicado":
+      return linea(<>achicado: {e.chars.toLocaleString("es-AR")} caracteres de resultados viejos</>,
+                   "text-[var(--t-text-dim)]");
+    case "podado":
+      return linea(<>podado: {e.turnos} turno(s) viejo(s), {e.mensajes} mensaje(s)</>,
+                   "text-[var(--t-text-dim)]");
     case "estado":
       return linea(
         <>en foco: {Object.entries(e.estado).map(([k, v]) => `${k} = ${v}`).join(", ")}
