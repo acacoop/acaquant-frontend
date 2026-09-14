@@ -6,31 +6,27 @@ import { usePoll } from "@/lib/use-poll";
 /**
  * Back Office → CUSTODIA. La tenencia según la CAJA DE VALORES (CVSA).
  *
- * Es OTRA FUENTE, no otra vista de la misma. Todo lo demás del sistema sale de
- * Aunesa, que es el back-office tercerizado; esto es lo que la Caja tiene
- * REGISTRADO a nombre nuestro, y cuando las dos difieren la razón legal es de
- * la Caja. Doc: `acaquant-backend/docs/BYMA_CUSTODIA.md`.
+ * Es OTRA FUENTE, no otra vista de la misma: todo lo demás del sistema sale de
+ * Aunesa (el back-office tercerizado) y esto es lo que la Caja tiene REGISTRADO.
+ * Cuando difieren, la razón legal es de la Caja. La trae la PC de oficina
+ * (`scripts/byma_feed.py`), porque las APIs de BYMA están detrás de AppGate y el
+ * Droplet no las alcanza. Doc: `acaquant-backend/docs/BYMA_CUSTODIA.md`.
+ *
+ * UN SOLO REQUEST, y los filtros se aplican ACÁ. La foto de un día es un
+ * conjunto cerrado (~2.800 filas): antes cada chip disparaba un viaje al
+ * servidor con tres queries, y tildar un filtro costaba un segundo de espera.
+ * Filtrando en memoria es instantáneo — y como la lista y los contadores salen
+ * del MISMO array, es imposible que se contradigan.
  *
  * Dos cosas que solo se ven acá:
- *
- * ── **Qué está TRABADO.** `subBalanceType` separa lo disponible de lo que no se
- *    puede entregar ni garantizar (EMBARGO, BLOCKED_FOR_PLEDGE,
- *    PENDING_REDEMPTION…). Aunesa no da ese detalle, así que hasta ahora un
- *    papel embargado figuraba en la tenencia como cualquier otro.
- *
- * ── **Qué no sabemos nombrar.** CVSA identifica los papeles con un número
- *    propio (`cvsa_id`), sin relación con nuestros tickers. La traducción sale
- *    de `assets.codigo_cnv`; cuando falta, la fila igual se muestra con su
- *    número crudo. Un hueco a la vista es información — esconderlo sería
- *    mostrar una tenencia incompleta sin decirlo.
- *
- * Los números NO se calculan acá: vienen del backend, de la misma query que
- * dibuja la lista, así que no pueden contradecirla.
- *
- * La antigüedad del dato se muestra SIEMPRE. El job corre cada hora (el gateway
- * de BYMA cachea su respuesta 60 minutos), así que una foto de hace 20 minutos
- * es normal y una de hace 5 horas es un problema — y la diferencia tiene que
- * poder verse sin preguntar.
+ *   · **Qué está TRABADO** — EMBARGO, BLOCKED_FOR_PLEDGE, PENDING_REDEMPTION…
+ *     Aunesa no da ese detalle, así que hasta ahora un papel embargado figuraba
+ *     en la tenencia como cualquier otro y no se puede entregar.
+ *   · **Qué no sabemos nombrar** — CVSA identifica los papeles con un número
+ *     propio; la traducción sale de `assets.codigo_cnv`. Cuando falta, la fila
+ *     se muestra igual con su número crudo y el chip SIN INSTRUMENTO la aísla.
+ *     Un hueco a la vista es información; esconderlo sería mostrar una tenencia
+ *     incompleta sin decirlo.
  */
 
 type Fila = {
@@ -41,7 +37,6 @@ type Fila = {
   ticker: string | null;
   estado: string;
   cantidad: number | null;
-  account_number: string | null;
 };
 
 type Payload = {
@@ -63,6 +58,10 @@ const VACIO: Payload = {
 };
 
 const DISPONIBLE = "AVAILABLE";
+// Cuántas filas se dibujan. 2.800 <tr> son ~17.000 nodos en el DOM y eso sí se
+// siente. Con el filtro puesto casi nunca se llega; cuando se llega, la vista lo
+// DICE en vez de mostrar una lista cortada en silencio.
+const RENDER_MAX = 400;
 
 function antiguedad(iso: string | null): string {
   if (!iso) return "sin datos";
@@ -78,84 +77,100 @@ function num(n: number | null): string {
 }
 
 export function CustodiaView() {
-  // Una sola sub-tab por ahora. La barra existe igual: la vista va a crecer
-  // (transacciones, y el cruce contra Aunesa) y agregar la segunda no tiene que
-  // ser un rediseño.
-  const [sub] = useState<"tenencias">("tenencias");
   const [cuenta, setCuenta] = useState("");
   const [estado, setEstado] = useState<string | null>(null);
   const [soloTrabado, setSoloTrabado] = useState(false);
+  const [soloSinInstrumento, setSoloSinInstrumento] = useState(false);
 
-  // Los filtros van al BACKEND, no se aplican acá: así los contadores
-  // corresponden a lo filtrado. Filtrando en el cliente, la lista diría una cosa
-  // y los totales otra.
-  const url = useMemo(() => {
-    const p = new URLSearchParams();
-    if (cuenta.trim()) p.set("id_cuenta", cuenta.trim());
-    if (estado) p.set("estado", estado);
-    if (soloTrabado) p.set("solo_trabado", "true");
-    const q = p.toString();
-    return `/api/back-office/custodia/tenencias${q ? `?${q}` : ""}`;
-  }, [cuenta, estado, soloTrabado]);
+  // Un request por la foto entera. 5 min: el dato de fondo cambia UNA VEZ POR
+  // HORA (el gateway de BYMA cachea su respuesta 60 min), así que pollear más
+  // seguido solo re-baja el mismo payload.
+  const { data, error, lastAt } = usePoll<Payload>(
+    "/api/back-office/custodia/tenencias", VACIO, 300_000, { fetchOnMount: true });
 
-  // Cada 2 minutos. El dato de fondo cambia una vez por hora, así que pollear
-  // más seguido no trae nada nuevo: alcanza para que la antigüedad se vea viva.
-  const { data, error } = usePoll<Payload>(url, VACIO, 120_000, { fetchOnMount: true });
+  // lastAt === 0 es "todavía no hubo ninguna respuesta". Sin esto la pantalla
+  // dice «Sin filas» mientras carga — o sea afirma «no hay nada» cuando lo
+  // cierto es «no sé todavía», que es la mentira más cara de toda la vista.
+  const cargando = lastAt === 0 && !error;
+
+  const filtradas = useMemo(() => {
+    const q = cuenta.trim().toLowerCase();
+    return data.filas.filter((f) => {
+      if (q && !f.id_cuenta.toLowerCase().includes(q)
+            && !(f.cuenta || "").toLowerCase().includes(q)
+            && !(f.ticker || "").toLowerCase().includes(q)) return false;
+      if (estado && f.estado !== estado) return false;
+      if (soloTrabado && f.estado === DISPONIBLE) return false;
+      if (soloSinInstrumento && f.unidad !== null) return false;
+      return true;
+    });
+  }, [data.filas, cuenta, estado, soloTrabado, soloSinInstrumento]);
+
+  // Los contadores describen LO FILTRADO y salen del mismo array que la lista.
+  const vista = useMemo(() => {
+    const cuentas = new Set<string>();
+    let sinAsset = 0, trabado = 0;
+    for (const f of filtradas) {
+      cuentas.add(f.id_cuenta);
+      if (f.unidad === null) sinAsset++;
+      if (f.estado !== DISPONIBLE) trabado++;
+    }
+    return { filas: filtradas.length, cuentas: cuentas.size, sinAsset, trabado };
+  }, [filtradas]);
+
+  const hayFiltro = Boolean(cuenta.trim() || estado || soloTrabado || soloSinInstrumento);
 
   return (
     <div className="h-full min-h-0 flex flex-col">
-      {/* Sub-tabs */}
       <div className="border-b border-[var(--t-border)] px-3 flex items-center gap-1 shrink-0">
-        <button
-          className={`px-3 py-1.5 text-xs font-semibold border-b-2 -mb-px ${
-            sub === "tenencias"
-              ? "border-[var(--t-accent)] text-[var(--t-text)]"
-              : "border-transparent text-[var(--t-text-dim)]"
-          }`}
-        >
+        <span className="px-3 py-1.5 text-xs font-semibold border-b-2 -mb-px
+                         border-[var(--t-accent)] text-[var(--t-text)]">
           TENENCIAS
-        </button>
+        </span>
       </div>
 
-      {/* Cabecera: de cuándo es la foto y qué hay adentro */}
       <div className="px-3 py-2 flex flex-wrap items-center gap-3 text-xs shrink-0
                       border-b border-[var(--t-border)]">
         <span className="text-[var(--t-text-dim)]">
           Caja de Valores ·{" "}
-          <b className="text-[var(--t-text)]">{data.fecha ?? "—"}</b>{" "}
-          <span title={data.actualizado_at ?? ""}>({antiguedad(data.actualizado_at)})</span>
+          <b className="text-[var(--t-text)]">{data.fecha ?? (cargando ? "…" : "—")}</b>{" "}
+          {!cargando && (
+            <span title={data.actualizado_at ?? ""}>({antiguedad(data.actualizado_at)})</span>
+          )}
         </span>
-        <Dato label="filas" valor={data.total_filas} />
-        <Dato label="cuentas" valor={data.cuentas} />
-        <Dato label="trabado" valor={data.trabado} alerta={data.trabado > 0} />
-        <Dato label="sin instrumento" valor={data.sin_asset} alerta={data.sin_asset > 0} />
+        <Dato label="filas" valor={vista.filas} total={hayFiltro ? data.total_filas : null} />
+        <Dato label="cuentas" valor={vista.cuentas} />
+        <Dato label="trabado" valor={vista.trabado} alerta={vista.trabado > 0} />
+        <Dato label="sin instrumento" valor={vista.sinAsset} alerta={vista.sinAsset > 0} />
 
         <input
           value={cuenta}
           onChange={(e) => setCuenta(e.target.value)}
-          placeholder="cuenta (805)"
+          placeholder="cuenta o ticker"
           className="px-2 py-1 rounded bg-[var(--t-panel)] border border-[var(--t-border)]
-                     text-[var(--t-text)] w-28"
+                     text-[var(--t-text)] w-36"
         />
-        <label className="flex items-center gap-1 cursor-pointer">
-          <input type="checkbox" checked={soloTrabado}
-                 onChange={(e) => setSoloTrabado(e.target.checked)} />
-          solo trabado
-        </label>
       </div>
 
-      {/* Chips de estado — el universo sale de los DATOS, no de una lista fija */}
-      {data.estados.length > 0 && (
-        <div className="px-3 py-1.5 flex flex-wrap gap-1 shrink-0 border-b border-[var(--t-border)]">
-          <Chip activo={estado === null} onClick={() => setEstado(null)}>TODOS</Chip>
-          {data.estados.map((e) => (
-            <Chip key={e.estado} activo={estado === e.estado}
-                  onClick={() => setEstado(estado === e.estado ? null : e.estado)}>
-              {e.estado} ({e.n})
-            </Chip>
-          ))}
-        </div>
-      )}
+      <div className="px-3 py-1.5 flex flex-wrap gap-1 shrink-0 border-b border-[var(--t-border)]">
+        <Chip activo={!hayFiltro} onClick={() => {
+          setEstado(null); setSoloTrabado(false); setSoloSinInstrumento(false); setCuenta("");
+        }}>TODOS</Chip>
+        <Chip activo={soloTrabado} onClick={() => { setSoloTrabado(!soloTrabado); setEstado(null); }}>
+          TRABADO ({data.trabado})
+        </Chip>
+        <Chip activo={soloSinInstrumento}
+              onClick={() => setSoloSinInstrumento(!soloSinInstrumento)}>
+          SIN INSTRUMENTO ({data.sin_asset})
+        </Chip>
+        <span className="w-2" />
+        {data.estados.map((e) => (
+          <Chip key={e.estado} activo={estado === e.estado}
+                onClick={() => { setEstado(estado === e.estado ? null : e.estado); setSoloTrabado(false); }}>
+            {e.estado} ({e.n})
+          </Chip>
+        ))}
+      </div>
 
       <div className="flex-1 min-h-0 overflow-auto">
         {error && (
@@ -163,16 +178,17 @@ export function CustodiaView() {
             No se pudo leer la custodia: {error}
           </p>
         )}
-        {!error && data.aviso && (
+        {cargando && (
+          <p className="p-3 text-xs text-[var(--t-text-dim)]">Cargando la foto de la Caja…</p>
+        )}
+        {!cargando && !error && data.aviso && (
           <p className="p-3 text-xs text-[var(--t-text-dim)]">{data.aviso}</p>
         )}
-        {!error && !data.aviso && data.filas.length === 0 && (
-          <p className="p-3 text-xs text-[var(--t-text-dim)]">
-            Sin filas para este filtro.
-          </p>
+        {!cargando && !error && !data.aviso && filtradas.length === 0 && (
+          <p className="p-3 text-xs text-[var(--t-text-dim)]">Sin filas para este filtro.</p>
         )}
 
-        {data.filas.length > 0 && (
+        {filtradas.length > 0 && (
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-[var(--t-panel)]">
               <tr className="text-left text-[var(--t-text-dim)]">
@@ -181,14 +197,13 @@ export function CustodiaView() {
               </tr>
             </thead>
             <tbody>
-              {data.filas.map((f, i) => (
+              {filtradas.slice(0, RENDER_MAX).map((f, i) => (
                 <tr key={`${f.id_cuenta}-${f.cvsa_id}-${f.estado}-${i}`}
                     className="border-t border-[var(--t-border)]">
                   <Td>{f.id_cuenta}</Td>
                   <Td className="text-[var(--t-text-dim)]">{f.cuenta ?? "—"}</Td>
                   <Td>
                     {f.ticker || f.unidad || (
-                      // Sin traducción: se muestra el crudo y se dice por qué.
                       <span className="text-[var(--t-text-dim)] italic"
                             title="Falta el código de CAJA en el catálogo de assets">
                         sin instrumento
@@ -210,9 +225,10 @@ export function CustodiaView() {
           </table>
         )}
 
-        {data.truncado && (
+        {filtradas.length > RENDER_MAX && (
           <p className="p-3 text-xs text-[var(--t-warn,#fbbf24)]">
-            Lista recortada: hay más filas de las que se muestran. Filtrá por cuenta o estado.
+            Mostrando {RENDER_MAX} de {filtradas.length.toLocaleString("es-AR")} filas.
+            Filtrá por cuenta, ticker o estado para ver el resto.
           </p>
         )}
       </div>
@@ -220,13 +236,20 @@ export function CustodiaView() {
   );
 }
 
-function Dato({ label, valor, alerta }: { label: string; valor: number; alerta?: boolean }) {
+function Dato({ label, valor, alerta, total }: {
+  label: string; valor: number; alerta?: boolean; total?: number | null;
+}) {
   return (
     <span className="text-[var(--t-text-dim)]">
       {label}{" "}
       <b className={alerta ? "text-[var(--t-warn,#fbbf24)]" : "text-[var(--t-text)]"}>
         {valor.toLocaleString("es-AR")}
       </b>
+      {/* Con filtro puesto, el total sin filtrar evita leer el número como si
+          fuera toda la foto. */}
+      {total != null && total !== valor && (
+        <span className="opacity-60"> / {total.toLocaleString("es-AR")}</span>
+      )}
     </span>
   );
 }
