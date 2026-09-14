@@ -296,6 +296,22 @@ export type EventoLab =
 // nada: lo guarda y lo devuelve. Qué claves acepta lo declara el backend.
 export type EstadoLab = Record<string, string>;
 
+// La conversación, con su costo hasta ahora. El `id` nace en el backend en la
+// primera pregunta y acá se devuelve en las siguientes, como `mensajes` y
+// `estado`. Los números salen de `ia.llamadas` agrupado por ese id (backend:
+// `asistente/panel.conversacion`): el front no suma nada. `usd` es null si a
+// algún modelo de la charla le falta la tarifa — no es cero.
+export type SesionLab = {
+  id: string;
+  error?: string;
+  llamadas?: number;
+  tokens_in?: number;
+  tokens_out?: number;
+  cache_pct?: number | null;
+  usd?: number | null;
+  sin_precio?: string[];
+};
+
 // ⚠️⚠️ **LA TABLA LA DECLARA LA HERRAMIENTA, NO LA ELIGE EL MODELO.**
 //
 // Hubo una versión donde el modelo nombraba qué campos dibujar; con tres
@@ -354,6 +370,8 @@ export type RespuestaLab = {
   // siguiente, junto con `mensajes`. Opcional: un backend anterior a esto no
   // lo manda, y la tab tiene que seguir dibujando igual.
   estado?: EstadoLab;
+  // La conversación y su costo acumulado. Opcional por lo mismo que `estado`.
+  sesion?: SesionLab;
 
   // Qué NO pudo contestar, dicho por el modelo (backend: `asistente/esquema.py`).
   // Vale tanto como la respuesta: es la única forma de enterarse de que la

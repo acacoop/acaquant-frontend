@@ -25,13 +25,15 @@
 //    mandarlos de vuelta en la siguiente: por eso se puede repreguntar «¿y en
 //    dólares?» sin repetir el contexto. Y devuelve `estado` —lo que quedó en
 //    foco, hoy la cuenta— que viaja igual pero APARTE: el backend achica los
-//    mensajes viejos y el estado es lo único que sobrevive a eso.
+//    mensajes viejos y el estado es lo único que sobrevive a eso. Y `sesion`,
+//    el id de la charla, que junta sus llamadas al modelo para poder decir
+//    «esta conversación costó tanto».
 import { useState } from "react";
 
 import { PanelLabIA } from "@/components/agente/panel-lab";
 import {
   ICONO_EVENTO,
-  type EstadoLab, type EventoLab, type RespuestaLab, type TablaDeclarada,
+  type EstadoLab, type EventoLab, type RespuestaLab, type SesionLab, type TablaDeclarada,
 } from "@/components/agente/tipos";
 
 // Un turno de la conversación tal como se dibuja: lo que se preguntó y todo lo
@@ -41,7 +43,7 @@ type Turno = { pregunta: string; r: RespuestaLab | null; error?: string };
 export function TabLab({ preguntar, leer, guardar }: {
   // Manda la pregunta MÁS el historial MÁS el estado. Devuelve la respuesta y el ciclo.
   preguntar: (pregunta: string, historial: Record<string, unknown>[],
-              estado: EstadoLab) => Promise<RespuestaLab>;
+              estado: EstadoLab, sesion: string) => Promise<RespuestaLab>;
   // Para el panel de arriba (gasto y modelo). Va plegado: es información de
   // fondo, y a esta tab se entra a preguntar.
   leer: <T>(url: string) => Promise<T>;
@@ -60,6 +62,8 @@ export function TabLab({ preguntar, leer, guardar }: {
   // lee para decidir nada — se muestra y se devuelve.
   const estado: EstadoLab = ultimo?.estado ?? {};
   const enFoco = Object.entries(estado);
+  // La conversación: el id se devuelve tal cual; el costo se muestra.
+  const sesion: SesionLab | undefined = ultimo?.sesion;
 
   async function enviar() {
     const q = texto.trim();
@@ -68,7 +72,7 @@ export function TabLab({ preguntar, leer, guardar }: {
     setPensando(true);
     setTurnos((t) => [...t, { pregunta: q, r: null }]);
     try {
-      const r = await preguntar(q, historial, estado);
+      const r = await preguntar(q, historial, estado, sesion?.id ?? "");
       setTurnos((t) => t.map((x, i) => (i === t.length - 1 ? { ...x, r } : x)));
     } catch (e) {
       setTurnos((t) => t.map((x, i) =>
@@ -123,6 +127,21 @@ export function TabLab({ preguntar, leer, guardar }: {
                 {enFoco.map(([k, v]) => (
                   <span key={k} className="text-[var(--t-text-muted)]">{k} {v} </span>
                 ))}
+              </span>
+            )}
+            {/* Lo que lleva gastado ESTA charla. Todo viene sumado del backend;
+                `usd` null = falta una tarifa, no «gratis». */}
+            {sesion && !sesion.error && sesion.llamadas !== undefined && (
+              <span className="text-[9px] text-[var(--t-text-dim)] tabular-nums">
+                💬 esta conversación: {sesion.llamadas} llamada(s) ·{" "}
+                {(sesion.tokens_in ?? 0).toLocaleString("es-AR")} in /{" "}
+                {(sesion.tokens_out ?? 0).toLocaleString("es-AR")} out
+                {sesion.cache_pct != null && <> · caché {sesion.cache_pct}%</>}
+                {sesion.usd != null
+                  ? <> · <b className="text-[var(--t-text-muted)]">USD {sesion.usd.toLocaleString("es-AR", { maximumFractionDigits: 4 })}</b></>
+                  : sesion.sin_precio && sesion.sin_precio.length > 0
+                    ? <> · sin tarifa: {sesion.sin_precio.join(", ")}</>
+                    : null}
               </span>
             )}
           </div>
