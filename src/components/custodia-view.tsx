@@ -47,6 +47,7 @@ type Fila = {
 type Payload = {
   fecha: string | null;
   fecha_aunesa: string | null;
+  actualizado_aunesa: string | null;
   filas: Fila[];
   total_filas: number;
   cuentas: number;
@@ -61,7 +62,7 @@ type Payload = {
 };
 
 const VACIO: Payload = {
-  fecha: null, fecha_aunesa: null, filas: [], total_filas: 0, cuentas: 0,
+  fecha: null, fecha_aunesa: null, actualizado_aunesa: null, filas: [], total_filas: 0, cuentas: 0,
   sin_asset: 0, trabado: 0, difieren: 0, sin_comparar: 0, truncado: false,
   actualizado_at: null, estados: [],
 };
@@ -76,13 +77,15 @@ const TOLERANCIA = 0.01;
 // DICE en vez de mostrar una lista cortada en silencio.
 const RENDER_MAX = 400;
 
-function antiguedad(iso: string | null): string {
-  if (!iso) return "sin datos";
-  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-  if (min < 1) return "recién";
-  if (min < 60) return `hace ${min} min`;
-  const h = Math.floor(min / 60);
-  return h < 24 ? `hace ${h} h` : `hace ${Math.floor(h / 24)} d`;
+/** `2026-09-14 11:05`. Las dos fuentes se muestran igual: leerlas en formatos
+ *  distintos obliga a traducir mentalmente antes de poder compararlas. */
+function cuando(fecha: string | null, iso: string | null): string {
+  if (!fecha) return "—";
+  if (!iso) return fecha;
+  const d = new Date(iso);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${fecha} ${hh}:${mm}`;
 }
 
 function num(n: number | null): string {
@@ -148,24 +151,23 @@ export function CustodiaView() {
         </span>
       </div>
 
-      <div className="px-3 py-2 flex flex-wrap items-center gap-3 text-xs shrink-0
+      <div className="px-3 py-2 flex flex-wrap items-center gap-4 text-xs shrink-0
                       border-b border-[var(--t-border)]">
-        <span className="text-[var(--t-text-dim)]">
-          Caja de Valores ·{" "}
-          <b className="text-[var(--t-text)]">{data.fecha ?? (cargando ? "…" : "—")}</b>{" "}
-          {!cargando && (
-            <span title={data.actualizado_at ?? ""}>({antiguedad(data.actualizado_at)})</span>
-          )}
-          {" · Aunesa T0 "}
-          <b className="text-[var(--t-text)]">{data.fecha_aunesa ?? "—"}</b>
-        </span>
-        {/* Si las dos fotos no son del mismo día, la comparación mezcla dos
-            momentos y CUALQUIER diferencia puede ser eso y no un descalce. */}
+        {/* Las dos fuentes con el MISMO formato y el mismo peso: la pregunta que
+            contestan juntas es «¿estas dos fotos son del mismo momento?», y eso
+            solo se lee de un vistazo si están escritas igual. */}
+        <Fuente nombre="BYMA" valor={cuando(data.fecha, data.actualizado_at)} />
+        <Fuente nombre="AUNESA T0" valor={cuando(data.fecha_aunesa, data.actualizado_aunesa)} />
+
+        {/* Si no son del mismo día, cualquier diferencia puede ser eso. */}
         {data.fecha && data.fecha_aunesa && data.fecha !== data.fecha_aunesa && (
           <span className="px-2 py-0.5 rounded bg-[var(--t-warn,#fbbf24)] text-black font-semibold">
-            ⚠ las dos fotos son de días distintos
+            ⚠ días distintos
           </span>
         )}
+
+        <span className="text-[var(--t-border)]">|</span>
+
         <Dato label="filas" valor={vista.filas} total={hayFiltro ? data.total_filas : null} />
         <Dato label="cuentas" valor={vista.cuentas} />
         <Dato label="DIFERENCIAS" valor={vista.difieren} alerta={vista.difieren > 0} fuerte />
@@ -176,7 +178,7 @@ export function CustodiaView() {
           onChange={(e) => setCuenta(e.target.value)}
           placeholder="cuenta o ticker"
           className="px-2 py-1 rounded bg-[var(--t-panel)] border border-[var(--t-border)]
-                     text-[var(--t-text)] w-36"
+                     text-[var(--t-text)] w-36 ml-auto"
         />
       </div>
 
@@ -288,6 +290,14 @@ export function CustodiaView() {
         )}
       </div>
     </div>
+  );
+}
+
+function Fuente({ nombre, valor }: { nombre: string; valor: string }) {
+  return (
+    <span className="text-[var(--t-text-dim)]">
+      {nombre} <b className="text-[var(--t-text)] tabular-nums">{valor}</b>
+    </span>
   );
 }
 
