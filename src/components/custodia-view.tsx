@@ -78,15 +78,16 @@ const TOLERANCIA = 0.01;
 // DICE en vez de mostrar una lista cortada en silencio.
 const RENDER_MAX = 400;
 
-/** `2026-09-14 11:05`. Las dos fuentes se muestran igual: leerlas en formatos
+/** `14/09 11:05`. Las dos fuentes se muestran igual: leerlas en formatos
  *  distintos obliga a traducir mentalmente antes de poder compararlas. */
 function cuando(fecha: string | null, iso: string | null): string {
   if (!fecha) return "—";
-  if (!iso) return fecha;
-  const d = new Date(iso);
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${fecha} ${hh}:${mm}`;
+  const [, m, d] = fecha.split("-");
+  const dia = `${d}/${m}`;
+  if (!iso) return dia;
+  const t = new Date(iso);
+  return `${dia} ${String(t.getHours()).padStart(2, "0")}:${
+    String(t.getMinutes()).padStart(2, "0")}`;
 }
 
 function num(n: number | null): string {
@@ -148,92 +149,76 @@ export function CustodiaView() {
     });
   }, [data.filas, cuenta, estado, soloTrabado, soloSinInstrumento, soloDiferencias]);
 
-  // Los contadores describen LO FILTRADO y salen del mismo array que la lista.
-  const vista = useMemo(() => {
-    const cuentas = new Set<string>();
-    let sinAsset = 0, difieren = 0, sinComparar = 0;
-    for (const f of filtradas) {
-      cuentas.add(f.id_cuenta);
-      if (f.unidad === null) sinAsset++;
-      if (f.dif === null) sinComparar++;
-      else if (Math.abs(f.dif) > TOLERANCIA) difieren++;
-    }
-    return { filas: filtradas.length, cuentas: cuentas.size, sinAsset, difieren, sinComparar };
-  }, [filtradas]);
-
   const hayFiltro = Boolean(cuenta.trim() || estado || soloTrabado
                             || soloSinInstrumento || soloDiferencias);
 
   return (
     <div className="h-full min-h-0 flex flex-col">
-      <div className="border-b border-[var(--t-border)] px-3 flex items-center gap-1 shrink-0">
-        <span className="px-3 py-1.5 text-xs font-semibold border-b-2 -mb-px
+      {/* FILA 1 — el sub-tab y, a la derecha, de cuándo es cada foto. Todo en la
+          misma línea: antes eran cuatro filas de cabecera para una tabla, y el
+          encabezado le comía la pantalla a los datos. */}
+      <div className="border-b border-[var(--t-border)] px-3 flex items-center gap-3
+                      text-xs shrink-0">
+        <span className="py-1.5 font-semibold border-b-2 -mb-px
                          border-[var(--t-accent)] text-[var(--t-text)]">
           TENENCIAS
         </span>
-      </div>
 
-      <div className="px-3 py-2 flex flex-wrap items-center gap-4 text-xs shrink-0
-                      border-b border-[var(--t-border)]">
-        {/* Las dos fuentes con el MISMO formato y el mismo peso: la pregunta que
-            contestan juntas es «¿estas dos fotos son del mismo momento?», y eso
-            solo se lee de un vistazo si están escritas igual. */}
-        <Fuente nombre="BYMA" valor={cuando(data.fecha, data.actualizado_at)} />
-        <Fuente nombre={fuente === "t0" ? "AUNESA T0" : "AUNESA CIERRE"}
-                valor={cuando(data.fecha_aunesa, data.actualizado_aunesa)} />
-        <div className="flex rounded overflow-hidden border border-[var(--t-border)]">
-          {(["t0", "cierre"] as const).map((f) => (
-            <button key={f} onClick={() => setFuente(f)}
-              title={f === "t0"
-                ? "Liquidada a HOY. La correcta para la conciliación nocturna."
-                : "La foto conciliada. Comparable con BYMA durante el día."}
-              className={`px-2 py-0.5 text-[10px] font-semibold ${
-                fuente === f
-                  ? "bg-[var(--t-accent)] text-[var(--t-bg)]"
-                  : "text-[var(--t-text-dim)]"}`}>
-              {f === "t0" ? "T0" : "CIERRE"}
-            </button>
-          ))}
-        </div>
-
-        {/* Si no son del mismo día, cualquier diferencia puede ser eso. */}
+        <span className="ml-auto text-[var(--t-text-dim)]" title={data.fecha ?? ""}>
+          BYMA <b className="text-[var(--t-text)] tabular-nums">
+            {cuando(data.fecha, data.actualizado_at)}</b>
+        </span>
+        <span className="text-[var(--t-text-dim)]" title={data.fecha_aunesa ?? ""}>
+          AUNESA <b className="text-[var(--t-text)] tabular-nums">
+            {cuando(data.fecha_aunesa, data.actualizado_aunesa)}</b>
+        </span>
         {data.fecha && data.fecha_aunesa && data.fecha !== data.fecha_aunesa && (
-          <span className="px-2 py-0.5 rounded bg-[var(--t-warn,#fbbf24)] text-black font-semibold">
-            ⚠ días distintos
-          </span>
-        )}
-        {desfasaje && (
-          <span className="px-2 py-0.5 rounded bg-[var(--t-warn,#fbbf24)] text-black font-semibold"
-                title="Un título comprado en T+1 liquida hoy: Hygirus ya lo refleja y la Caja todavía no.">
-            ⏱ BYMA actualiza tras las 21 — usá CIERRE para comparar con el día en curso
+          <span className="text-[var(--t-warn,#fbbf24)] font-bold"
+                title="Las dos fotos son de días distintos: cualquier diferencia puede ser eso.">
+            ⚠
           </span>
         )}
 
-        <span className="text-[var(--t-border)]">|</span>
-
-        <Dato label="filas" valor={vista.filas} total={hayFiltro ? data.total_filas : null} />
-        <Dato label="cuentas" valor={vista.cuentas} />
-        <Dato label="DIFERENCIAS" valor={vista.difieren} alerta={vista.difieren > 0} fuerte />
-        <Dato label="sin comparar" valor={vista.sinComparar} />
-
-        <input
-          value={cuenta}
-          onChange={(e) => setCuenta(e.target.value)}
-          placeholder="cuenta o ticker"
-          className="px-2 py-1 rounded bg-[var(--t-panel)] border border-[var(--t-border)]
-                     text-[var(--t-text)] w-36 ml-auto"
-        />
+        {/* El aviso del desfasaje, sin cartel: el botón T0 se pone ámbar y el
+            tooltip lo explica. Ocupa cero espacio y solo aparece cuando aplica. */}
+        <div className="flex rounded overflow-hidden border border-[var(--t-border)]">
+          <button onClick={() => setFuente("t0")}
+            title={desfasaje
+              ? "BYMA actualiza después de las 21: ahora su foto es la del cierre anterior. Para comparar con el día en curso, usá CIERRE T-1."
+              : "Liquidada a HOY. La correcta para la conciliación nocturna."}
+            className={`px-2 py-0.5 text-[10px] font-semibold ${
+              fuente === "t0"
+                ? desfasaje
+                  ? "bg-[var(--t-warn,#fbbf24)] text-black"
+                  : "bg-[var(--t-accent)] text-[var(--t-bg)]"
+                : "text-[var(--t-text-dim)]"}`}>
+            T0{desfasaje && fuente === "t0" ? " ⏱" : ""}
+          </button>
+          <button onClick={() => setFuente("cierre")}
+            title="La foto conciliada. Comparable con BYMA durante el día."
+            className={`px-2 py-0.5 text-[10px] font-semibold ${
+              fuente === "cierre"
+                ? "bg-[var(--t-accent)] text-[var(--t-bg)]"
+                : "text-[var(--t-text-dim)]"}`}>
+            CIERRE T-1
+          </button>
+        </div>
       </div>
 
-      <div className="px-3 py-1.5 flex flex-wrap gap-1 shrink-0 border-b border-[var(--t-border)]">
+      {/* FILA 2 — los chips YA llevan su número, así que los contadores de texto
+          que había arriba eran el mismo dato escrito dos veces. */}
+      <div className="px-3 py-1.5 flex flex-wrap items-center gap-1 shrink-0 text-xs
+                      border-b border-[var(--t-border)]">
         <Chip activo={!hayFiltro} onClick={() => {
           setEstado(null); setSoloTrabado(false); setSoloSinInstrumento(false);
           setSoloDiferencias(false); setCuenta("");
-        }}>TODOS</Chip>
-        <Chip activo={soloDiferencias} onClick={() => setSoloDiferencias(!soloDiferencias)}>
-          SOLO DIFERENCIAS ({data.difieren})
+        }}>TODOS ({data.total_filas})</Chip>
+        <Chip activo={soloDiferencias} alerta={data.difieren > 0}
+              onClick={() => setSoloDiferencias(!soloDiferencias)}>
+          DIFERENCIAS ({data.difieren})
         </Chip>
-        <Chip activo={soloTrabado} onClick={() => { setSoloTrabado(!soloTrabado); setEstado(null); }}>
+        <Chip activo={soloTrabado}
+              onClick={() => { setSoloTrabado(!soloTrabado); setEstado(null); }}>
           TRABADO ({data.trabado})
         </Chip>
         <Chip activo={soloSinInstrumento}
@@ -247,6 +232,13 @@ export function CustodiaView() {
             {e.estado} ({e.n})
           </Chip>
         ))}
+        <input
+          value={cuenta}
+          onChange={(e) => setCuenta(e.target.value)}
+          placeholder="cuenta o ticker"
+          className="ml-auto px-2 py-0.5 rounded bg-[var(--t-panel)] border
+                     border-[var(--t-border)] text-[var(--t-text)] w-36"
+        />
       </div>
 
       <div className="flex-1 min-h-0 overflow-auto">
@@ -336,43 +328,16 @@ export function CustodiaView() {
   );
 }
 
-function Fuente({ nombre, valor }: { nombre: string; valor: string }) {
-  return (
-    <span className="text-[var(--t-text-dim)]">
-      {nombre} <b className="text-[var(--t-text)] tabular-nums">{valor}</b>
-    </span>
-  );
-}
-
-function Dato({ label, valor, alerta, total, fuerte }: {
-  label: string; valor: number; alerta?: boolean; total?: number | null; fuerte?: boolean;
+function Chip({ activo, onClick, children, alerta }: {
+  activo: boolean; onClick: () => void; children: React.ReactNode; alerta?: boolean;
 }) {
+  const estilo = activo
+    ? "bg-[var(--t-accent)] text-[var(--t-bg)] border-[var(--t-accent)]"
+    : alerta
+      ? "border-[var(--t-danger,#f87171)] text-[var(--t-danger,#f87171)]"
+      : "border-[var(--t-border)] text-[var(--t-text-dim)]";
   return (
-    <span className="text-[var(--t-text-dim)]">
-      {label}{" "}
-      <b className={`${alerta ? "text-[var(--t-danger,#f87171)]" : "text-[var(--t-text)]"}${
-        fuerte ? " text-sm" : ""}`}>
-        {valor.toLocaleString("es-AR")}
-      </b>
-      {/* Con filtro puesto, el total sin filtrar evita leer el número como si
-          fuera toda la foto. */}
-      {total != null && total !== valor && (
-        <span className="opacity-60"> / {total.toLocaleString("es-AR")}</span>
-      )}
-    </span>
-  );
-}
-
-function Chip({ activo, onClick, children }: {
-  activo: boolean; onClick: () => void; children: React.ReactNode;
-}) {
-  return (
-    <button onClick={onClick}
-      className={`px-2 py-0.5 rounded text-[10px] border ${
-        activo
-          ? "bg-[var(--t-accent)] text-[var(--t-bg)] border-[var(--t-accent)]"
-          : "border-[var(--t-border)] text-[var(--t-text-dim)]"
-      }`}>
+    <button onClick={onClick} className={`px-2 py-0.5 rounded text-[10px] border ${estilo}`}>
       {children}
     </button>
   );
