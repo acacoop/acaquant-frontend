@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { memo, useDeferredValue, useMemo, useState } from "react";
 import { usePoll } from "@/lib/use-poll";
 
 /**
@@ -73,10 +73,11 @@ const VACIO: Payload = {
 // de decir lo mismo.
 const TOLERANCIA = 0.01;
 
-// Cuántas filas se dibujan. 2.800 <tr> son ~17.000 nodos en el DOM y eso sí se
-// siente. Con el filtro puesto casi nunca se llega; cuando se llega, la vista lo
-// DICE en vez de mostrar una lista cortada en silencio.
-const RENDER_MAX = 400;
+// Cuántas filas se dibujan. Cada una son 8 celdas, así que 400 eran ~3.200
+// elementos redibujándose en CADA tecla del buscador — de ahí el trabón. 150 es
+// más de lo que entra en pantalla, y cuando quedan filas afuera la vista lo DICE
+// en vez de cortar en silencio.
+const RENDER_MAX = 150;
 
 /** `14/09 11:05`. Las dos fuentes se muestran igual: leerlas en formatos
  *  distintos obliga a traducir mentalmente antes de poder compararlas. */
@@ -96,6 +97,10 @@ function num(n: number | null): string {
 
 export function CustodiaView() {
   const [cuenta, setCuenta] = useState("");
+  // El texto tipeado se ve al instante; el filtrado de 2.800 filas y el redibujo
+  // de la tabla van DIFERIDOS. Sin esto, cada tecla bloqueaba el input hasta
+  // terminar de reconstruir la lista entera.
+  const cuentaDiferida = useDeferredValue(cuenta);
   const [estado, setEstado] = useState<string | null>(null);
   const [soloTrabado, setSoloTrabado] = useState(false);
   const [soloSinInstrumento, setSoloSinInstrumento] = useState(false);
@@ -134,7 +139,7 @@ export function CustodiaView() {
   const cargando = lastAt === 0 && !error;
 
   const filtradas = useMemo(() => {
-    const q = cuenta.trim().toLowerCase();
+    const q = cuentaDiferida.trim().toLowerCase();
     return data.filas.filter((f) => {
       if (q && !f.id_cuenta.toLowerCase().includes(q)
             && !(f.cuenta || "").toLowerCase().includes(q)
@@ -147,7 +152,7 @@ export function CustodiaView() {
       if (soloDiferencias && !(f.dif !== null && Math.abs(f.dif) > TOLERANCIA)) return false;
       return true;
     });
-  }, [data.filas, cuenta, estado, soloTrabado, soloSinInstrumento, soloDiferencias]);
+  }, [data.filas, cuentaDiferida, estado, soloTrabado, soloSinInstrumento, soloDiferencias]);
 
   const hayFiltro = Boolean(cuenta.trim() || estado || soloTrabado
                             || soloSinInstrumento || soloDiferencias);
@@ -269,50 +274,9 @@ export function CustodiaView() {
               </tr>
             </thead>
             <tbody>
-              {filtradas.slice(0, RENDER_MAX).map((f, i) => {
-                const rojo = f.dif !== null && Math.abs(f.dif) > TOLERANCIA;
-                return (
-                <tr key={`${f.id_cuenta}-${f.cvsa_id}-${i}`}
-                    className={`border-t border-[var(--t-border)] ${
-                      rojo ? "bg-[var(--t-danger,#f87171)]/10" : ""}`}>
-                  <Td>{f.id_cuenta}</Td>
-                  <Td className="text-[var(--t-text-dim)]">{f.cuenta ?? "—"}</Td>
-                  <Td>
-                    {f.ticker || f.unidad || (
-                      <span className="text-[var(--t-text-dim)] italic"
-                            title="Falta el código de CAJA en el catálogo de assets">
-                        sin instrumento
-                      </span>
-                    )}
-                  </Td>
-                  <Td className="text-[var(--t-text-dim)]">{f.cvsa_id}</Td>
-                  <Td>
-                    <span className={f.trabado === 0
-                      ? "text-[var(--t-text-dim)]"
-                      : "text-[var(--t-warn,#fbbf24)] font-semibold"}>
-                      {f.estados ?? "—"}
-                    </span>
-                  </Td>
-                  {/* El tooltip muestra de dónde sale el VN de Aunesa: cuando
-                      aparece una diferencia, lo primero que se pregunta es si
-                      viene de la garantía. */}
-                  <Td className="text-right tabular-nums"
-                      title={f.aunesa_garantia
-                        ? `cantidad ${num(f.aunesa_cantidad)} − garantía ${num(f.aunesa_garantia)}`
-                        : undefined}>
-                    {f.vn_aunesa === null
-                      ? <span className="text-[var(--t-text-dim)] italic">sin comparar</span>
-                      : <>{num(f.vn_aunesa)}{f.aunesa_garantia ? " *" : ""}</>}
-                  </Td>
-                  <Td className="text-right tabular-nums">{num(f.vn_byma)}</Td>
-                  <Td className={`text-right tabular-nums font-semibold ${
-                        f.dif === null ? "text-[var(--t-text-dim)]"
-                        : rojo ? "text-[var(--t-danger,#f87171)]"
-                        : "text-[var(--t-text-dim)]"}`}>
-                    {f.dif === null ? "—" : rojo ? num(f.dif) : "✓"}
-                  </Td>
-                </tr>
-              );})}
+              {filtradas.slice(0, RENDER_MAX).map((f, i) => (
+                <FilaTabla key={`${f.id_cuenta}-${f.cvsa_id}-${i}`} f={f} />
+              ))}
             </tbody>
           </table>
         )}
@@ -327,6 +291,52 @@ export function CustodiaView() {
     </div>
   );
 }
+
+/** Una fila. MEMOIZADA: al cambiar un filtro React vuelve a correr el map, pero
+ *  solo redibuja las filas cuyo dato cambió, no las 150. */
+const FilaTabla = memo(function FilaTabla({ f }: { f: Fila }) {
+  const rojo = f.dif !== null && Math.abs(f.dif) > TOLERANCIA;
+  return (
+    <tr className={`border-t border-[var(--t-border)] ${
+      rojo ? "bg-[var(--t-danger,#f87171)]/10" : ""}`}>
+      <Td>{f.id_cuenta}</Td>
+      <Td className="text-[var(--t-text-dim)]">{f.cuenta ?? "—"}</Td>
+      <Td>
+        {f.ticker || f.unidad || (
+          <span className="text-[var(--t-text-dim)] italic"
+                title="Falta el código de CAJA en el catálogo de assets">
+            sin instrumento
+          </span>
+        )}
+      </Td>
+      <Td className="text-[var(--t-text-dim)]">{f.cvsa_id}</Td>
+      <Td>
+        <span className={f.trabado === 0
+          ? "text-[var(--t-text-dim)]"
+          : "text-[var(--t-warn,#fbbf24)] font-semibold"}>
+          {f.estados ?? "—"}
+        </span>
+      </Td>
+      {/* El tooltip muestra de dónde sale el VN de Aunesa: cuando aparece una
+          diferencia, lo primero que se pregunta es si viene de la garantía. */}
+      <Td className="text-right tabular-nums"
+          title={f.aunesa_garantia
+            ? `cantidad ${num(f.aunesa_cantidad)} − garantía ${num(f.aunesa_garantia)}`
+            : undefined}>
+        {f.vn_aunesa === null
+          ? <span className="text-[var(--t-text-dim)] italic">sin comparar</span>
+          : <>{num(f.vn_aunesa)}{f.aunesa_garantia ? " *" : ""}</>}
+      </Td>
+      <Td className="text-right tabular-nums">{num(f.vn_byma)}</Td>
+      <Td className={`text-right tabular-nums font-semibold ${
+            f.dif === null ? "text-[var(--t-text-dim)]"
+            : rojo ? "text-[var(--t-danger,#f87171)]"
+            : "text-[var(--t-text-dim)]"}`}>
+        {f.dif === null ? "—" : rojo ? num(f.dif) : "✓"}
+      </Td>
+    </tr>
+  );
+});
 
 function Chip({ activo, onClick, children, alerta }: {
   activo: boolean; onClick: () => void; children: React.ReactNode; alerta?: boolean;
