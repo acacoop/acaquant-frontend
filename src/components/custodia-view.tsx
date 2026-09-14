@@ -35,17 +35,25 @@ type Fila = {
   cvsa_id: string;
   unidad: string | null;
   ticker: string | null;
-  estado: string;
-  cantidad: number | null;
+  estados: string | null;
+  vn_byma: number;
+  vn_aunesa: number | null;      // cantidad - gar_cantidad (BYMA informa sin garantías)
+  dif: number | null;            // BYMA - AUNESA. null = no se puede comparar
+  trabado: number;
+  aunesa_cantidad: number | null;
+  aunesa_garantia: number | null;
 };
 
 type Payload = {
   fecha: string | null;
+  fecha_aunesa: string | null;
   filas: Fila[];
   total_filas: number;
   cuentas: number;
   sin_asset: number;
   trabado: number;
+  difieren: number;
+  sin_comparar: number;
   truncado: boolean;
   actualizado_at: string | null;
   estados: { estado: string; n: number }[];
@@ -53,11 +61,16 @@ type Payload = {
 };
 
 const VACIO: Payload = {
-  fecha: null, filas: [], total_filas: 0, cuentas: 0, sin_asset: 0,
-  trabado: 0, truncado: false, actualizado_at: null, estados: [],
+  fecha: null, fecha_aunesa: null, filas: [], total_filas: 0, cuentas: 0,
+  sin_asset: 0, trabado: 0, difieren: 0, sin_comparar: 0, truncado: false,
+  actualizado_at: null, estados: [],
 };
 
-const DISPONIBLE = "AVAILABLE";
+// Dos nominales que difieren en centavos no son un descalce: es redondeo.
+// Mismo umbral que el backend — si divergen, la lista y el contador dejarían
+// de decir lo mismo.
+const TOLERANCIA = 0.01;
+
 // Cuántas filas se dibujan. 2.800 <tr> son ~17.000 nodos en el DOM y eso sí se
 // siente. Con el filtro puesto casi nunca se llega; cuando se llega, la vista lo
 // DICE en vez de mostrar una lista cortada en silencio.
@@ -81,6 +94,7 @@ export function CustodiaView() {
   const [estado, setEstado] = useState<string | null>(null);
   const [soloTrabado, setSoloTrabado] = useState(false);
   const [soloSinInstrumento, setSoloSinInstrumento] = useState(false);
+  const [soloDiferencias, setSoloDiferencias] = useState(false);
 
   // Un request por la foto entera. 5 min: el dato de fondo cambia UNA VEZ POR
   // HORA (el gateway de BYMA cachea su respuesta 60 min), así que pollear más
@@ -99,26 +113,31 @@ export function CustodiaView() {
       if (q && !f.id_cuenta.toLowerCase().includes(q)
             && !(f.cuenta || "").toLowerCase().includes(q)
             && !(f.ticker || "").toLowerCase().includes(q)) return false;
-      if (estado && f.estado !== estado) return false;
-      if (soloTrabado && f.estado === DISPONIBLE) return false;
+      if (estado && !(f.estados || "").includes(estado)) return false;
+      if (soloTrabado && f.trabado === 0) return false;
       if (soloSinInstrumento && f.unidad !== null) return false;
+      // "Solo diferencias" muestra descalces REALES: lo que no se puede
+      // comparar (sin instrumento) no es una diferencia, es un dato que falta.
+      if (soloDiferencias && !(f.dif !== null && Math.abs(f.dif) > TOLERANCIA)) return false;
       return true;
     });
-  }, [data.filas, cuenta, estado, soloTrabado, soloSinInstrumento]);
+  }, [data.filas, cuenta, estado, soloTrabado, soloSinInstrumento, soloDiferencias]);
 
   // Los contadores describen LO FILTRADO y salen del mismo array que la lista.
   const vista = useMemo(() => {
     const cuentas = new Set<string>();
-    let sinAsset = 0, trabado = 0;
+    let sinAsset = 0, difieren = 0, sinComparar = 0;
     for (const f of filtradas) {
       cuentas.add(f.id_cuenta);
       if (f.unidad === null) sinAsset++;
-      if (f.estado !== DISPONIBLE) trabado++;
+      if (f.dif === null) sinComparar++;
+      else if (Math.abs(f.dif) > TOLERANCIA) difieren++;
     }
-    return { filas: filtradas.length, cuentas: cuentas.size, sinAsset, trabado };
+    return { filas: filtradas.length, cuentas: cuentas.size, sinAsset, difieren, sinComparar };
   }, [filtradas]);
 
-  const hayFiltro = Boolean(cuenta.trim() || estado || soloTrabado || soloSinInstrumento);
+  const hayFiltro = Boolean(cuenta.trim() || estado || soloTrabado
+                            || soloSinInstrumento || soloDiferencias);
 
   return (
     <div className="h-full min-h-0 flex flex-col">
@@ -137,11 +156,20 @@ export function CustodiaView() {
           {!cargando && (
             <span title={data.actualizado_at ?? ""}>({antiguedad(data.actualizado_at)})</span>
           )}
+          {" · Aunesa T0 "}
+          <b className="text-[var(--t-text)]">{data.fecha_aunesa ?? "—"}</b>
         </span>
+        {/* Si las dos fotos no son del mismo día, la comparación mezcla dos
+            momentos y CUALQUIER diferencia puede ser eso y no un descalce. */}
+        {data.fecha && data.fecha_aunesa && data.fecha !== data.fecha_aunesa && (
+          <span className="px-2 py-0.5 rounded bg-[var(--t-warn,#fbbf24)] text-black font-semibold">
+            ⚠ las dos fotos son de días distintos
+          </span>
+        )}
         <Dato label="filas" valor={vista.filas} total={hayFiltro ? data.total_filas : null} />
         <Dato label="cuentas" valor={vista.cuentas} />
-        <Dato label="trabado" valor={vista.trabado} alerta={vista.trabado > 0} />
-        <Dato label="sin instrumento" valor={vista.sinAsset} alerta={vista.sinAsset > 0} />
+        <Dato label="DIFERENCIAS" valor={vista.difieren} alerta={vista.difieren > 0} fuerte />
+        <Dato label="sin comparar" valor={vista.sinComparar} />
 
         <input
           value={cuenta}
@@ -154,8 +182,12 @@ export function CustodiaView() {
 
       <div className="px-3 py-1.5 flex flex-wrap gap-1 shrink-0 border-b border-[var(--t-border)]">
         <Chip activo={!hayFiltro} onClick={() => {
-          setEstado(null); setSoloTrabado(false); setSoloSinInstrumento(false); setCuenta("");
+          setEstado(null); setSoloTrabado(false); setSoloSinInstrumento(false);
+          setSoloDiferencias(false); setCuenta("");
         }}>TODOS</Chip>
+        <Chip activo={soloDiferencias} onClick={() => setSoloDiferencias(!soloDiferencias)}>
+          SOLO DIFERENCIAS ({data.difieren})
+        </Chip>
         <Chip activo={soloTrabado} onClick={() => { setSoloTrabado(!soloTrabado); setEstado(null); }}>
           TRABADO ({data.trabado})
         </Chip>
@@ -193,13 +225,19 @@ export function CustodiaView() {
             <thead className="sticky top-0 bg-[var(--t-panel)]">
               <tr className="text-left text-[var(--t-text-dim)]">
                 <Th>CUENTA</Th><Th>DENOMINACIÓN</Th><Th>INSTRUMENTO</Th>
-                <Th>CVSA</Th><Th>ESTADO</Th><Th className="text-right">CANTIDAD</Th>
+                <Th>CVSA</Th><Th>ESTADO</Th>
+                <Th className="text-right">VN AUNESA</Th>
+                <Th className="text-right">VN BYMA</Th>
+                <Th className="text-right">DIFERENCIA</Th>
               </tr>
             </thead>
             <tbody>
-              {filtradas.slice(0, RENDER_MAX).map((f, i) => (
-                <tr key={`${f.id_cuenta}-${f.cvsa_id}-${f.estado}-${i}`}
-                    className="border-t border-[var(--t-border)]">
+              {filtradas.slice(0, RENDER_MAX).map((f, i) => {
+                const rojo = f.dif !== null && Math.abs(f.dif) > TOLERANCIA;
+                return (
+                <tr key={`${f.id_cuenta}-${f.cvsa_id}-${i}`}
+                    className={`border-t border-[var(--t-border)] ${
+                      rojo ? "bg-[var(--t-danger,#f87171)]/10" : ""}`}>
                   <Td>{f.id_cuenta}</Td>
                   <Td className="text-[var(--t-text-dim)]">{f.cuenta ?? "—"}</Td>
                   <Td>
@@ -212,15 +250,32 @@ export function CustodiaView() {
                   </Td>
                   <Td className="text-[var(--t-text-dim)]">{f.cvsa_id}</Td>
                   <Td>
-                    <span className={f.estado === DISPONIBLE
+                    <span className={f.trabado === 0
                       ? "text-[var(--t-text-dim)]"
                       : "text-[var(--t-warn,#fbbf24)] font-semibold"}>
-                      {f.estado}
+                      {f.estados ?? "—"}
                     </span>
                   </Td>
-                  <Td className="text-right tabular-nums">{num(f.cantidad)}</Td>
+                  {/* El tooltip muestra de dónde sale el VN de Aunesa: cuando
+                      aparece una diferencia, lo primero que se pregunta es si
+                      viene de la garantía. */}
+                  <Td className="text-right tabular-nums"
+                      title={f.aunesa_garantia
+                        ? `cantidad ${num(f.aunesa_cantidad)} − garantía ${num(f.aunesa_garantia)}`
+                        : undefined}>
+                    {f.vn_aunesa === null
+                      ? <span className="text-[var(--t-text-dim)] italic">sin comparar</span>
+                      : <>{num(f.vn_aunesa)}{f.aunesa_garantia ? " *" : ""}</>}
+                  </Td>
+                  <Td className="text-right tabular-nums">{num(f.vn_byma)}</Td>
+                  <Td className={`text-right tabular-nums font-semibold ${
+                        f.dif === null ? "text-[var(--t-text-dim)]"
+                        : rojo ? "text-[var(--t-danger,#f87171)]"
+                        : "text-[var(--t-text-dim)]"}`}>
+                    {f.dif === null ? "—" : rojo ? num(f.dif) : "✓"}
+                  </Td>
                 </tr>
-              ))}
+              );})}
             </tbody>
           </table>
         )}
@@ -236,13 +291,14 @@ export function CustodiaView() {
   );
 }
 
-function Dato({ label, valor, alerta, total }: {
-  label: string; valor: number; alerta?: boolean; total?: number | null;
+function Dato({ label, valor, alerta, total, fuerte }: {
+  label: string; valor: number; alerta?: boolean; total?: number | null; fuerte?: boolean;
 }) {
   return (
     <span className="text-[var(--t-text-dim)]">
       {label}{" "}
-      <b className={alerta ? "text-[var(--t-warn,#fbbf24)]" : "text-[var(--t-text)]"}>
+      <b className={`${alerta ? "text-[var(--t-danger,#f87171)]" : "text-[var(--t-text)]"}${
+        fuerte ? " text-sm" : ""}`}>
         {valor.toLocaleString("es-AR")}
       </b>
       {/* Con filtro puesto, el total sin filtrar evita leer el número como si
@@ -273,6 +329,8 @@ function Th({ children, className = "" }: { children: React.ReactNode; className
   return <th className={`px-2 py-1.5 font-semibold ${className}`}>{children}</th>;
 }
 
-function Td({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <td className={`px-2 py-1 ${className}`}>{children}</td>;
+function Td({ children, className = "", title }: {
+  children: React.ReactNode; className?: string; title?: string;
+}) {
+  return <td className={`px-2 py-1 ${className}`} title={title}>{children}</td>;
 }
