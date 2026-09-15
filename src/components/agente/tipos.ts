@@ -261,22 +261,19 @@ export type Explicacion = {
   at?: string | null;
 };
 
-// ── EL LAB (el ASISTENTE conversacional) ──────────────────────────────────
+// ── EL LAB (el ASISTENTE) ──────────────────────────────────────────────────
 //
-// Una pregunta en castellano → el backend corre el ciclo (`asistente/ciclo.py`:
-// el modelo pide herramientas, el backend las ejecuta, y así hasta que
-// contesta) → vuelve la respuesta MÁS todo lo que pasó por el camino.
-//
-// ⚠️ **UN request y se espera**: está medido en 4,5 s con una herramienta, y el
-// techo de vueltas del backend deja el peor caso por debajo de los 30 s del
-// proxy. Por eso acá no hay pedido con estado ni poll — hay un `await`.
+// Una pregunta → el backend corre el grafo (`asistente/grafo.py`, doc
+// `docs/AvAgentAI.md`): despacho → mundos → junta. Vuelve la respuesta más
+// cada paso. Un request y se espera.
 
-// Cada paso del ciclo, tal cual lo va contando el backend. El `tipo` lo decide
-// `ciclo.py`; acá sólo se elige cómo se dibuja.
-export type EventoLab =
-  | { tipo: "pregunta"; texto: string; herramientas: string[] }
+// `agente` dice qué agente lo hizo (cuenta, mercado, despacho, junta).
+export type EventoLab = { agente?: string } & (
+  | { tipo: "pregunta"; texto: string; herramientas: string[]; sesion?: string }
+  | { tipo: "despacho"; mundos: string[]; motivo: string }
+  | { tipo: "junta"; mundos: string[] }
   | { tipo: "vuelta"; n: number }
-  | { tipo: "pide"; herramienta: string; argumentos: Record<string, unknown> }
+  | { tipo: "pide"; herramienta: string; argumentos: Record<string, unknown> | null }
   | { tipo: "resultado"; herramienta: string; resultado: unknown }
   | { tipo: "texto"; texto: string }
   | { tipo: "corte"; motivo: string }
@@ -287,7 +284,8 @@ export type EventoLab =
   | { tipo: "podado"; turnos: number; mensajes: number }
   // Cambió lo que queda en foco (backend: `asistente/estado.py`). Sale sólo
   // cuando cambia: en diez preguntas sobre la misma cuenta, aparece una vez.
-  | { tipo: "estado"; estado: EstadoLab; antes: EstadoLab };
+  | { tipo: "estado"; estado: EstadoLab; antes: EstadoLab }
+);
 
 // Lo que el asistente SABE de la conversación, aparte de lo que se DIJO: hoy,
 // la cuenta de la que se viene hablando. Viaja ida y vuelta como `mensajes`,
@@ -337,6 +335,7 @@ export type TablaDeclarada = {
 export const ICONO_EVENTO: Record<EventoLab["tipo"], string> = {
   pregunta: "💬", vuelta: "↻", pide: "🔧", resultado: "📄",
   texto: "✅", corte: "⛔", estado: "📌", achicado: "🗜", podado: "✂️",
+  despacho: "🧭", junta: "🔗",
 };
 
 // El veredicto del control determinístico (`asistente/control.py`). Viaja AL
@@ -362,10 +361,11 @@ export type RespuestaLab = {
   tokens_in: number;
   tokens_out: number;
   eventos: EventoLab[];
-  // Los mensajes de esta pregunta y las anteriores. Se devuelven tal cual en la
-  // pregunta siguiente: el modelo no recuerda nada, la conversación la sostiene
-  // la pantalla.
+  // Los mensajes de esta pregunta y las anteriores, ya podados. Se devuelven
+  // tal cual en la pregunta siguiente: la conversación la sostiene la pantalla.
   mensajes: Record<string, unknown>[];
+  // Qué mundos atendieron la pregunta.
+  mundos?: string[];
   // Lo que quedó en foco después de esta pregunta. Se devuelve tal cual en la
   // siguiente, junto con `mensajes`. Opcional: un backend anterior a esto no
   // lo manda, y la tab tiene que seguir dibujando igual.

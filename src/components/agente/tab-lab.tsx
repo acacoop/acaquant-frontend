@@ -1,33 +1,10 @@
 "use client";
 
-// LAB — EL ASISTENTE. Doc del backend: `asistente/ciclo.py` y `docs/AGENT.md`.
+// LAB — EL ASISTENTE (backend: `asistente/`, doc `docs/AvAgentAI.md`).
 //
-// Una pregunta en castellano sobre la cartera. El backend se la pasa al modelo
-// junto con la lista de herramientas que puede usar; el modelo PIDE una
-// herramienta por nombre, el backend la corre, le devuelve el resultado, y así
-// hasta que contesta. Ese ida y vuelta es «el ciclo», y esta tab existe para
-// poder VERLO, no sólo leer el resultado.
-//
-// TRES DECISIONES DE PANTALLA
-// ===========================
-//
-// 1. **SE ESCRIBE, NO SE ELIGE.** Al revés que la tab vieja: acá no hay una
-//    lista de casos, porque el asistente no atiende hallazgos — contesta
-//    preguntas del negocio.
-//
-// 2. **EL CICLO VA PLEGADO, PERO ESTÁ.** La respuesta primero. Los pasos se
-//    abren aparte, y hay que poder abrirlos: es lo único que distingue «eligió
-//    mal la herramienta» de «la herramienta trajo basura» de «tenía todo y
-//    razonó mal».
-//
-// 3. **LA CONVERSACIÓN LA SOSTIENE ESTA PANTALLA.** El modelo no recuerda nada
-//    entre preguntas. El backend devuelve `mensajes` y acá se guardan para
-//    mandarlos de vuelta en la siguiente: por eso se puede repreguntar «¿y en
-//    dólares?» sin repetir el contexto. Y devuelve `estado` —lo que quedó en
-//    foco, hoy la cuenta— que viaja igual pero APARTE: el backend achica los
-//    mensajes viejos y el estado es lo único que sobrevive a eso. Y `sesion`,
-//    el id de la charla, que junta sus llamadas al modelo para poder decir
-//    «esta conversación costó tanto».
+// Se escribe una pregunta; el backend corre el grafo y devuelve la respuesta
+// más cada paso. La conversación la sostiene esta pantalla: guarda `mensajes`,
+// `estado` y `sesion` del último turno y los manda de vuelta.
 import { useState } from "react";
 
 import { PanelLabIA } from "@/components/agente/panel-lab";
@@ -241,15 +218,21 @@ function VerTurno({ t }: { t: Turno }) {
 // resumirlo acá sería mirar otra cosa que la que él miró.
 function VerEvento({ e }: { e: EventoLab }) {
   const icono = ICONO_EVENTO[e.tipo] ?? "·";
+  const quien = e.agente ? <span className="text-[var(--t-text-dim)] mr-1">[{e.agente}]</span> : null;
   const linea = (cuerpo: React.ReactNode, tono = "text-[var(--t-text-muted)]") => (
     <p className={`text-[9px] leading-relaxed ${tono}`}>
-      <span className="mr-1">{icono}</span>{cuerpo}
+      <span className="mr-1">{icono}</span>{quien}{cuerpo}
     </p>
   );
 
   switch (e.tipo) {
     case "pregunta":
-      return linea(<>puede usar: <b className="text-[var(--t-text)]">{e.herramientas.join(", ")}</b></>);
+      return linea(<>herramientas: <b className="text-[var(--t-text)]">{e.herramientas.join(", ")}</b></>);
+    case "despacho":
+      return linea(<>mundos: <b className="text-[var(--t-text)]">{e.mundos.join(", ")}</b>{" "}
+        <span className="text-[var(--t-text-dim)]">({e.motivo})</span></>, "text-[var(--t-accent)]");
+    case "junta":
+      return linea(<>cruza {e.mundos.join(" + ")}</>, "text-[var(--t-accent)]");
     case "vuelta":
       return linea(<>vuelta {e.n}</>, "text-[var(--t-text-dim)] mt-1");
     case "pide":
