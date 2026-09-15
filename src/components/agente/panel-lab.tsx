@@ -70,16 +70,15 @@ export function PanelLabIA({ leer, guardar }: {
         </span>
         {p && (
           <span className="text-[9px] text-[var(--t-text-muted)]">
-            {/* El chat corre con lo que diga la tarea `asistente`. El nombre
-                sale del backend: buscarlo por string acá sería una segunda
-                lista que queda vieja sin que nada falle. */}
-            {(() => {
-              const a = p.tareas.find((t) => t.tarea === "asistente");
-              return a ? (
-                <>este chat corre con <b className="text-[var(--t-accent)]">{a.modelo}</b>
-                  {" · "}{a.proveedor}</>
-              ) : null;
-            })()}
+            {/* Con qué corre cada agente del asistente. Los nombres salen del
+                backend: una lista acá sería una copia que queda vieja sin que
+                nada falle. */}
+            {p.tareas.filter((t) => t.tarea.startsWith("asistente_")).map((t) => (
+              <span key={t.tarea} className="mr-2">
+                {t.tarea.replace("asistente_", "")}:{" "}
+                <b className="text-[var(--t-accent)]">{t.modelo}</b>
+              </span>
+            ))}
             {g && !g.error && (
               <> · hoy {miles(g.hoy.llamadas)} llamada(s), {miles(g.hoy.tokens)} tokens</>
             )}

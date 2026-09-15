@@ -2,55 +2,108 @@
 
 // LAB — EL ASISTENTE (backend: `asistente/`, doc `docs/AvAgentAI.md`).
 //
-// Se escribe una pregunta; el backend corre el grafo y devuelve la respuesta
-// más cada paso. La conversación la sostiene esta pantalla: guarda `mensajes`,
-// `estado` y `sesion` del último turno y los manda de vuelta.
-import { useState } from "react";
+// Se escribe una pregunta dentro de una conversación; el backend corre el
+// grafo, guarda la conversación y devuelve la respuesta más cada paso. Acá no
+// se sostiene memoria: viaja la pregunta y el id de la conversación, nada más.
+import { useCallback, useEffect, useState } from "react";
 
 import { PanelLabIA } from "@/components/agente/panel-lab";
 import {
   ICONO_EVENTO,
-  type EstadoLab, type EventoLab, type RespuestaLab, type SesionLab, type TablaDeclarada,
+  type ConversacionLab, type ConversacionResumen, type EstadoLab, type EventoLab,
+  type RespuestaLab, type SesionLab, type TablaDeclarada, type TurnoGuardado,
 } from "@/components/agente/tipos";
 
-// Un turno de la conversación tal como se dibuja: lo que se preguntó y todo lo
-// que volvió. Se guarda entero porque el punto de la tab es poder revisarlo.
-type Turno = { pregunta: string; r: RespuestaLab | null; error?: string };
+// Un turno como se dibuja. `r` es la respuesta viva (con su ciclo) de una
+// pregunta hecha en esta pestaña; `g` es un turno reabierto de la base, que no
+// trae ciclo. Uno u otro.
+type Turno = { pregunta: string; r?: RespuestaLab; g?: TurnoGuardado; error?: string };
+
+const fecha = (iso: string) =>
+  new Date(iso).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
 export function TabLab({ preguntar, leer, guardar }: {
-  // Manda la pregunta MÁS el historial MÁS el estado. Devuelve la respuesta y el ciclo.
-  preguntar: (pregunta: string, historial: Record<string, unknown>[],
-              estado: EstadoLab, sesion: string) => Promise<RespuestaLab>;
-  // Para el panel de arriba (gasto y modelo). Va plegado: es información de
-  // fondo, y a esta tab se entra a preguntar.
+  // Manda la pregunta y el id de la conversación (vacío = nueva).
+  preguntar: (pregunta: string, sesion: string) => Promise<RespuestaLab>;
+  // Para el panel de arriba (gasto y modelo) y la lista de conversaciones.
   leer: <T>(url: string) => Promise<T>;
   guardar: <T>(url: string, body?: unknown) => Promise<T>;
 }) {
   const [texto, setTexto] = useState("");
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [pensando, setPensando] = useState(false);
+  // La conversación abierta: su id, su título, lo que quedó en foco y su costo.
+  // Todo viene del backend con cada respuesta o al reabrir.
+  const [sesion, setSesion] = useState<SesionLab | null>(null);
+  const [titulo, setTitulo] = useState("");
+  const [estado, setEstado] = useState<EstadoLab>({});
+  const [lista, setLista] = useState<ConversacionResumen[]>([]);
+  const [errorLista, setErrorLista] = useState("");
+  const [verLista, setVerLista] = useState(false);
 
-  // El historial que viaja: el `mensajes` del último turno que contestó. No se
-  // arma acá sumando pedacitos — lo arma el backend, que es quien sabe qué
-  // forma tiene que tener cada mensaje para el proveedor.
-  const ultimo = [...turnos].reverse().find((t) => t.r)?.r;
-  const historial = ultimo?.mensajes ?? [];
-  // Lo que quedó en foco: sale del mismo turno que el historial. Acá no se
-  // lee para decidir nada — se muestra y se devuelve.
-  const estado: EstadoLab = ultimo?.estado ?? {};
-  const enFoco = Object.entries(estado);
-  // La conversación: el id se devuelve tal cual; el costo se muestra.
-  const sesion: SesionLab | undefined = ultimo?.sesion;
+  const refrescarLista = useCallback(async () => {
+    try {
+      const r = await leer<{ conversaciones: ConversacionResumen[]; error?: string }>(
+        "/api/agente/lab/sesiones");
+      setLista(r.conversaciones ?? []);
+      setErrorLista(r.error ?? "");
+    } catch (e) {
+      setErrorLista(String(e));
+    }
+  }, [leer]);
+
+  useEffect(() => {
+    const id = setTimeout(() => void refrescarLista(), 0);
+    return () => clearTimeout(id);
+  }, [refrescarLista]);
+
+  function nueva() {
+    setTurnos([]);
+    setSesion(null);
+    setTitulo("");
+    setEstado({});
+  }
+
+  async function abrir(id: string) {
+    if (pensando) return;
+    try {
+      const c = await leer<ConversacionLab>(`/api/agente/lab/sesiones/${id}`);
+      setTurnos(c.turnos.map((g) => ({ pregunta: g.pregunta, g })));
+      setSesion(c.costo);
+      setTitulo(c.titulo);
+      setEstado(c.estado ?? {});
+      setVerLista(false);
+    } catch (e) {
+      setErrorLista(String(e));
+    }
+  }
+
+  async function borrar(id: string) {
+    try {
+      const r = await guardar<{ ok: boolean; error?: string }>(
+        `/api/agente/lab/sesiones/${id}/borrar`);
+      // Un 200 con `ok: false` es «no se borró»: se dice, no se asume.
+      if (!r.ok) { setErrorLista(r.error || "no se pudo borrar"); return; }
+      if (sesion?.id === id) nueva();
+      await refrescarLista();
+    } catch (e) {
+      setErrorLista(String(e));
+    }
+  }
 
   async function enviar() {
     const q = texto.trim();
     if (!q || pensando) return;
     setTexto("");
     setPensando(true);
-    setTurnos((t) => [...t, { pregunta: q, r: null }]);
+    setTurnos((t) => [...t, { pregunta: q }]);
     try {
-      const r = await preguntar(q, historial, estado, sesion?.id ?? "");
+      const r = await preguntar(q, sesion?.id ?? "");
       setTurnos((t) => t.map((x, i) => (i === t.length - 1 ? { ...x, r } : x)));
+      if (r.sesion) setSesion(r.sesion);
+      if (r.titulo) setTitulo(r.titulo);
+      setEstado(r.estado ?? {});
+      void refrescarLista();
     } catch (e) {
       setTurnos((t) => t.map((x, i) =>
         (i === t.length - 1 ? { ...x, error: String(e) } : x)));
@@ -59,15 +112,75 @@ export function TabLab({ preguntar, leer, guardar }: {
     }
   }
 
+  const enFoco = Object.entries(estado);
+  const ultimo = [...turnos].reverse().find((t) => t.r)?.r;
+
   return (
     <div className="flex flex-col gap-3">
       <PanelLabIA leer={leer} guardar={guardar} />
 
       <p className="text-[10px] text-[var(--t-text-dim)]">
-        Preguntale por la cartera. <b>Todo dato sale de una herramienta</b> — si no
-        lo trajo una consulta, no lo dice. <b>No escribe nada.</b> El alcance de
-        cuentas lo fija el backend.
+        Preguntale por la cartera y el mercado. <b>Todo dato sale de una herramienta</b> —
+        si no lo trajo una consulta, no lo dice. <b>No escribe nada.</b> El alcance de
+        cuentas lo fija el backend. Las conversaciones quedan guardadas.
       </p>
+
+      {/* ── LAS CONVERSACIONES ──────────────────────────────────────── */}
+      <div className="border border-[var(--t-border)]">
+        <div className="flex items-baseline gap-3 px-2 py-1 flex-wrap">
+          <button
+            onClick={() => setVerLista(!verLista)}
+            className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
+          >
+            {verLista ? "▾" : "▸"} conversaciones ({lista.length})
+          </button>
+          <button
+            onClick={nueva}
+            disabled={pensando || (turnos.length === 0 && !sesion)}
+            className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-40"
+          >
+            + nueva
+          </button>
+          {titulo && (
+            <span className="text-[10px] text-[var(--t-text)] truncate max-w-[60%]" title={titulo}>
+              {titulo}
+            </span>
+          )}
+        </div>
+        {verLista && (
+          <div className="border-t border-[var(--t-border)] max-h-56 overflow-y-auto">
+            {errorLista && <p className="text-[10px] text-[var(--t-neg)] px-2 py-1">{errorLista}</p>}
+            {lista.length === 0 && !errorLista && (
+              <p className="text-[10px] text-[var(--t-text-dim)] px-2 py-1">todavía no hay ninguna</p>
+            )}
+            {lista.map((c) => (
+              <div
+                key={c.sesion}
+                className={`flex items-baseline gap-2 px-2 py-1 text-[10px] border-t border-[var(--t-border)] ${
+                  c.sesion === sesion?.id ? "bg-[var(--t-surface)]" : ""}`}
+              >
+                <button
+                  onClick={() => void abrir(c.sesion)}
+                  className="flex-1 text-left truncate text-[var(--t-text)] hover:text-[var(--t-accent)]"
+                  title={c.titulo}
+                >
+                  {c.titulo}
+                </button>
+                <span className="text-[9px] text-[var(--t-text-dim)] tabular-nums whitespace-nowrap">
+                  {c.preguntas} preg. · {c.tokens.toLocaleString("es-AR")} tok · {fecha(c.actualizada_at)}
+                </span>
+                <button
+                  onClick={() => void borrar(c.sesion)}
+                  className="text-[9px] text-[var(--t-text-dim)] hover:text-[var(--t-neg)]"
+                  title="borrar esta conversación"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* ── PREGUNTAR ───────────────────────────────────────────────── */}
       <div className="flex flex-col gap-1">
@@ -87,17 +200,9 @@ export function TabLab({ preguntar, leer, guardar }: {
             {pensando ? "pensando…" : "preguntar"}
           </button>
         </div>
-        {turnos.length > 0 && (
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setTurnos([])}
-              disabled={pensando}
-              className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-40"
-            >
-              empezar de nuevo
-            </button>
-            {/* Lo que el asistente tiene en foco. «Empezar de nuevo» lo borra
-                junto con el historial: es de esta conversación. */}
+        {(enFoco.length > 0 || sesion) && (
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Lo que el asistente tiene en foco en esta conversación. */}
             {enFoco.length > 0 && (
               <span className="text-[9px] text-[var(--t-text-dim)]">
                 📌 en foco:{" "}
@@ -121,6 +226,13 @@ export function TabLab({ preguntar, leer, guardar }: {
                     : null}
               </span>
             )}
+            {/* Si la base no contestó, la pregunta salió igual pero sin memoria
+                y sin guardarse: hay que decirlo, o la charla parece seguir. */}
+            {ultimo && (ultimo.aviso || ultimo.guardada === false) && (
+              <span className="text-[9px] text-[var(--t-neg)]">
+                ⚠ {ultimo.aviso || "esta pregunta no quedó guardada"}
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -136,16 +248,33 @@ export function TabLab({ preguntar, leer, guardar }: {
 function VerTurno({ t }: { t: Turno }) {
   const [verCiclo, setVerCiclo] = useState(false);
   const r = t.r;
+  const g = t.g;
 
   return (
     <div className="border border-[var(--t-border)] p-2 flex flex-col gap-2">
       <p className="text-[11px] text-[var(--t-accent)] leading-snug">
         <span className="text-[var(--t-text-dim)]">› </span>{t.pregunta}
+        {g && (
+          <span className="text-[9px] text-[var(--t-text-dim)] ml-2">
+            {fecha(g.at)} · {g.mundos.join(" + ")}
+          </span>
+        )}
       </p>
 
       {t.error && <p className="text-[10px] text-[var(--t-neg)]">{t.error}</p>}
-      {!r && !t.error && (
+      {!r && !g && !t.error && (
         <p className="text-[10px] text-[var(--t-accent)]">pensando…</p>
+      )}
+
+      {/* Un turno reabierto: lo que quedó guardado, sin ciclo. */}
+      {g?.error && <p className="text-[10px] text-[var(--t-neg)]">{g.error}</p>}
+      {g?.respuesta && (
+        <p className="text-[11px] text-[var(--t-text)] leading-relaxed whitespace-pre-wrap">
+          {g.respuesta}
+        </p>
+      )}
+      {g?.falta && (
+        <p className="text-[10px] text-[var(--t-accent)] leading-snug">⌀ {g.falta}</p>
       )}
 
       {r?.error && <p className="text-[10px] text-[var(--t-neg)]">{r.error}</p>}

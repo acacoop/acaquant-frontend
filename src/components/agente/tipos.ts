@@ -258,17 +258,15 @@ export type EventoLab = { agente?: string } & (
 );
 
 // Lo que el asistente SABE de la conversación, aparte de lo que se DIJO: hoy,
-// la cuenta de la que se viene hablando. Viaja ida y vuelta como `mensajes`,
-// pero APARTE de ellos — el backend achica los mensajes viejos entre preguntas
-// y esto es lo único que sobrevive. El front no lo arma ni lo lee para decidir
-// nada: lo guarda y lo devuelve. Qué claves acepta lo declara el backend.
+// la cuenta de la que se viene hablando. Vive en el backend con la
+// conversación; acá solo se muestra. Qué claves acepta lo declara el backend.
 export type EstadoLab = Record<string, string>;
 
 // La conversación, con su costo hasta ahora. El `id` nace en el backend en la
-// primera pregunta y acá se devuelve en las siguientes, como `mensajes` y
-// `estado`. Los números salen de `ia.llamadas` agrupado por ese id (backend:
-// `asistente/panel.conversacion`): el front no suma nada. `usd` es null si a
-// algún modelo de la charla le falta la tarifa — no es cero.
+// primera pregunta y acá se devuelve en las siguientes: es lo ÚNICO que viaja
+// con la pregunta. Los números salen de `ia.llamadas` agrupado por ese id
+// (backend: `asistente/panel.conversacion`): el front no suma nada. `usd` es
+// null si a algún modelo de la charla le falta la tarifa — no es cero.
 export type SesionLab = {
   id: string;
   error?: string;
@@ -331,17 +329,18 @@ export type RespuestaLab = {
   tokens_in: number;
   tokens_out: number;
   eventos: EventoLab[];
-  // Los mensajes de esta pregunta y las anteriores, ya podados. Se devuelven
-  // tal cual en la pregunta siguiente: la conversación la sostiene la pantalla.
-  mensajes: Record<string, unknown>[];
   // Qué mundos atendieron la pregunta.
   mundos?: string[];
-  // Lo que quedó en foco después de esta pregunta. Se devuelve tal cual en la
-  // siguiente, junto con `mensajes`. Opcional: un backend anterior a esto no
-  // lo manda, y la tab tiene que seguir dibujando igual.
+  // Lo que quedó en foco después de esta pregunta. Se muestra, no se devuelve:
+  // la memoria vive en `ia.conversaciones`.
   estado?: EstadoLab;
-  // La conversación y su costo acumulado. Opcional por lo mismo que `estado`.
+  // La conversación y su costo acumulado.
   sesion?: SesionLab;
+  // El título de la conversación (la primera pregunta) y si quedó guardada.
+  // `aviso` viene cuando la base no contestó y la pregunta salió sin memoria.
+  titulo?: string;
+  guardada?: boolean;
+  aviso?: string | null;
 
   // Qué NO pudo contestar, dicho por el modelo (backend: `asistente/esquema.py`).
   // Vale tanto como la respuesta: es la única forma de enterarse de que la
@@ -349,6 +348,43 @@ export type RespuestaLab = {
   // el proveedor no soporta structured output (DeepSeek contesta HTTP 400 a
   // `json_schema`, medido) y la respuesta viene como prosa.
   falta?: string | null;
+};
+
+// ── LAS CONVERSACIONES GUARDADAS (backend: `asistente/sesiones.py`) ────────
+//
+// Una conversación es del usuario que la empezó: la lista, la reapertura y el
+// borrado los filtra el backend por email. El front no guarda nada: pide la
+// lista, abre una por id y manda cada pregunta con ese id.
+
+export type ConversacionResumen = {
+  sesion: string;
+  titulo: string;
+  preguntas: number;
+  creada_at: string;
+  actualizada_at: string;
+  // in + out de todas sus llamadas, sumado en el backend.
+  tokens: number;
+};
+
+// Un turno como quedó guardado: lo que ve la persona, entero (el backend poda
+// la memoria del modelo, no esto). No trae el ciclo: los eventos de una
+// pregunta se ven en el momento, no se guardan.
+export type TurnoGuardado = {
+  pregunta: string;
+  respuesta: string | null;
+  falta: string | null;
+  error: string | null;
+  mundos: string[];
+  at: string;
+};
+
+export type ConversacionLab = {
+  sesion: string;
+  titulo: string;
+  turnos: TurnoGuardado[];
+  estado: EstadoLab;
+  costo: SesionLab;
+  aviso?: string | null;
 };
 
 // ── EL PANEL DEL LAB: qué gastamos y con qué modelo corremos ───────────────
