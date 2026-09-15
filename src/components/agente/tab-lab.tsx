@@ -256,7 +256,7 @@ function VerTurno({ t }: { t: Turno }) {
         <span className="text-[var(--t-text-dim)]">› </span>{t.pregunta}
         {g && (
           <span className="text-[9px] text-[var(--t-text-dim)] ml-2">
-            {fecha(g.at)} · {g.mundos.join(" + ")}
+            {fecha(g.at)} · {g.agentes.join(" + ")}
           </span>
         )}
       </p>
@@ -362,10 +362,10 @@ function VerEvento({ e }: { e: EventoLab }) {
     case "pregunta":
       return linea(<>herramientas: <b className="text-[var(--t-text)]">{e.herramientas.join(", ")}</b></>);
     case "despacho":
-      return linea(<>mundos: <b className="text-[var(--t-text)]">{e.mundos.join(", ")}</b>{" "}
+      return linea(<>agentes: <b className="text-[var(--t-text)]">{e.agentes.join(", ")}</b>{" "}
         <span className="text-[var(--t-text-dim)]">({e.motivo})</span></>, "text-[var(--t-accent)]");
     case "junta":
-      return linea(<>cruza {e.mundos.join(" + ")}</>, "text-[var(--t-accent)]");
+      return linea(<>cruza {e.agentes.join(" + ")}</>, "text-[var(--t-accent)]");
     case "vuelta":
       return linea(<>vuelta {e.n}</>, "text-[var(--t-text-dim)] mt-1");
     case "pide":

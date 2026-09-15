@@ -234,14 +234,14 @@ export function ritmo(segundos: number): string {
 // ── EL LAB (el ASISTENTE) ──────────────────────────────────────────────────
 //
 // Una pregunta → el backend corre el grafo (`asistente/grafo.py`, doc
-// `docs/AvAgentAI.md`): despacho → mundos → junta. Vuelve la respuesta más
+// `docs/AvAgentAI.md`): despacho → agentes → junta. Vuelve la respuesta más
 // cada paso. Un request y se espera.
 
 // `agente` dice qué agente lo hizo (cuenta, mercado, despacho, junta).
 export type EventoLab = { agente?: string } & (
   | { tipo: "pregunta"; texto: string; herramientas: string[]; sesion?: string }
-  | { tipo: "despacho"; mundos: string[]; motivo: string }
-  | { tipo: "junta"; mundos: string[] }
+  | { tipo: "despacho"; agentes: string[]; motivo: string }
+  | { tipo: "junta"; agentes: string[] }
   | { tipo: "vuelta"; n: number }
   | { tipo: "pide"; herramienta: string; argumentos: Record<string, unknown> | null }
   | { tipo: "resultado"; herramienta: string; resultado: unknown }
@@ -329,8 +329,8 @@ export type RespuestaLab = {
   tokens_in: number;
   tokens_out: number;
   eventos: EventoLab[];
-  // Qué mundos atendieron la pregunta.
-  mundos?: string[];
+  // Qué agentes atendieron la pregunta.
+  agentes?: string[];
   // Lo que quedó en foco después de esta pregunta. Se muestra, no se devuelve:
   // la memoria vive en `ia.conversaciones`.
   estado?: EstadoLab;
@@ -384,7 +384,7 @@ export type TurnoGuardado = {
   respuesta: string | null;
   falta: string | null;
   error: string | null;
-  mundos: string[];
+  agentes: string[];
   tablas?: TablaGuardada[];
   at: string;
 };
