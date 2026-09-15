@@ -16,16 +16,6 @@ export type Hallazgo = {
   // El error CRUDO, tal cual. Es lo que dice de quién es el problema.
   detalle?: string;
   que_hacer: string;
-  // ⚠️ **EL PISO Y LO DEL MODELO SON DOS CAMPOS, NO UNO.**
-  // `que_hacer` es el texto determinista que escribe el detector; `ia_texto`
-  // es el que redactó el modelo con la evidencia adelante (backend:
-  // `agente/redactar.py`). Vienen separados a propósito: si el gateway no
-  // contesta, si no hay presupuesto o si la validación del backend rechazó lo
-  // que escribió, `ia_texto` llega vacío y la fila muestra el piso — nunca
-  // queda muda. El front NO elige cuál es mejor ni deriva nada: dibuja el del
-  // modelo si vino, y el piso queda en el `title` para poder comparar.
-  ia_texto?: string | null;
-  ia_at?: string | null;
   arreglo: string;
   arreglo_titulo?: string;
   arreglo_donde?: string;
@@ -82,7 +72,6 @@ export type Habilidad = {
   ultima_corrida_at: string | null;
   ultimo_resultado: "ok" | "sin_datos" | "error" | null;
   ultimo_error: string;
-  tiene_traceback?: boolean;
   ultima_duracion_ms: number | null;
   corridas_hoy: number;
   hallazgos_total: number;
@@ -241,25 +230,6 @@ export function ritmo(segundos: number): string {
   const h = segundos / 3600;
   return `${Number.isInteger(h) ? h : h.toFixed(1)}h`;
 }
-
-// «Explicámelo» (AGENT.md §0.dh): lo que contesta POST /api/agente/explicar.
-export type Explicacion = {
-  ok: boolean;
-  error?: string;
-  cacheada?: boolean;
-  respuesta?: {
-    de_quien: "nuestro" | "dato" | "proveedor" | "no_se";
-    explicacion: string;
-    afecta?: string;
-    que_hacer?: string;
-    test?: string;
-    tarea?: { titulo?: string; prompt?: string };
-  };
-  fuentes?: string[];
-  modelo?: string;
-  por?: string;
-  at?: string | null;
-};
 
 // ── EL LAB (el ASISTENTE) ──────────────────────────────────────────────────
 //

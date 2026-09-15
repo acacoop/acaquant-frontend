@@ -260,8 +260,7 @@ export default function AgenteModal() {
                                   correr={(n) => d.escribir(
                                     "/api/agente/correr", { habilidad: n },
                                     ["vista"])}
-                                  explicar={(n) => d.calcular(
-                                    "/api/agente/explicar", { habilidad: n })} />
+ />
               )}
             </div>
           </div>

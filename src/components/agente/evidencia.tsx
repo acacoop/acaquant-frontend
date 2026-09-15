@@ -34,8 +34,6 @@ export function Evidencia({ ev }: { ev: Record<string, unknown> | null | undefin
   // `_items` es la lista de unidades con la que `registro._ver` resuelve si algo
   // REINCIDIÓ. Dibujarla desplegaba 379 unidades adentro de una tarjeta cuyo
   // texto útil son dos renglones.
-  //
-  // Misma convención que `agente/explicar.py`, que ya filtra `_fuentes` así.
   const claves = Object.keys(ev ?? {}).filter((k) => !k.startsWith("_"));
   if (!claves.length) return null;
   return (

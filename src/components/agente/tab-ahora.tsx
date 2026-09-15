@@ -113,30 +113,8 @@ export function TabAhora({ filas, marcarLeidos, ignorar }: {
                   esta pantalla ni leía, y en su lugar se veía una frase de
                   molde idéntica para los cuatro proveedores. */}
               <Detalle texto={f.detalle} />
-              {/* ⚠️ **EL TEXTO DEL MODELO, CON EL PISO ATRÁS.**
-                  La mayoría de estas filas son AVISOS: no tienen botón, así
-                  que el TEXTO es el entregable entero. Escrito a mano en el
-                  detector era el mismo para todos los casos de esa regla
-                  («mirar qué creció») y devolvía el trabajo al que lee.
-                  Ahora lo redacta el modelo con la evidencia adelante y el
-                  backend le valida cada número contra los hechos.
-                  Si no vino —sin key, sin presupuesto, o el backend lo
-                  rechazó— se dibuja el determinista de siempre: la fila NUNCA
-                  queda muda. El piso viaja en el `title` para poder comparar
-                  los dos sin ocupar pantalla. */}
-              <p
-                className="text-[9px] text-[var(--t-text-dim)] mt-0.5"
-                title={f.ia_texto ? `texto fijo: ${f.que_hacer}` : undefined}
-              >
-                {f.ia_texto && (
-                  <span
-                    className="text-[8px] uppercase tracking-widest text-[var(--t-accent)] mr-1"
-                    title={`escrito por la IA · ${fechaHora(f.ia_at)}`}
-                  >
-                    ia
-                  </span>
-                )}
-                {f.ia_texto || f.que_hacer}
+              <p className="text-[9px] text-[var(--t-text-dim)] mt-0.5">
+                {f.que_hacer}
               </p>
               <Evidencia ev={f.evidencia} />
             </div>

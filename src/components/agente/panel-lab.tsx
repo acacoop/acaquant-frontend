@@ -7,8 +7,8 @@
 //   GASTO   — el libro de llamadas al modelo (`ia.llamadas`). Existía desde
 //             hace meses y no lo miraba nadie: cada llamada quedaba anotada con
 //             sus tokens, su latencia y cuánto pegó en el caché.
-//   TAREAS  — con qué proveedor y modelo corre CADA COSA que usa IA: el chat
-//             del LAB, el texto de los avisos del agente, el botón explicámelo.
+//   TAREAS  — con qué proveedor y modelo corre CADA COSA que usa IA: cada
+//             agente del asistente y el emisor del AV AGENT.
 //             Se guarda en la base y aplica sin deploy.
 //
 // ⚠️ **UNA FILA ES UNA TAREA, no un `proveedor × rol`.** Antes era lo segundo y
