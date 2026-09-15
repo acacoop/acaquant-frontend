@@ -294,6 +294,10 @@ export type SesionLab = {
 export type TablaDeclarada = {
   // Qué campo del resultado es la lista de filas.
   campo: string;
+  // De QUÉ es esta tabla («Tenencia de la 805», «Próximos pagos del YM38O»).
+  // Lo declara la herramienta: en un turno pueden salir dos tablas pegadas y
+  // sin esto no se sabe cuál es de cuál.
+  titulo?: string;
   // Qué columnas, en este orden. Salen del backend: una lista acá sería una
   // copia que queda vieja el día que la herramienta devuelva un campo más.
   columnas: string[];
@@ -371,6 +375,10 @@ export type ConversacionResumen = {
 // Una tabla como la guardó el backend con el turno: columnas, filas y total
 // salen del resultado de la herramienta (`_tabla`), igual que en vivo.
 export type TablaGuardada = {
+  // De qué es la tabla: lo arma el backend (`pantalla.para_dibujar`) con el
+  // mismo criterio que la tabla en vivo, para que una conversación reabierta
+  // se vea igual.
+  titulo?: string;
   columnas: string[];
   filas: Record<string, unknown>[];
   cuantas: number;

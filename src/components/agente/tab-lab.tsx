@@ -274,7 +274,7 @@ function VerTurno({ t }: { t: Turno }) {
         </p>
       )}
       {g?.tablas?.map((t, i) => (
-        <Tabla key={i} cols={t.columnas} filas={t.filas} total={t.total ?? undefined}
+        <Tabla key={i} titulo={t.titulo} cols={t.columnas} filas={t.filas} total={t.total ?? undefined}
                moneda={t.moneda ?? undefined} cuantas={t.cuantas} />
       ))}
       {g?.falta && (
@@ -410,7 +410,7 @@ function VerEvento({ e }: { e: EventoLab }) {
 // una que no declare nada sigue contestando en prosa, como `cobros_futuros`.
 const MAX_FILAS = 200;
 
-type Dibujo = { cols: string[]; filas: Record<string, unknown>[];
+type Dibujo = { titulo?: string; cols: string[]; filas: Record<string, unknown>[];
                 total: unknown; moneda?: string; cuantas: number };
 
 function tablasDe(r: RespuestaLab): Dibujo[] {
@@ -426,6 +426,7 @@ function tablasDe(r: RespuestaLab): Dibujo[] {
     const filas = res?.[decl.campo];
     if (!Array.isArray(filas) || filas.length === 0) continue;
     fuera.push({
+      titulo: decl.titulo,
       cols: decl.columnas,
       filas: filas.filter((f) => f && typeof f === "object") as Record<string, unknown>[],
       // ⚠️ El total sale del campo que declaró el backend. **Acá no se suma
@@ -462,11 +463,19 @@ function derechas(cols: string[], filas: Record<string, unknown>[]): Set<string>
   return new Set(cols.filter((c) => typeof prim[c] === "number"));
 }
 
-function Tabla({ cols, filas, total, moneda, cuantas }: Dibujo) {
+function Tabla({ titulo, cols, filas, total, moneda, cuantas }: Dibujo) {
   const visibles = filas.slice(0, MAX_FILAS);
   const der = derechas(cols, visibles);
   return (
     <div className="border border-[var(--t-border)] bg-[var(--t-surface)]">
+      {/* De qué es la tabla. Con dos herramientas en un turno salen dos tablas
+          seguidas: sin el título no se sabe cuál es de cuál. */}
+      {titulo && (
+        <div className="px-2 py-1 border-b border-[var(--t-border)] text-[9px] uppercase
+                        tracking-wide text-[var(--t-text-dim)]">
+          {titulo}
+        </div>
+      )}
       <div className="overflow-x-auto max-h-96 overflow-y-auto">
         <table className="w-full text-[10px]">
           <thead className="sticky top-0 bg-[var(--t-surface)]">
