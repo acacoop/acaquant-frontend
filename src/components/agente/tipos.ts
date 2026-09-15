@@ -234,13 +234,15 @@ export function ritmo(segundos: number): string {
 // ── EL LAB (el ASISTENTE) ──────────────────────────────────────────────────
 //
 // Una pregunta → el backend corre el grafo (`asistente/grafo.py`, doc
-// `docs/AvAgentAI.md`): despacho → agentes → junta. Vuelve la respuesta más
+// `docs/AvAgentAI.md`): ruteo → agentes → junta. Vuelve la respuesta más
 // cada paso. Un request y se espera.
 
-// `agente` dice qué agente lo hizo (cuenta, mercado, despacho, junta).
+// `agente` dice qué agente lo hizo (cartera, renta_fija, ruteo, junta).
+// `ruteo` es el primer paso: a quiénes les tocó (`elegidos`) y por qué
+// (`motivo`: una regla, el modelo, o que no se entendió y van todos).
 export type EventoLab = { agente?: string } & (
   | { tipo: "pregunta"; texto: string; herramientas: string[]; sesion?: string }
-  | { tipo: "despacho"; agentes: string[]; motivo: string }
+  | { tipo: "ruteo"; elegidos: string[]; motivo: string }
   | { tipo: "junta"; agentes: string[] }
   | { tipo: "vuelta"; n: number }
   | { tipo: "pide"; herramienta: string; argumentos: Record<string, unknown> | null }
@@ -303,7 +305,7 @@ export type TablaDeclarada = {
 export const ICONO_EVENTO: Record<EventoLab["tipo"], string> = {
   pregunta: "💬", vuelta: "↻", pide: "🔧", resultado: "📄",
   texto: "✅", corte: "⛔", estado: "📌", achicado: "🗜", podado: "✂️",
-  despacho: "🧭", junta: "🔗",
+  ruteo: "🧭", junta: "🔗",
 };
 
 // El veredicto del control determinístico (`asistente/control.py`). Viaja AL

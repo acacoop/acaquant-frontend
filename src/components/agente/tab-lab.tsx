@@ -361,8 +361,8 @@ function VerEvento({ e }: { e: EventoLab }) {
   switch (e.tipo) {
     case "pregunta":
       return linea(<>herramientas: <b className="text-[var(--t-text)]">{e.herramientas.join(", ")}</b></>);
-    case "despacho":
-      return linea(<>agentes: <b className="text-[var(--t-text)]">{e.agentes.join(", ")}</b>{" "}
+    case "ruteo":
+      return linea(<>agentes: <b className="text-[var(--t-text)]">{e.elegidos.join(", ") || "ninguno"}</b>{" "}
         <span className="text-[var(--t-text-dim)]">({e.motivo})</span></>, "text-[var(--t-accent)]");
     case "junta":
       return linea(<>cruza {e.agentes.join(" + ")}</>, "text-[var(--t-accent)]");
