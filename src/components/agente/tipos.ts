@@ -366,15 +366,26 @@ export type ConversacionResumen = {
   tokens: number;
 };
 
+// Una tabla como la guardó el backend con el turno: columnas, filas y total
+// salen del resultado de la herramienta (`_tabla`), igual que en vivo.
+export type TablaGuardada = {
+  columnas: string[];
+  filas: Record<string, unknown>[];
+  cuantas: number;
+  total: unknown;
+  moneda?: string | null;
+};
+
 // Un turno como quedó guardado: lo que ve la persona, entero (el backend poda
-// la memoria del modelo, no esto). No trae el ciclo: los eventos de una
-// pregunta se ven en el momento, no se guardan.
+// la memoria del modelo, no esto). Trae las tablas que declararon las
+// herramientas; no trae el ciclo: los eventos se ven en el momento.
 export type TurnoGuardado = {
   pregunta: string;
   respuesta: string | null;
   falta: string | null;
   error: string | null;
   mundos: string[];
+  tablas?: TablaGuardada[];
   at: string;
 };
 

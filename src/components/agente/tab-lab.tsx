@@ -273,6 +273,10 @@ function VerTurno({ t }: { t: Turno }) {
           {g.respuesta}
         </p>
       )}
+      {g?.tablas?.map((t, i) => (
+        <Tabla key={i} cols={t.columnas} filas={t.filas} total={t.total ?? undefined}
+               moneda={t.moneda ?? undefined} cuantas={t.cuantas} />
+      ))}
       {g?.falta && (
         <p className="text-[10px] text-[var(--t-accent)] leading-snug">⌀ {g.falta}</p>
       )}
