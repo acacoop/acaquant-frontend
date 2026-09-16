@@ -478,7 +478,7 @@ export function ComercialInforme({
   });
 
   return (
-    <div className="relative flex-1 min-h-0 grid grid-cols-2 grid-rows-2 gap-3 p-3 overflow-hidden">
+    <div className="relative flex-1 min-h-0 grid grid-cols-[3fr_2fr] grid-rows-2 gap-3 p-3 overflow-hidden">
       {/* Overlay de carga centrado — visible mientras hay algún cuadrante recargando.
           pointer-events-none: no bloquea el click en el resto (patrón de Operaciones). */}
       {pending > 0 && (
@@ -624,17 +624,27 @@ export function ComercialInforme({
           </div>
         }
       >
-        <table className="w-full text-[11px] tabular-nums">
+        <table className="w-full table-fixed text-[11px] tabular-nums">
+          <colgroup>
+            <col className="w-[4%]" />
+            <col className="w-[23%]" />
+            <col className="w-[9%]" />
+            <col className="w-[13%]" />
+            <col className="w-[15%]" />
+            <col className="w-[13%]" />
+            <col className="w-[12%]" />
+            <col className="w-[11%]" />
+          </colgroup>
           <thead className="sticky top-0 bg-[var(--t-panel)]">
             <tr className="text-[9px] text-[var(--t-text-muted)] tracking-wide">
               <th className="text-center px-2 py-2">#</th>
-              <th className="text-center px-1">COMERCIAL</th>
-              <th className="text-center px-2" title="Cuentas distintas que operaron en el mes calendario del HASTA (≥1 boleto no anulado)">CTAS OPS{MesTag}</th>
-              <th className="text-center px-2">TICKET PROM.</th>
-              <th className="text-center px-2">VOL. TOTAL</th>
-              <th className="text-center px-2">VOL. MES{MesTag}</th>
-              <th className="text-center px-2">ARANC. TOTAL</th>
-              <th className="text-center px-3">ARANC. MES{MesTag}</th>
+              <th className="text-left px-1">COMERCIAL</th>
+              <th className="text-center px-1 whitespace-nowrap" title="Cuentas distintas que operaron en el mes calendario del HASTA (≥1 boleto no anulado)">CTAS OPS{MesTag}</th>
+              <th className="text-right px-1 whitespace-nowrap">TICKET PROM.</th>
+              <th className="text-right px-1 whitespace-nowrap">VOL. TOTAL</th>
+              <th className="text-right px-1 whitespace-nowrap">VOL. MES{MesTag}</th>
+              <th className="text-right px-1 whitespace-nowrap">ARANC. TOTAL</th>
+              <th className="text-right px-1 whitespace-nowrap">ARANC. MES{MesTag}</th>
             </tr>
           </thead>
           <tbody>
@@ -655,15 +665,15 @@ export function ComercialInforme({
                 }
               >
                 <td className="text-center px-2 py-1.5 text-[var(--t-text-muted)]">{c.rank}</td>
-                <td className="text-center px-1 py-1.5 text-[var(--t-text)] truncate max-w-[160px]" title={c.operador_nombre}>
+                <td className="text-left px-1 py-1.5 text-[var(--t-text)] truncate" title={c.operador_nombre}>
                   {c.operador_nombre}
                 </td>
-                <td className="text-center px-2 tabular-nums text-[var(--t-text)]">{c.ctas_ops}</td>
-                <td className="text-center px-2 text-[var(--t-text)]" title={fmtMoneyFull(c.ticket_promedio)}>{fmtAum(c.ticket_promedio)}</td>
-                <td className="text-center px-2 font-semibold text-[var(--t-accent)]" title={fmtMoneyFull(c.vol_total)}>{fmtAum(c.vol_total)}</td>
-                <td className="text-center px-2 text-[var(--t-text-dim)]" title={fmtMoneyFull(c.vol_mes)}>{fmtAum(c.vol_mes)}</td>
-                <td className="text-center px-2 text-[var(--t-data-arancel)]" title={fmtMoneyFull(c.ar_total)}>{fmtAr(c.ar_total)}</td>
-                <td className="text-center px-3 text-[var(--t-data-arancel)]" title={fmtMoneyFull(c.ar_mes)}>{fmtAr(c.ar_mes)}</td>
+                <td className="text-center px-1 tabular-nums text-[var(--t-text)]">{c.ctas_ops}</td>
+                <td className="text-right px-1 text-[var(--t-text)]" title={fmtMoneyFull(c.ticket_promedio)}>{fmtAum(c.ticket_promedio)}</td>
+                <td className="text-right px-1 font-semibold text-[var(--t-accent)]" title={fmtMoneyFull(c.vol_total)}>{fmtAum(c.vol_total)}</td>
+                <td className="text-right px-1 text-[var(--t-text-dim)]" title={fmtMoneyFull(c.vol_mes)}>{fmtAum(c.vol_mes)}</td>
+                <td className="text-right px-1 text-[var(--t-data-arancel)]" title={fmtMoneyFull(c.ar_total)}>{fmtAr(c.ar_total)}</td>
+                <td className="text-right px-1 text-[var(--t-data-arancel)]" title={fmtMoneyFull(c.ar_mes)}>{fmtAr(c.ar_mes)}</td>
               </tr>
             ))}
           </tbody>
