@@ -66,6 +66,7 @@ type ItemDetalle = {
   id_cuenta: string; denominacion: string; operador_nombre: string | null;
   nivel_1: string | null; nivel_3: string | null; fecha_alta_legajo: string | null;
   aum: number | null; n_boletos: number; arancel: number | null;
+  arancel_operaciones?: number | null; arancel_fci?: number | null;
   ultima_op: string | null; activo: boolean;
 };
 type Detalle = {
@@ -118,7 +119,7 @@ const COLS: Col[] = [
   { k: "ratio_actividad", label: "Ratio activ.", tipo: "pct",
     ayuda: "Activos / clientes." },
   { k: "aranceles", label: "Aranceles", tipo: "money",
-    ayuda: "Suma de aranceles de los boletos del mes (incluye el cierre de caución)." },
+    ayuda: "Suma de aranceles de boletos más comisión FCI por stock desde mayo 2026 (incluye el cierre de caución)." },
   { k: "arancel_por_activo", label: "Aranc. / activo", tipo: "money",
     ayuda: "Aranceles del mes / cuentas activas del mes." },
   { k: "aum", label: "AuM", tipo: "money",
@@ -581,6 +582,7 @@ function ModalCelda(
         { header: "AuM", key: "aum", format: "currency", width: 18 },
         { header: "Boletos", key: "n_boletos", format: "integer" },
         { header: "Arancel", key: "arancel", format: "currency", width: 16 },
+        { header: "Arancel FCI", key: "arancel_fci", format: "currency", width: 16 },
         { header: "Última op", key: "ultima_op", format: "date", width: 12 },
       ],
     }],
@@ -618,6 +620,7 @@ function ModalCelda(
             <Dato label="Activos" value={fmtInt(d.totales.activos)} />
             <Dato label="Ratio activ." value={fmtPct(d.totales.ratio_actividad)} />
             <Dato label={`Aranceles (${d.moneda})`} value={fmtPesos(d.totales.aranceles)} />
+            {metrica === "aranceles" && <span className="text-[10px] text-[var(--t-text-dim)]">FCI incluido desde mayo 2026</span>}
             <Dato label={`AuM (${d.moneda})`} value={fmtPesos(d.totales.aum)} />
             <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)] max-w-[46%] text-right">
               {d.ecuacion}
@@ -641,17 +644,18 @@ function ModalCelda(
           <table className="w-full table-fixed text-[11px]">
             <thead className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] sticky top-0 bg-[var(--t-panel)]">
               <tr className="border-b border-[var(--t-border)]">
-                <th className="px-2 py-1.5 text-left font-normal w-[7%]">Cuenta</th>
-                <th className="px-2 py-1.5 text-left font-normal w-[19%]">Cliente</th>
-                <th className="px-2 py-1.5 text-left font-normal w-[12%]">Operador</th>
-                <th className="px-2 py-1.5 text-left font-normal w-[9%]">Nivel 1</th>
-                <th className="px-2 py-1.5 text-left font-normal w-[10%]">Nivel 3</th>
-                <th className="px-2 py-1.5 text-left font-normal w-[7%]">Alta</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[6%]">Cuenta</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[17%]">Cliente</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[10%]">Operador</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[8%]">Nivel 1</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[9%]">Nivel 3</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[6%]">Alta</th>
                 {/* AuM y Arancel se llevan el ancho: van completos, sin abreviar. */}
-                <th className="px-2 py-1.5 text-right font-normal w-[14%]">AuM</th>
+                <th className="px-2 py-1.5 text-right font-normal w-[13%]">AuM</th>
                 <th className="px-2 py-1.5 text-right font-normal w-[4%]">Bol.</th>
-                <th className="px-2 py-1.5 text-right font-normal w-[11%]">Arancel</th>
-                <th className="px-2 py-1.5 text-left font-normal w-[7%]">Última op</th>
+                <th className="px-2 py-1.5 text-right font-normal w-[10%]">Arancel</th>
+                <th className="px-2 py-1.5 text-right font-normal w-[8%]">FCI</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[9%]">Última op</th>
               </tr>
             </thead>
             <tbody>
@@ -672,11 +676,12 @@ function ModalCelda(
                   <td className="px-2 py-1 text-right tabular-nums align-top">{fmtPesos(i.aum)}</td>
                   <td className="px-2 py-1 text-right tabular-nums align-top">{i.n_boletos || "—"}</td>
                   <td className="px-2 py-1 text-right tabular-nums align-top">{fmtPesos(i.arancel)}</td>
+                  <td className="px-2 py-1 text-right tabular-nums align-top">{fmtPesos(i.arancel_fci)}</td>
                   <td className="px-2 py-1 tabular-nums align-top">{fmtFecha(i.ultima_op)}</td>
                 </tr>
               ))}
               {!items.length && (
-                <tr><td colSpan={10} className="px-2 py-3 text-center text-[var(--t-text-muted)]">
+                <tr><td colSpan={11} className="px-2 py-3 text-center text-[var(--t-text-muted)]">
                   {d ? "ninguna cuenta compone esta celda" : err ? "" : "cargando…"}
                 </td></tr>
               )}
