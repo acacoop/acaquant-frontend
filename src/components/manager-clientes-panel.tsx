@@ -538,7 +538,7 @@ function TabClientesSegmentacion() {
 // ── Sub-tab: Fondeos ──────────────────────────────────────────────────────────
 // Carga masiva del cupo de fondeo del custodio (ARS). Pega a
 // POST /api/manager/clientes/bulk-fondeo. Subdoc `cupo` en
-// Clientes.Comitentes (ver docs/SEGMENTACION_PATRIMONIAL.md en TradingAV).
+// Clientes.Comitentes (ver docs/CLIENTES.md en acaquant-backend).
 type Cupo = {
   transaccional_ars?: number | null;
   usado_ars?: number | null;

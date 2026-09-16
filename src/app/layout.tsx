@@ -36,7 +36,7 @@ const BUILD = (process.env.VERCEL_GIT_COMMIT_SHA || "dev").slice(0, 7);
 
 export const metadata: Metadata = {
   title: "ACAQuant",
-  description: "TradingAV — Terminal para mercados argentinos",
+  description: "AcaQuant — Terminal para mercados argentinos",
 };
 
 // Self-host de la fuente (antes era un <link> render-blocking a Google Fonts).

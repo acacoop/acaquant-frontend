@@ -1,5 +1,5 @@
 /**
- * Cliente HTTP para la API de TradingAV.
+ * Cliente HTTP para la API de AcaQuant.
  *
  * Headers enviados en cada request:
  * - Authorization: Bearer <API_KEY>          → auth de la API FastAPI

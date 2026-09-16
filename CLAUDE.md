@@ -18,7 +18,7 @@ Guía para Claude Code en este repo. **Solo lo que aplica a TODA sesión.** Lo d
 
 ## Qué es esto
 
-`acaquant-web` — el frontend de **TradingAV**, plataforma quant MERVAL/ROFEX. Next.js 16 (App
+`acaquant-web` — el frontend de **AcaQuant**, plataforma quant MERVAL/ROFEX. Next.js 16 (App
 Router) + React 19 + Tailwind v4, en Vercel. **No tiene base de datos ni lógica de negocio propia**:
 es una terminal que renderiza lo que sirve el backend FastAPI (`api.acaquant.com`, repo hermano
 `acaquant-backend`). Las route handlers de `src/app/api/**` son **proxies** hacia ese backend
