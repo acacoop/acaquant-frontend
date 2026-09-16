@@ -478,7 +478,7 @@ export function ComercialInforme({
   });
 
   return (
-    <div className="relative flex-1 min-h-0 grid grid-cols-[3fr_2fr] grid-rows-2 gap-3 p-3 overflow-hidden">
+    <div className="relative flex-1 min-h-0 grid grid-cols-[2fr_3fr] grid-rows-2 gap-3 p-3 overflow-hidden">
       {/* Overlay de carga centrado — visible mientras hay algún cuadrante recargando.
           pointer-events-none: no bloquea el click en el resto (patrón de Operaciones). */}
       {pending > 0 && (
