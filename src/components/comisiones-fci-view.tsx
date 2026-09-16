@@ -273,17 +273,21 @@ export function ComisionesFciView() {
                                 tracking-wide text-[var(--t-text-muted)]">
                 <tr className="border-b border-[var(--t-border)]">
                   <th className="px-2 py-1.5 text-left">Fondo</th>
+                  {/* AuM = la valuación de ese fondo en la foto de CORTE. Es la base
+                      del arancel (arancel día = AuM × fee ÷ 2 ÷ 365), y sin ella la
+                      tabla mostraba el resultado sin el número que lo genera. */}
+                  <th className="px-2 py-1.5 text-right w-24">AuM</th>
                   <th className="px-2 py-1.5 text-right w-24">Arancel día</th>
                   <th className="px-2 py-1.5 text-right w-28">Acum. mes</th>
                 </tr>
               </thead>
               <tbody>
                 {cargando && (
-                  <tr><td colSpan={3} className="px-2 py-4 text-center
+                  <tr><td colSpan={4} className="px-2 py-4 text-center
                         text-[var(--t-text-muted)]">cargando…</td></tr>
                 )}
                 {!cargando && data?.sin_datos && (
-                  <tr><td colSpan={3} className="px-2 py-4 text-center
+                  <tr><td colSpan={4} className="px-2 py-4 text-center
                         text-[var(--t-text-muted)]">
                     sin foto de tenencia en {mesLargo(mes)}
                   </td></tr>
@@ -441,6 +445,10 @@ function FilaFondo({ f, abierto, detalle, onToggle }: {
             </span>
           )}
         </td>
+        <td className="px-2 py-1 text-right text-[var(--t-text-dim)]"
+            title={`${fmtMoneyFull(f.valuacion)} · valuación al corte`}>
+          {fmtMoney(f.valuacion)}
+        </td>
         <td className="px-2 py-1 text-right" title={fmtMoneyFull(f.arancel_dia)}>
           {f.sin_fee ? "—" : fmtMoney(f.arancel_dia)}
         </td>
@@ -452,7 +460,7 @@ function FilaFondo({ f, abierto, detalle, onToggle }: {
 
       {abierto && (
         <tr className="bg-[var(--t-surface)]">
-          <td colSpan={3} className="px-2 pb-2">
+          <td colSpan={4} className="px-2 pb-2">
             {!detalle && (
               <div className="py-2 text-[var(--t-text-muted)]">cargando cuentas…</div>
             )}
