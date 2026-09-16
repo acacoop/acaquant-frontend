@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -38,10 +38,14 @@ type SegmentoResp = {
 type Comercial = {
   rank: number; operador_email: string | null; operador_nombre: string;
   vol_total: number; vol_mes: number; ar_total: number; ar_mes: number; ticket_promedio: number;
+  ar_operaciones_total?: number; ar_operaciones_mes?: number;
+  ar_fci_total?: number; ar_fci_mes?: number;
   ctas_ops: number;  // cuentas distintas que operaron en el mes del corte
 };
 type ArancelSeg = {
   segmento: string; ar_total: number; ar_mes: number; n_cuentas: number; ticket_promedio: number;
+  ar_operaciones_total?: number; ar_operaciones_mes?: number;
+  ar_fci_total?: number; ar_fci_mes?: number;
 };
 type InformeResp = { mes_actual: string; comerciales: Comercial[]; aranceles_segmento: ArancelSeg[] };
 type ClienteArancel = {
@@ -236,6 +240,7 @@ export function ComercialInforme({
   const [seg, setSeg] = useState<SegmentoResp | null>(null);
   const [mes, setMes] = useState<string | null>(null);
   const [selSeg, setSelSeg] = useState<string | null>(null);
+  const [expandedSeg, setExpandedSeg] = useState<string | null>(null);
   const [detalle, setDetalle] = useState<SegDetalle | null>(null);
   // Cuenta abierta en el modal de boletos del mes. Reemplazó a la tab OPERACIONES,
   // que listaba las operaciones de TODOS los clientes del segmento: miles de filas
@@ -700,22 +705,39 @@ export function ComercialInforme({
             {!q3segs && (
               <tr><td colSpan={4} className="text-center text-[var(--t-text-muted)] py-4">cargando…</td></tr>
             )}
-            {q3segs?.map((s) => (
-              <tr
-                key={s.segmento}
-                onClick={() => setSelSeg(s.segmento)}
-                title="Ver clientes y operaciones de este segmento"
-                className={
-                  "border-t border-[var(--t-border)] cursor-pointer " +
-                  (selSeg === s.segmento ? "bg-[var(--t-accent)]/10" : "hover:bg-[var(--t-surface)]")
-                }
-              >
-                <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[200px]" title={s.segmento}>{s.segmento}</td>
-                <td className="text-right px-2 font-semibold text-[var(--t-data-arancel)]">{fmtFull(s.ar_total)}</td>
-                <td className="text-right px-2 text-[var(--t-data-arancel)]">{fmtFull(s.ar_mes)}</td>
-                <td className="text-right pl-2 pr-16 text-[var(--t-text)]">{fmtFull(s.ticket_promedio)}</td>
-              </tr>
-            ))}
+            {q3segs?.map((s) => {
+              const expanded = expandedSeg === s.segmento;
+              return (
+                <Fragment key={s.segmento}>
+                  <tr
+                    onClick={() => {
+                      setSelSeg(s.segmento);
+                      setExpandedSeg((actual) => actual === s.segmento ? null : s.segmento);
+                    }}
+                    title="Ver desglose de operaciones y FCI"
+                    className={
+                      "border-t border-[var(--t-border)] cursor-pointer " +
+                      (selSeg === s.segmento ? "bg-[var(--t-accent)]/10" : "hover:bg-[var(--t-surface)]")
+                    }
+                  >
+                    <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[200px]" title={s.segmento}>{s.segmento}</td>
+                    <td className="text-right px-2 font-semibold text-[var(--t-data-arancel)]">{fmtFull(s.ar_total)}</td>
+                    <td className="text-right px-2 text-[var(--t-data-arancel)]">{fmtFull(s.ar_mes)}</td>
+                    <td className="text-right pl-2 pr-16 text-[var(--t-text)]">{fmtFull(s.ticket_promedio)}</td>
+                  </tr>
+                  {expanded && (
+                    <tr className="bg-[var(--t-surface)]/60">
+                      <td colSpan={4} className="px-3 py-1.5">
+                        <div className="flex items-center justify-end gap-5 text-[10px] uppercase tracking-wider">
+                          <span className="text-[var(--t-text-muted)]">Operaciones <b className="text-[var(--t-data-arancel)]">{fmtFull(s.ar_operaciones_total ?? 0)}</b> · mes {fmtFull(s.ar_operaciones_mes ?? 0)}</span>
+                          <span className="text-[var(--t-text-muted)]">FCI <b className="text-[var(--t-data-arancel)]">{fmtFull(s.ar_fci_total ?? 0)}</b> · mes {fmtFull(s.ar_fci_mes ?? 0)}</span>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </Panel>
