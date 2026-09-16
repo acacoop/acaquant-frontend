@@ -11,6 +11,7 @@ import { SenebisView } from "./senebis-view";
 import { TitulosNegativosView } from "./titulos-negativos-view";
 import { InterbankingView } from "./interbanking-view";
 import { CustodiaView } from "./custodia-view";
+import { ComisionesFciView } from "./comisiones-fci-view";
 
 // Tabs del Back Office. Senebis + Tenencia Valorizada + Títulos en Alquiler +
 // Tesorería + Títulos / Mercado + Acreencias Clientes + Saldos de Cuentas
@@ -20,7 +21,8 @@ import { CustodiaView } from "./custodia-view";
 // tenían esta pestaña abierta de vuelta al default. El nombre visible es lo
 // único que cambia.
 type Tab = "titulos_mercado" | "acreencias" | "tenencia" | "alquiler" | "contabilidad"
-  | "tesoreria" | "senebis" | "negativos" | "interbanking" | "custodia";
+  | "tesoreria" | "senebis" | "negativos" | "interbanking" | "custodia"
+  | "comisiones_fci";
 
 export function BackOfficeShell() {
   // Default = Tenencia Valorizada (primera en la barra). Persistido: la
@@ -91,6 +93,12 @@ export function BackOfficeShell() {
         >
           Custodia
         </TabBtn>
+        <TabBtn
+          active={tab === "comisiones_fci"}
+          onClick={() => setTab("comisiones_fci")}
+        >
+          Comisiones FCI
+        </TabBtn>
       </div>
 
       <div className="flex-1 min-h-0">
@@ -104,6 +112,7 @@ export function BackOfficeShell() {
         {tab === "contabilidad" && <ContabilidadView />}
         {tab === "negativos" && <TitulosNegativosView />}
         {tab === "custodia" && <CustodiaView />}
+        {tab === "comisiones_fci" && <ComisionesFciView />}
       </div>
     </div>
   );
