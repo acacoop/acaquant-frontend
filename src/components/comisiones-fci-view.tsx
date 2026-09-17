@@ -277,7 +277,7 @@ export function ComisionesFciView() {
                       del arancel (arancel día = AuM × fee ÷ 2 ÷ 365), y sin ella la
                       tabla mostraba el resultado sin el número que lo genera. */}
                   <th className="px-2 py-1.5 text-right w-24">AuM</th>
-                  <th className="px-2 py-1.5 text-right w-24">Arancel día</th>
+                  <th className="px-2 py-1.5 text-right w-24">Último día</th>
                   <th className="px-2 py-1.5 text-right w-28">Acum. mes</th>
                 </tr>
               </thead>
@@ -349,7 +349,7 @@ export function ComisionesFciView() {
                   <tr className="border-b border-[var(--t-border)]">
                     <th className="px-2 py-1.5 text-left">Gerente</th>
                     <th className="px-2 py-1.5 text-right w-14">Fondos</th>
-                    <th className="px-2 py-1.5 text-right w-24">Arancel día</th>
+                    <th className="px-2 py-1.5 text-right w-24">Último día</th>
                     <th className="px-2 py-1.5 text-right w-28">Acum. mes</th>
                   </tr>
                 </thead>
@@ -475,7 +475,7 @@ function FilaFondo({ f, abierto, detalle, onToggle }: {
                   <tr>
                     <th className="px-2 py-1 text-left">Cuenta</th>
                     <th className="px-2 py-1 text-right w-28">Valuación</th>
-                    <th className="px-2 py-1 text-right w-24">Arancel día</th>
+                    <th className="px-2 py-1 text-right w-24">Último día</th>
                     <th className="px-2 py-1 text-right w-28">Acum. mes</th>
                   </tr>
                 </thead>
