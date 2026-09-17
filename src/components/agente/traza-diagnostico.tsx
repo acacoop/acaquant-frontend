@@ -101,7 +101,7 @@ export function TrazaDiagnostico({ hallazgoId, leer, pedir, cerrar }: {
             title="Encola un diagnóstico nuevo de este hallazgo, por la misma puerta que el automático"
             className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-40"
           >
-            {activo ? "diagnosticando…" : "diagnosticar de nuevo"}
+            {run?.estado === "queued" ? "en cola…" : activo ? "diagnosticando…" : "diagnosticar de nuevo"}
           </button>
         )}
         {cerrar && (
@@ -131,7 +131,9 @@ export function TrazaDiagnostico({ hallazgoId, leer, pedir, cerrar }: {
         <div className="bg-[var(--t-surface)] p-1.5 max-h-[28rem] overflow-y-auto flex flex-col gap-0.5">
           {t!.eventos.length === 0 && (
             <p className="text-[9px] text-[var(--t-text-dim)]">
-              {activo ? "en cola: todavía no empezó" : "sin eventos guardados"}
+              {run?.estado === "queued"
+                ? "en cola: el worker del asistente (asistente-worker.service) todavía no lo tomó"
+                : activo ? "corriendo: todavía sin eventos" : "sin eventos guardados"}
             </p>
           )}
           {t!.eventos.map((e, i) => <VerEvento key={e.id ?? i} e={e} />)}
