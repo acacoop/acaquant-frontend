@@ -24,8 +24,10 @@ type Turno = { pregunta: string; r?: RespuestaLab; g?: TurnoGuardado; error?: st
 const fecha = (iso: string) =>
   new Date(iso).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
+export type SubTabLab = "conversaciones" | "diagnosticos" | "modelo";
+
 export function TabLab({ preguntar, leer, guardar, cancelarRun, diagnostico, abrirDiagnostico,
-                         pedirDiagnostico, cancelarDiagnostico }: {
+                         pedirDiagnostico, cancelarDiagnostico, sub, setSub }: {
   // Manda la pregunta y el id de la conversación (vacío = nueva).
   preguntar: (pregunta: string, sesion: string,
               actualizar: (respuesta: RespuestaLab) => void) => Promise<RespuestaLab>;
@@ -40,6 +42,10 @@ export function TabLab({ preguntar, leer, guardar, cancelarRun, diagnostico, abr
   abrirDiagnostico?: (d: DiagnosticoAbierto | null) => void;
   pedirDiagnostico?: (id: number) => Promise<{ ok: boolean; run_id?: string; error?: string }>;
   cancelarDiagnostico?: (runId: string) => Promise<{ ok: boolean; error?: string }>;
+  // Las tres pantallas del LAB. Cuál está abierta vive en el modal: AHORA
+  // manda a «diagnósticos» al abrir un ciclo.
+  sub: SubTabLab;
+  setSub: (s: SubTabLab) => void;
 }) {
   const [texto, setTexto] = useState("");
   const [turnos, setTurnos] = useState<Turno[]>([]);
@@ -59,7 +65,6 @@ export function TabLab({ preguntar, leer, guardar, cancelarRun, diagnostico, abr
   const [diagnosticos, setDiagnosticos] = useState<DiagnosticoResumen[]>([]);
   const [activosDiag, setActivosDiag] = useState(0);
   const [errorDiag, setErrorDiag] = useState("");
-  const [verDiagnosticos, setVerDiagnosticos] = useState(true);
 
   const refrescarDiagnosticos = useCallback(async () => {
     try {
@@ -173,9 +178,27 @@ export function TabLab({ preguntar, leer, guardar, cancelarRun, diagnostico, abr
 
   return (
     <div className="flex flex-col gap-3">
-      <PanelLabIA leer={leer} guardar={guardar} />
+      {/* ── LAS TRES PANTALLAS DEL LAB ──────────────────────────────────
+          CONVERSACIONES es preguntar; DIAGNÓSTICOS es ver qué corre solo y
+          qué costó; MODELO Y GASTO es con qué corre cada tarea y la plata.
+          Los contadores vienen del backend, acá solo se muestran. */}
+      <div className="flex gap-1 border-b border-[var(--t-border)]">
+        {([
+          ["conversaciones", `conversaciones (${lista.length})`],
+          ["diagnosticos", `diagnósticos (${diagnosticos.length})` + (activosDiag > 0 ? ` · ${activosDiag} en curso` : "")],
+          ["modelo", "modelo y gasto"],
+        ] as [SubTabLab, string][]).map(([k, etiqueta]) => (
+          <button key={k} onClick={() => setSub(k)}
+                  className={`text-[9px] uppercase tracking-widest px-2 py-1 border-b-2 -mb-px ${
+                    sub === k ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                      : "border-transparent text-[var(--t-text-dim)] hover:text-[var(--t-text)]"}`}>
+            {etiqueta}
+          </button>
+        ))}
+      </div>
 
-      {/* ── EL CICLO DE UN DIAGNÓSTICO (viene de AHORA) ─────────────────── */}
+      {sub === "diagnosticos" && (<>
+      {/* ── EL CICLO DE UN DIAGNÓSTICO (viene de AHORA o de la lista) ──── */}
       {diagnostico && (
         <TrazaDiagnostico key={`${diagnostico.hallazgo}:${diagnostico.run ?? ""}`}
                           hallazgoId={diagnostico.hallazgo} runInicial={diagnostico.run} leer={leer}
@@ -191,13 +214,9 @@ export function TabLab({ preguntar, leer, guardar, cancelarRun, diagnostico, abr
           contador de atascados contaba sin decir qué era. */}
       <div className="border border-[var(--t-border)]">
         <div className="flex items-baseline gap-3 px-2 py-1 flex-wrap">
-          <button
-            onClick={() => setVerDiagnosticos(!verDiagnosticos)}
-            className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
-          >
-            {verDiagnosticos ? "▾" : "▸"} diagnósticos ({diagnosticos.length})
-            {activosDiag > 0 && <span className="text-[var(--t-accent)]"> · {activosDiag} en curso</span>}
-          </button>
+          <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
+            una fila por corrida · clic abre su ciclo
+          </span>
           <button
             onClick={() => void refrescarDiagnosticos()}
             className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
@@ -205,8 +224,8 @@ export function TabLab({ preguntar, leer, guardar, cancelarRun, diagnostico, abr
             ↻
           </button>
         </div>
-        {verDiagnosticos && (
-          <div className="border-t border-[var(--t-border)] max-h-56 overflow-y-auto">
+        {(
+          <div className="border-t border-[var(--t-border)] max-h-[28rem] overflow-y-auto">
             {errorDiag && <p className="text-[10px] text-[var(--t-neg)] px-2 py-1">{errorDiag}</p>}
             {diagnosticos.length === 0 && !errorDiag && (
               <p className="text-[10px] text-[var(--t-text-dim)] px-2 py-1">todavía no corrió ninguno</p>
@@ -244,6 +263,10 @@ export function TabLab({ preguntar, leer, guardar, cancelarRun, diagnostico, abr
         )}
       </div>
 
+      </>)}
+
+      {sub === "modelo" && (<>
+      <PanelLabIA leer={leer} guardar={guardar} abiertoInicial />
       {metricas && (
         <div className="flex items-center gap-x-4 gap-y-1 flex-wrap border-y border-[var(--t-border)] py-1 text-[9px] tabular-nums text-[var(--t-text-dim)]">
           <span>{metricas.dias} d · {metricas.resumen.total} runs</span>
@@ -258,7 +281,9 @@ export function TabLab({ preguntar, leer, guardar, cancelarRun, diagnostico, abr
           <span>{metricas.resumen.control_fallido} sin control</span>
         </div>
       )}
+      </>)}
 
+      {sub === "conversaciones" && (<>
       <p className="text-[10px] text-[var(--t-text-dim)]">
         Preguntale por la cartera y el mercado. <b>Todo dato sale de una herramienta</b> —
         si no lo trajo una consulta, no lo dice. <b>No escribe nada.</b> El alcance de
@@ -387,6 +412,7 @@ export function TabLab({ preguntar, leer, guardar, cancelarRun, diagnostico, abr
 
       {/* ── LA CONVERSACIÓN ─────────────────────────────────────────── */}
       {turnos.map((t, i) => <VerTurno key={i} t={t} />)}
+      </>)}
     </div>
   );
 }

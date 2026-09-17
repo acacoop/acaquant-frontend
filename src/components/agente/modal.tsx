@@ -24,7 +24,7 @@ import { TabEncontro } from "@/components/agente/tab-encontro";
 import { TabCronicos } from "./tab-cronicos";
 import { TabHistorial } from "@/components/agente/tab-historial";
 import { PanelHabilidades } from "@/components/agente/panel-habilidades";
-import { TabLab } from "@/components/agente/tab-lab";
+import { TabLab, type SubTabLab } from "@/components/agente/tab-lab";
 import { type DiagnosticoAbierto, fechaHora, hace } from "@/components/agente/tipos";
 
 type Tab = "ahora" | "encontro" | "patrones" | "historial" | "habilidades" | "lab";
@@ -35,6 +35,7 @@ export default function AgenteModal() {
   const [tab, setTab] = useState<Tab>("ahora");
   // El hallazgo cuyo diagnóstico se está mirando en el LAB (viene de AHORA).
   const [diagnostico, setDiagnostico] = useState<DiagnosticoAbierto | null>(null);
+  const [labSub, setLabSub] = useState<SubTabLab>("conversaciones");
   const d = useAgente(abierto);
   const v = d.vista;
 
@@ -228,7 +229,7 @@ export default function AgenteModal() {
                   ignorar={async (id) => {
                     await d.escribir("/api/agente/ignorar", { id }, ["vista"]);
                   }}
-                  verDiagnostico={(id) => { setDiagnostico({ hallazgo: id }); setTab("lab"); }}
+                  verDiagnostico={(id) => { setDiagnostico({ hallazgo: id }); setLabSub("diagnosticos"); setTab("lab"); }}
                 />
               )}
               {v && tab === "encontro" && (
@@ -257,6 +258,8 @@ export default function AgenteModal() {
                   // ninguna de las vistas del agente, y el panel se refresca
                   // solo cuando la elección vuelve OK.
                   guardar={(url, body) => d.calcular(url, body)}
+                  sub={labSub}
+                  setSub={setLabSub}
                   diagnostico={diagnostico}
                   abrirDiagnostico={setDiagnostico}
                   // Pedir y cancelar ESCRIBEN (encolan o cortan un run) pero no

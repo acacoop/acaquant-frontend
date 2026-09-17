@@ -28,11 +28,14 @@ import type { PanelLab, ProveedorLab, TareaLab, TarifaLab } from "@/components/a
 
 const miles = (n: number) => n.toLocaleString("es-AR");
 
-export function PanelLabIA({ leer, guardar }: {
+export function PanelLabIA({ leer, guardar, abiertoInicial }: {
   leer: <T>(url: string) => Promise<T>;
   guardar: <T>(url: string, body?: unknown) => Promise<T>;
+  // En su propia tab del LAB arranca abierto; plegado era para cuando iba
+  // arriba del chat.
+  abiertoInicial?: boolean;
 }) {
-  const [abierto, setAbierto] = useState(false);
+  const [abierto, setAbierto] = useState(abiertoInicial ?? false);
   const [p, setP] = useState<PanelLab | null>(null);
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
