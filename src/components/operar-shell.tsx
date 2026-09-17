@@ -2,11 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { DolarMepShell } from "./dolar-mep-shell";
+import { OperarOrdenesDiaView } from "./operar-ordenes-dia-view";
 import { OperarTitulosFciView } from "./operar-titulos-fci-view";
 
 // OPERAR arranca en DÓLAR MEP (lo primero que se ve al entrar — decisión user
 // 2026-07-23). El resto (títulos + FCI) quedó consolidado en UNA vista.
-type Tab = "dolar-mep" | "titulos-fci";
+// ÓRDENES DEL DÍA (2026-09-17) es de solo lectura, TODA la ALyC, crudo del
+// broker — no confundir con el panel homónimo de TÍTULOS Y FCI (ese es
+// por-cuenta, con cancelar, de `/api/ordenes/dia`).
+type Tab = "dolar-mep" | "titulos-fci" | "ordenes-dia";
 
 export function OperarShell() {
   const [tab, setTab] = useState<Tab>("dolar-mep");
@@ -19,6 +23,7 @@ export function OperarShell() {
     const t = new URLSearchParams(window.location.search).get("tab");
     if (t === "dolar-mep") setTab("dolar-mep");
     else if (t === "fci" || t === "dashboard" || t === "titulos-fci") setTab("titulos-fci");
+    else if (t === "ordenes-dia") setTab("ordenes-dia");
   }, []);
 
   return (
@@ -30,10 +35,19 @@ export function OperarShell() {
         <TabBtn active={tab === "titulos-fci"} onClick={() => setTab("titulos-fci")}>
           TÍTULOS Y FCI
         </TabBtn>
+        <TabBtn active={tab === "ordenes-dia"} onClick={() => setTab("ordenes-dia")}>
+          ÓRDENES DEL DÍA
+        </TabBtn>
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden">
-        {tab === "dolar-mep" ? <DolarMepShell /> : <OperarTitulosFciView />}
+        {tab === "dolar-mep" ? (
+          <DolarMepShell />
+        ) : tab === "titulos-fci" ? (
+          <OperarTitulosFciView />
+        ) : (
+          <OperarOrdenesDiaView />
+        )}
       </div>
     </div>
   );
