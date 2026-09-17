@@ -87,6 +87,7 @@ type NivelKey = "nivel_1" | "nivel_2" | "nivel_3";
 type NivelSel = Record<NivelKey, string[]>;
 type NivelCombo = {
   operador_email: string | null;
+  operador_nombre: string | null;
   nivel_1: string | null;
   nivel_2: string | null;
   nivel_3: string | null;
@@ -205,12 +206,17 @@ export function ComisionesFciView() {
   }, [combos, operador, nivelSel]);
 
   const operadores = useMemo(() => {
-    const cuentas = new Map<string, number>();
+    const cuentas = new Map<string, { nombre: string | null; n: number }>();
     for (const combo of combos) {
       if (!combo.operador_email) continue;
-      cuentas.set(combo.operador_email, (cuentas.get(combo.operador_email) ?? 0) + combo.n_cuentas);
+      const actual = cuentas.get(combo.operador_email) ?? { nombre: combo.operador_nombre, n: 0 };
+      cuentas.set(combo.operador_email, {
+        nombre: actual.nombre ?? combo.operador_nombre,
+        n: actual.n + combo.n_cuentas,
+      });
     }
-    return [...cuentas.entries()].sort(([a], [b]) => a.localeCompare(b, "es"));
+    return [...cuentas.entries()].sort(([, a], [, b]) =>
+      (a.nombre ?? "").localeCompare(b.nombre ?? "", "es"));
   }, [combos]);
 
   // Meses disponibles: salen de los datos, no de un rango inventado. Ofrecer un
@@ -315,8 +321,10 @@ export function ComisionesFciView() {
                        text-[11px] text-[var(--t-text)]"
           >
             <option value="">Todos</option>
-            {operadores.map(([email, cuentas]) => (
-              <option key={email} value={email}>{email} ({cuentas})</option>
+            {operadores.map(([email, operador]) => (
+              <option key={email} value={email}>
+                {operador.nombre ?? email} ({operador.n})
+              </option>
             ))}
           </select>
         </div>
