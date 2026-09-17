@@ -322,7 +322,15 @@ export type Control = {
     que_paso: string;
     detalle: string[];
     cuantos: number;
+    // Qué significa y qué hacer los escribe el backend por tipo de hallazgo.
+    // Antes la pantalla pegaba una frase fija («o los calculó él, o los
+    // inventó») debajo de CUALQUIER aviso, aunque fuera de evidencia.
+    significa?: string;
+    que_hacer?: string;
   }[];
+  // Las citas `[E:ref:campo]` que escribió el modelo. `respuesta` ya viene sin
+  // ellas: son para auditar, no para leer. Se ven en el ciclo.
+  citas?: { ref: string; campo: string }[];
 };
 
 export type RespuestaLab = {

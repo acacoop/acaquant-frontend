@@ -353,10 +353,12 @@ function VerTurno({ t }: { t: Turno }) {
       )}
 
       {/* ── EL CONTROL ────────────────────────────────────────────────
-          Código, no un modelo: saca los números de la respuesta y los busca en
-          lo que se le dio. Va DEBAJO de la respuesta y no en vez de ella —
-          avisa, no bloquea. Si esto tapara la respuesta, la primera falsa
-          alarma te dejaría sin una contestación que estaba bien. */}
+          Código, no un modelo: saca los números y las citas de la respuesta y
+          los busca en lo que se le dio. Va DEBAJO de la respuesta y no en vez
+          de ella — avisa, no bloquea. Si esto tapara la respuesta, la primera
+          falsa alarma te dejaría sin una contestación que estaba bien.
+          Qué significa cada aviso lo dice el backend, por tipo: acá no se
+          opina. */}
       {r?.control && !r.control.ok && r.control.hallazgos.map((h, i) => (
         <p key={i} className="text-[9px] text-[var(--t-neg)] leading-snug border-l-2 border-[var(--t-neg)] pl-2">
           ⚠ {h.que_paso}
@@ -365,9 +367,11 @@ function VerTurno({ t }: { t: Turno }) {
               {h.cuantos > h.detalle.length && <> (+{h.cuantos - h.detalle.length})</>}
             </>
           )}
-          <span className="block text-[var(--t-text-dim)]">
-            O los calculó él, o los inventó. Verificá antes de usarlos.
-          </span>
+          {(h.significa || h.que_hacer) && (
+            <span className="block text-[var(--t-text-dim)]">
+              {[h.significa, h.que_hacer].filter(Boolean).join(" ")}
+            </span>
+          )}
         </p>
       ))}
 
@@ -386,6 +390,14 @@ function VerTurno({ t }: { t: Turno }) {
           {verCiclo && (
             <div className="bg-[var(--t-surface)] p-1.5 mt-1 max-h-72 overflow-y-auto flex flex-col gap-0.5">
               {r.eventos.map((e, i) => <VerEvento key={i} e={e} />)}
+              {/* Las citas de evidencia viven acá, no en la frase: la respuesta
+                  llega limpia y esto es lo que el control verificó. */}
+              {(r.control?.citas?.length ?? 0) > 0 && (
+                <p className="text-[9px] leading-relaxed text-[var(--t-text-dim)] mt-1">
+                  <span className="mr-1">§</span>citas de evidencia:{" "}
+                  {r.control!.citas!.map((c) => `[E:${c.ref}:${c.campo}]`).join(" ")}
+                </p>
+              )}
             </div>
           )}
         </div>
