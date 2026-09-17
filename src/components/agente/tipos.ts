@@ -5,6 +5,24 @@
 
 export type Severidad = "alta" | "media" | "baja";
 
+// EL DIAGNÓSTICO de un hallazgo (asistente/diagnostico.py, AvAgentAI.md §15):
+// causa y acción de listas cerradas, afirmaciones con su marca, qué no hacer, y
+// qué ajustó el validador. Viene resuelto: acá no se deriva nada.
+export type Diagnostico = {
+  causa: string;
+  resumen: string;
+  verificado?: { afirmacion: string; cita?: string; estado: "verificado" | "hipotesis" }[];
+  accion: string;
+  accion_detalle?: string;
+  no_hacer?: string[];
+  archivo?: string | null;
+  motivo_codigo?: string | null;
+  escalar_a?: string | null;
+  validado?: { cambios: string[] };
+  control?: { ok: boolean; hallazgos: { que_paso: string }[] };
+  at?: string;
+};
+
 export type Hallazgo = {
   id: number;
   habilidad: string;
@@ -41,6 +59,8 @@ export type Hallazgo = {
   visto_ultima_vez?: string;
   veces: number;
   estado?: string;
+  diagnostico?: Diagnostico | null;
+  diagnosticado_at?: string | null;
   dominio: string | null;
   accionable?: boolean;
   // ⚠️ CUÁNTAS VECES apareció ESTE MISMO problema en los últimos 30 días —

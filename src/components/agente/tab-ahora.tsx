@@ -19,6 +19,7 @@ import { useState } from "react";
 
 import { COLOR, fechaHora, type Hallazgo } from "@/components/agente/tipos";
 import { Recurrencia, Confirmado, Evidencia, Detalle } from "./evidencia";
+import { Diagnostico } from "./diagnostico";
 
 export function TabAhora({ filas, marcarLeidos, ignorar }: {
   filas: Hallazgo[];
@@ -116,6 +117,10 @@ export function TabAhora({ filas, marcarLeidos, ignorar }: {
               <p className="text-[9px] text-[var(--t-text-dim)] mt-0.5">
                 {f.que_hacer}
               </p>
+              {/* Lo que concluyó EL DIAGNÓSTICO, si ya corrió: causa, acción y
+                  qué NO hacer. El `que_hacer` de arriba es el del detector; esto
+                  es lo investigado. */}
+              <Diagnostico d={f.diagnostico} at={f.diagnosticado_at} />
               <Evidencia ev={f.evidencia} />
             </div>
             <div className="flex flex-col gap-1 shrink-0">
