@@ -28,6 +28,7 @@ import {
 import { fetchJson } from "@/lib/fetch-json";
 import { fmtMoney, fmtMoneyFull } from "@/lib/fmt-money";
 import { usePersistedState } from "@/lib/use-persisted-state";
+import { MultiSelect, type Opt } from "@/components/ui/multi-select";
 
 const BASE = "/api/back-office/comisiones-fci";
 
@@ -82,6 +83,29 @@ type Detalle = {
 };
 
 type SerieMes = { mes: string; ARS: number; USD: number };
+type NivelKey = "nivel_1" | "nivel_2" | "nivel_3";
+type NivelSel = Record<NivelKey, string[]>;
+type NivelCombo = {
+  operador_email: string | null;
+  operador_nombre: string | null;
+  nivel_1: string | null;
+  nivel_2: string | null;
+  nivel_3: string | null;
+  n_cuentas: number;
+};
+
+const NIVELES: { key: NivelKey; label: string }[] = [
+  { key: "nivel_1", label: "Nivel 1" },
+  { key: "nivel_2", label: "Nivel 2" },
+  { key: "nivel_3", label: "Nivel 3" },
+];
+const NIVELES_VACIO: NivelSel = { nivel_1: [], nivel_2: [], nivel_3: [] };
+
+function appendFiltros(q: URLSearchParams, nivelSel: NivelSel, operador: string, gerente: string) {
+  if (operador) q.set("operador", operador);
+  if (gerente) q.set("gerente", gerente);
+  for (const { key } of NIVELES) for (const value of nivelSel[key]) q.append(key, value);
+}
 
 type FeeFondo = {
   unidad: string;
@@ -141,6 +165,13 @@ export function ComisionesFciView() {
   const [llegó, setLlegó] = useState<{ mes: string; data: Resumen | null; error: string | null }>(
     { mes: "", data: null, error: null });
   const [serie, setSerie] = useState<SerieMes[]>([]);
+  const [serieContexto, setSerieContexto] = useState("");
+  const [errorSerie, setErrorSerie] = useState<{ contexto: string; mensaje: string } | null>(null);
+  const [operador, setOperador] = usePersistedState<string>("backoffice.comisionesFci.operador", "");
+  const [nivelSel, setNivelSel] = usePersistedState<NivelSel>(
+    "backoffice.comisionesFci.niveles", NIVELES_VACIO);
+  const [gerente, setGerente] = usePersistedState<string>("backoffice.comisionesFci.gerente", "");
+  const [combos, setCombos] = useState<NivelCombo[]>([]);
   const [fees, setFees] = useState<Fees | null>(null);
   const [verFees, setVerFees] = useState(false);
   const [abierto, setAbierto] = useState<string | null>(null);
@@ -151,6 +182,46 @@ export function ComisionesFciView() {
   const cargando = !!mes && llegó.mes !== mes;
   const data = llegó.mes === mes ? llegó.data : null;
   const error = llegó.mes === mes ? llegó.error : null;
+  const filtrosKey = JSON.stringify({ operador, nivelSel, gerente });
+  const errorSerieActual = errorSerie?.contexto === filtrosKey ? errorSerie.mensaje : null;
+  const cargandoSerie = serieContexto !== filtrosKey && !errorSerieActual;
+  const setNivel = (key: NivelKey) => (next: string[]) =>
+    setNivelSel((prev) => ({ ...prev, [key]: next }));
+
+  const opcionesPorNivel = useMemo(() => {
+    const seleccionados = nivelSel;
+    const pasa = (combo: NivelCombo, key: NivelKey) =>
+      seleccionados[key].length === 0 ||
+      (!!combo[key] && seleccionados[key].includes(combo[key]!));
+    const out = {} as Record<NivelKey, Opt[]>;
+    for (const { key } of NIVELES) {
+      const opciones = new Map<string, number>();
+      for (const combo of combos) {
+        if (operador && combo.operador_email !== operador) continue;
+        if (NIVELES.some(({ key: otro }) => otro !== key && !pasa(combo, otro))) continue;
+        const value = combo[key];
+        if (value) opciones.set(value, (opciones.get(value) ?? 0) + combo.n_cuentas);
+      }
+      out[key] = [...opciones.entries()]
+        .sort(([a], [b]) => a.localeCompare(b, "es"))
+        .map(([value, n]) => ({ value, label: value, n }));
+    }
+    return out;
+  }, [combos, operador, nivelSel]);
+
+  const operadores = useMemo(() => {
+    const cuentas = new Map<string, { nombre: string | null; n: number }>();
+    for (const combo of combos) {
+      if (!combo.operador_email) continue;
+      const actual = cuentas.get(combo.operador_email) ?? { nombre: combo.operador_nombre, n: 0 };
+      cuentas.set(combo.operador_email, {
+        nombre: actual.nombre ?? combo.operador_nombre,
+        n: actual.n + combo.n_cuentas,
+      });
+    }
+    return [...cuentas.entries()].sort(([, a], [, b]) =>
+      (a.nombre ?? "").localeCompare(b.nombre ?? "", "es"));
+  }, [combos]);
 
   // Meses disponibles: salen de los datos, no de un rango inventado. Ofrecer un
   // mes que no tiene foto sería prometer una pantalla vacía.
@@ -161,30 +232,57 @@ export function ComisionesFciView() {
         setMes((actual) => (actual && d.meses?.includes(actual) ? actual : d.meses?.[0] || ""));
       })
       .catch((e) => setLlegó({ mes: "", data: null, error: String(e) }));
-    fetchJson<{ meses: SerieMes[] }>(`${BASE}/serie`)
-      .then((d) => setSerie(d.meses || []))
-      .catch(() => {/* el gráfico es accesorio: no puede voltear la vista */});
   }, [setMes]);
+
+  useEffect(() => {
+    fetchJson<{ combos: NivelCombo[] }>(`${BASE}/filtros`)
+      .then((d) => setCombos(d.combos || []))
+      .catch(() => setCombos([]));
+  }, []);
+
+  useEffect(() => {
+    let vivo = true;
+    const query = new URLSearchParams();
+    appendFiltros(query, nivelSel, operador, gerente);
+    const suffix = query.toString() ? `?${query}` : "";
+    fetchJson<{ meses: SerieMes[] }>(`${BASE}/serie${suffix}`)
+      .then((d) => {
+        if (!vivo) return;
+        setSerie(d.meses || []);
+        setSerieContexto(filtrosKey);
+        setErrorSerie(null);
+      })
+      .catch((e) => {
+        if (vivo) setErrorSerie({ contexto: filtrosKey, mensaje: String(e) });
+      });
+    return () => { vivo = false; };
+  }, [filtrosKey, gerente, nivelSel, operador]);
 
   useEffect(() => {
     if (!mes) return;
     let vivo = true;
-    fetchJson<Resumen>(`${BASE}?mes=${mes}`)
+    const query = new URLSearchParams({ mes });
+    appendFiltros(query, nivelSel, operador, gerente);
+    fetchJson<Resumen>(`${BASE}?${query}`)
       .then((d) => { if (vivo) { setLlegó({ mes, data: d, error: null }); setAbierto(null); } })
       .catch((e) => { if (vivo) setLlegó({ mes, data: null, error: String(e) }); });
     // Si el usuario cambia de mes mientras viaja la respuesta, la vieja se descarta
     // en vez de pisar a la nueva.
     return () => { vivo = false; };
-  }, [mes]);
+  }, [mes, filtrosKey, gerente, nivelSel, operador]);
 
   const abrir = useCallback(async (unidad: string) => {
     if (abierto === unidad) { setAbierto(null); return; }
     setAbierto(unidad);
-    const k = `${mes}|${unidad}`;
+    const k = `${mes}|${filtrosKey}|${unidad}`;
     if (detalle[k]) return;
     try {
       const d = await fetchJson<Detalle>(
-        `${BASE}/detalle?mes=${mes}&unidad=${encodeURIComponent(unidad)}`);
+        `${BASE}/detalle?${(() => {
+          const query = new URLSearchParams({ mes, unidad });
+          appendFiltros(query, nivelSel, operador, gerente);
+          return query;
+        })()}`);
       setDetalle((p) => ({ ...p, [k]: d }));
     } catch {
       /* el detalle que falla se muestra como "no se pudo cargar", no como vacío:
@@ -192,7 +290,7 @@ export function ComisionesFciView() {
       setDetalle((p) => ({ ...p, [k]: { unidad, corte: null, moneda: "ARS",
         cuentas: [], total_dia: -1, total_acum: -1 } }));
     }
-  }, [abierto, detalle, mes]);
+  }, [abierto, detalle, mes, nivelSel, operador, gerente, filtrosKey]);
 
   const verFeesModal = useCallback(() => {
     setVerFees(true);
@@ -224,6 +322,57 @@ export function ComisionesFciView() {
             {meses.map((m) => <option key={m} value={m}>{mesLargo(m)}</option>)}
           </select>
         </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
+            Operador
+          </span>
+          <select
+            value={operador}
+            onChange={(e) => setOperador(e.target.value)}
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] px-2 py-1
+                       text-[11px] text-[var(--t-text)]"
+          >
+            <option value="">Todos</option>
+            {operadores.map(([email, operador]) => (
+              <option key={email} value={email}>
+                {operador.nombre ?? email} ({operador.n})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex items-center gap-1 flex-wrap">
+          {NIVELES.map(({ key, label }) => (
+            <MultiSelect
+              key={key}
+              label={label}
+              selected={nivelSel[key]}
+              onChange={setNivel(key)}
+              options={opcionesPorNivel[key]}
+              width="max-w-[170px]"
+            />
+          ))}
+          {(operador || NIVELES.some(({ key }) => nivelSel[key].length > 0) || gerente) && (
+            <button
+              onClick={() => { setOperador(""); setNivelSel(NIVELES_VACIO); setGerente(""); }}
+              className="text-[9px] tracking-widest text-[var(--t-accent)] border border-[var(--t-accent)]
+                         px-1.5 py-0.5 hover:opacity-80"
+            >
+              Limpiar
+            </button>
+          )}
+        </div>
+
+        {gerente && (
+          <button
+            onClick={() => setGerente("")}
+            className="text-[9px] text-[var(--t-accent)] border border-[var(--t-accent)] px-2 py-1"
+            title="Quitar filtro de sociedad gerente"
+          >
+            Gerente: {gerente} ×
+          </button>
+        )}
 
         <Total etiqueta="Total ARS" dia={totARS.dia} acum={totARS.acum} />
         <Total etiqueta="Total USD" dia={totUSD.dia} acum={totUSD.acum} />
@@ -277,7 +426,7 @@ export function ComisionesFciView() {
                       del arancel (arancel día = AuM × fee ÷ 2 ÷ 365), y sin ella la
                       tabla mostraba el resultado sin el número que lo genera. */}
                   <th className="px-2 py-1.5 text-right w-24">AuM</th>
-                  <th className="px-2 py-1.5 text-right w-24">Arancel día</th>
+                  <th className="px-2 py-1.5 text-right w-24">Último día</th>
                   <th className="px-2 py-1.5 text-right w-28">Acum. mes</th>
                 </tr>
               </thead>
@@ -297,7 +446,7 @@ export function ComisionesFciView() {
                     key={f.unidad}
                     f={f}
                     abierto={abierto === f.unidad}
-                    detalle={detalle[`${mes}|${f.unidad}`]}
+                    detalle={detalle[`${mes}|${filtrosKey}|${f.unidad}`]}
                     onToggle={() => abrir(f.unidad)}
                   />
                 ))}
@@ -309,13 +458,44 @@ export function ComisionesFciView() {
         {/* DERECHA — 50 % arriba / 50 % abajo */}
         <div className="w-1/2 min-w-0 flex flex-col min-h-0">
           <div className="h-1/2 min-h-0 flex flex-col border-b border-[var(--t-border)]">
-            <Titulo>Acumulado mensual · histórico</Titulo>
-            <div className="flex-1 min-h-0 p-2">
+            <Titulo>
+              <span className="flex items-center justify-between gap-2">
+                <span>Acumulado mensual · histórico</span>
+                {cargandoSerie && (
+                  <span className="normal-case tracking-normal text-[var(--t-text-muted)]">
+                    actualizando…
+                  </span>
+                )}
+                {!cargandoSerie && errorSerieActual && (
+                  <span className="normal-case tracking-normal text-[var(--t-neg,red)]">
+                    no se pudo actualizar
+                  </span>
+                )}
+              </span>
+            </Titulo>
+            <div className={"flex-1 min-h-0 p-2 transition-opacity "
+              + (cargandoSerie && chart.length > 0 ? "opacity-60" : "")}>
               {chart.length === 0 ? (
-                <Vacio>sin historia todavía</Vacio>
+                <Vacio>
+                  {cargandoSerie
+                    ? "actualizando histórico…"
+                    : errorSerieActual
+                      ? "no se pudo cargar el histórico"
+                      : gerente
+                        ? "sin histórico para esta sociedad gerente"
+                        : "sin histórico para los filtros seleccionados"}
+                </Vacio>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chart} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <div className="h-full relative">
+                  {!cargandoSerie && errorSerieActual && serieContexto !== filtrosKey && (
+                    <div className="absolute z-10 top-1 right-1 bg-[var(--t-panel)]
+                                    border border-[var(--t-neg,red)] px-2 py-1 text-[9px]
+                                    text-[var(--t-neg,red)]">
+                      Se muestra el histórico anterior
+                    </div>
+                  )}
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chart} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="2 3" stroke="var(--t-border)" vertical={false} />
                     <XAxis dataKey="label" tick={{ fontSize: 9, fill: "var(--t-text-muted)" }}
                            axisLine={false} tickLine={false} />
@@ -334,8 +514,9 @@ export function ComisionesFciView() {
                         un número que no es plata de ninguna moneda. */}
                     <Bar dataKey="ARS" fill="var(--t-accent)" />
                     <Bar dataKey="USD" fill="var(--t-data-arancel, #7bb0d8)" />
-                  </BarChart>
-                </ResponsiveContainer>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               )}
             </div>
           </div>
@@ -349,7 +530,7 @@ export function ComisionesFciView() {
                   <tr className="border-b border-[var(--t-border)]">
                     <th className="px-2 py-1.5 text-left">Gerente</th>
                     <th className="px-2 py-1.5 text-right w-14">Fondos</th>
-                    <th className="px-2 py-1.5 text-right w-24">Arancel día</th>
+                    <th className="px-2 py-1.5 text-right w-24">Último día</th>
                     <th className="px-2 py-1.5 text-right w-28">Acum. mes</th>
                   </tr>
                 </thead>
@@ -360,7 +541,11 @@ export function ComisionesFciView() {
                   )}
                   {data?.gerentes?.map((g) => (
                     <tr key={g.gerente}
-                        className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]">
+                        onClick={() => setGerente((actual) => actual === g.gerente ? "" : g.gerente)}
+                        className={"border-t border-[var(--t-border)] cursor-pointer "
+                          + (gerente === g.gerente
+                            ? "bg-[var(--t-accent)]/10 text-[var(--t-accent)]"
+                            : "hover:bg-[var(--t-surface)]")}>
                       <td className="px-2 py-1 truncate" title={g.gerente}>{g.gerente}</td>
                       <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">{g.fondos}</td>
                       <td className="px-2 py-1 text-right" title={fmtMoneyFull(g.arancel_dia)}>
@@ -475,7 +660,7 @@ function FilaFondo({ f, abierto, detalle, onToggle }: {
                   <tr>
                     <th className="px-2 py-1 text-left">Cuenta</th>
                     <th className="px-2 py-1 text-right w-28">Valuación</th>
-                    <th className="px-2 py-1 text-right w-24">Arancel día</th>
+                    <th className="px-2 py-1 text-right w-24">Último día</th>
                     <th className="px-2 py-1 text-right w-28">Acum. mes</th>
                   </tr>
                 </thead>
