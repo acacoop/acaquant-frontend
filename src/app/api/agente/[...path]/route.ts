@@ -12,6 +12,12 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const maxDuration = 30;
 
-const h = proxyCatchAll("/api/agente", { timeoutMs: 28_000 });
-export const GET = h;
-export const POST = h;
+const normal = proxyCatchAll("/api/agente", { timeoutMs: 28_000 });
+const stream = proxyCatchAll("/api/agente", { timeoutMs: 28_000, stream: true });
+
+export async function GET(req: Request, ctx: { params: Promise<{ path?: string[] }> }) {
+	const path = (await ctx.params).path ?? [];
+	return path.at(-1) === "events" ? stream(req, ctx) : normal(req, ctx);
+}
+
+export const POST = normal;

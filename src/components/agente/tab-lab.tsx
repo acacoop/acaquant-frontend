@@ -11,7 +11,7 @@ import { PanelLabIA } from "@/components/agente/panel-lab";
 import {
   ICONO_EVENTO,
   type ConversacionLab, type ConversacionResumen, type EstadoLab, type EventoLab,
-  type RespuestaLab, type SesionLab, type TablaDeclarada, type TurnoGuardado,
+  type MetricasRuns, type RespuestaLab, type SesionLab, type TablaDeclarada, type TurnoGuardado,
 } from "@/components/agente/tipos";
 
 // Un turno como se dibuja. `r` es la respuesta viva (con su ciclo) de una
@@ -22,9 +22,11 @@ type Turno = { pregunta: string; r?: RespuestaLab; g?: TurnoGuardado; error?: st
 const fecha = (iso: string) =>
   new Date(iso).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
-export function TabLab({ preguntar, leer, guardar }: {
+export function TabLab({ preguntar, leer, guardar, cancelarRun }: {
   // Manda la pregunta y el id de la conversación (vacío = nueva).
-  preguntar: (pregunta: string, sesion: string) => Promise<RespuestaLab>;
+  preguntar: (pregunta: string, sesion: string,
+              actualizar: (respuesta: RespuestaLab) => void) => Promise<RespuestaLab>;
+  cancelarRun: (runId: string) => Promise<unknown>;
   // Para el panel de arriba (gasto y modelo) y la lista de conversaciones.
   leer: <T>(url: string) => Promise<T>;
   guardar: <T>(url: string, body?: unknown) => Promise<T>;
@@ -32,6 +34,7 @@ export function TabLab({ preguntar, leer, guardar }: {
   const [texto, setTexto] = useState("");
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [pensando, setPensando] = useState(false);
+  const [runActivo, setRunActivo] = useState("");
   // La conversación abierta: su id, su título, lo que quedó en foco y su costo.
   // Todo viene del backend con cada respuesta o al reabrir.
   const [sesion, setSesion] = useState<SesionLab | null>(null);
@@ -40,6 +43,7 @@ export function TabLab({ preguntar, leer, guardar }: {
   const [lista, setLista] = useState<ConversacionResumen[]>([]);
   const [errorLista, setErrorLista] = useState("");
   const [verLista, setVerLista] = useState(false);
+  const [metricas, setMetricas] = useState<MetricasRuns | null>(null);
 
   const refrescarLista = useCallback(async () => {
     try {
@@ -52,10 +56,21 @@ export function TabLab({ preguntar, leer, guardar }: {
     }
   }, [leer]);
 
+  const refrescarMetricas = useCallback(async () => {
+    try {
+      setMetricas(await leer<MetricasRuns>("/api/agente/lab/metricas/runs?dias=7"));
+    } catch {
+      // La conversación sigue siendo usable aunque la telemetría no responda.
+    }
+  }, [leer]);
+
   useEffect(() => {
-    const id = setTimeout(() => void refrescarLista(), 0);
+    const id = setTimeout(() => {
+      void refrescarLista();
+      void refrescarMetricas();
+    }, 0);
     return () => clearTimeout(id);
-  }, [refrescarLista]);
+  }, [refrescarLista, refrescarMetricas]);
 
   function nueva() {
     setTurnos([]);
@@ -98,16 +113,22 @@ export function TabLab({ preguntar, leer, guardar }: {
     setPensando(true);
     setTurnos((t) => [...t, { pregunta: q }]);
     try {
-      const r = await preguntar(q, sesion?.id ?? "");
+      const actualizar = (r: RespuestaLab) => {
+        setRunActivo(r.run_id ?? "");
+        setTurnos((t) => t.map((x, i) => (i === t.length - 1 ? { ...x, r } : x)));
+      };
+      const r = await preguntar(q, sesion?.id ?? "", actualizar);
       setTurnos((t) => t.map((x, i) => (i === t.length - 1 ? { ...x, r } : x)));
       if (r.sesion) setSesion(r.sesion);
       if (r.titulo) setTitulo(r.titulo);
       setEstado(r.estado ?? {});
       void refrescarLista();
+      void refrescarMetricas();
     } catch (e) {
       setTurnos((t) => t.map((x, i) =>
         (i === t.length - 1 ? { ...x, error: String(e) } : x)));
     } finally {
+      setRunActivo("");
       setPensando(false);
     }
   }
@@ -118,6 +139,21 @@ export function TabLab({ preguntar, leer, guardar }: {
   return (
     <div className="flex flex-col gap-3">
       <PanelLabIA leer={leer} guardar={guardar} />
+
+      {metricas && (
+        <div className="flex items-center gap-x-4 gap-y-1 flex-wrap border-y border-[var(--t-border)] py-1 text-[9px] tabular-nums text-[var(--t-text-dim)]">
+          <span>{metricas.dias} d · {metricas.resumen.total} runs</span>
+          <span className="text-[var(--t-pos)]">{metricas.resumen.succeeded} ok</span>
+          <span className={metricas.resumen.failed || metricas.resumen.timed_out ? "text-[var(--t-neg)]" : ""}>
+            {metricas.resumen.failed} fallidos · {metricas.resumen.timed_out} vencidos
+          </span>
+          <span className={metricas.resumen.atascadas ? "text-[var(--t-neg)]" : ""}>
+            {metricas.resumen.atascadas} atascados
+          </span>
+          <span>p95 {(metricas.resumen.p95_ms / 1000).toLocaleString("es-AR", { maximumFractionDigits: 1 })} s</span>
+          <span>{metricas.resumen.control_fallido} sin control</span>
+        </div>
+      )}
 
       <p className="text-[10px] text-[var(--t-text-dim)]">
         Preguntale por la cartera y el mercado. <b>Todo dato sale de una herramienta</b> —
@@ -199,6 +235,14 @@ export function TabLab({ preguntar, leer, guardar }: {
           >
             {pensando ? "pensando…" : "preguntar"}
           </button>
+          {pensando && runActivo && (
+            <button
+              onClick={() => void cancelarRun(runActivo)}
+              className="text-[9px] uppercase tracking-widest px-2 py-1 border border-[var(--t-neg)] text-[var(--t-neg)]"
+            >
+              cancelar
+            </button>
+          )}
         </div>
         {(enFoco.length > 0 || sesion) && (
           <div className="flex items-center gap-3 flex-wrap">
@@ -264,6 +308,11 @@ function VerTurno({ t }: { t: Turno }) {
       {t.error && <p className="text-[10px] text-[var(--t-neg)]">{t.error}</p>}
       {!r && !g && !t.error && (
         <p className="text-[10px] text-[var(--t-accent)]">pensando…</p>
+      )}
+      {r && !r.respuesta && !r.error && (
+        <p className="text-[10px] text-[var(--t-accent)]">
+          ejecutando · {r.eventos.at(-1)?.tipo ?? "en cola"}
+        </p>
       )}
 
       {/* Un turno reabierto: lo que quedó guardado, sin ciclo. */}

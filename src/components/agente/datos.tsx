@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { conTecho, fetchJson } from "@/lib/fetch-json";
-import type { Vista, Historial } from "@/components/agente/tipos";
+import type { EventoLab, Historial, RespuestaLab, RunLab, Vista } from "@/components/agente/tipos";
 
 export const URLS = {
   vista: "/api/agente/vista",
@@ -42,6 +42,9 @@ export type Datos = {
   releer: (...r: Recurso[]) => Promise<void>;
   leer: <T>(url: string) => Promise<T>;
   calcular: <T>(url: string, body?: unknown) => Promise<T>;
+  preguntar: (pregunta: string, sesion: string,
+              actualizar: (respuesta: RespuestaLab) => void) => Promise<RespuestaLab>;
+  cancelarRun: (runId: string) => Promise<RunLab>;
   escribir: <T>(url: string, body: unknown, relee: Recurso[]) => Promise<T>;
   noInteresanOns: (id: number, tickers: string[], todas: boolean)
     => Promise<ResultadoNoInteresanOns>;
@@ -123,6 +126,72 @@ export function useAgente(abierto: boolean): Datos {
     await releer(...relee);
     return r;
   }, [releer]);
+
+  const preguntar = useCallback(async (
+    pregunta: string, sesion: string, actualizar: (respuesta: RespuestaLab) => void,
+  ): Promise<RespuestaLab> => {
+    const run = await fetchJson<RunLab>("/api/agente/lab/runs", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pregunta, sesion }),
+    });
+    const eventos: EventoLab[] = [];
+    const parcial = (): RespuestaLab => ({
+      run_id: run.run_id, respuesta: null, error: null, falta: null,
+      vueltas: eventos.filter((e) => e.tipo === "vuelta").length,
+      tokens_in: 0, tokens_out: 0, eventos: [...eventos],
+    });
+    actualizar(parcial());
+
+    return new Promise<RespuestaLab>((resolve, reject) => {
+      const fuente = new EventSource(`/api/agente/lab/runs/${run.run_id}/events`);
+      let errores = 0;
+      fuente.onopen = () => { errores = 0; };
+      fuente.onmessage = (mensaje) => {
+        try {
+          const dato = JSON.parse(mensaje.data) as Record<string, unknown>;
+          if (dato.tipo === "final") {
+            fuente.close();
+            const respuesta = { ...(dato.resultado as RespuestaLab), run_id: run.run_id,
+                                eventos: [...eventos] };
+            actualizar(respuesta);
+            resolve(respuesta);
+            return;
+          }
+          if (dato.tipo === "snapshot") {
+            const snapshot = dato.run as RunLab;
+            if (["succeeded", "failed", "cancelled", "timed_out"].includes(snapshot.estado)) {
+              fuente.close();
+              const respuesta = snapshot.resultado
+                ? { ...snapshot.resultado, run_id: run.run_id, eventos: [...eventos] }
+                : { ...parcial(), error: snapshot.error || `ejecución ${snapshot.estado}` };
+              actualizar(respuesta);
+              resolve(respuesta);
+            }
+            return;
+          }
+          if (["pregunta", "ruteo", "junta", "vuelta", "pide", "resultado", "texto",
+               "corte", "achicado", "podado", "estado"].includes(String(dato.tipo))) {
+            eventos.push(dato as EventoLab);
+            actualizar(parcial());
+          }
+        } catch (error) {
+          fuente.close();
+          reject(error);
+        }
+      };
+      fuente.onerror = () => {
+        errores += 1;
+        if (errores >= 5) {
+          fuente.close();
+          reject(new Error(`se perdió el stream del run ${run.run_id}; la ejecución sigue guardada`));
+        }
+      };
+    });
+  }, []);
+
+  const cancelarRun = useCallback((runId: string) => fetchJson<RunLab>(
+    `/api/agente/lab/runs/${runId}/cancelar`, { method: "POST" },
+  ), []);
 
   // Descarta ONs por ticker (no el aviso `alta_on` entero): el backend recorta
   // a lo que el detector ofreció y vuelve a correr el detector.
@@ -218,8 +287,8 @@ export function useAgente(abierto: boolean): Datos {
   }, [abierto, releer]);
 
   return useMemo(() => ({
-    vista, historial, error, cargando, releer, leer, calcular, escribir,
+    vista, historial, error, cargando, releer, leer, calcular, escribir, preguntar, cancelarRun,
     noInteresanOns, noInteresanCedears, noInteresanContrapartes,
-  }), [vista, historial, error, cargando, releer, leer, calcular, escribir,
+  }), [vista, historial, error, cargando, releer, leer, calcular, escribir, preguntar, cancelarRun,
        noInteresanOns, noInteresanCedears, noInteresanContrapartes]);
 }

@@ -240,13 +240,13 @@ export function ritmo(segundos: number): string {
 // `agente` dice qué agente lo hizo (cartera, renta_fija, ruteo, junta).
 // `ruteo` es el primer paso: a quiénes les tocó (`elegidos`) y por qué
 // (`motivo`: una regla, el modelo, o que no se entendió y van todos).
-export type EventoLab = { agente?: string } & (
+export type EventoLab = { agente?: string; id?: number; ts?: string } & (
   | { tipo: "pregunta"; texto: string; herramientas: string[]; sesion?: string }
   | { tipo: "ruteo"; elegidos: string[]; motivo: string }
   | { tipo: "junta"; agentes: string[] }
   | { tipo: "vuelta"; n: number }
   | { tipo: "pide"; herramienta: string; argumentos: Record<string, unknown> | null }
-  | { tipo: "resultado"; herramienta: string; resultado: unknown }
+  | { tipo: "resultado"; herramienta: string; resultado: unknown; acceso?: string; duracion_ms?: number }
   | { tipo: "texto"; texto: string }
   | { tipo: "corte"; motivo: string }
   // Cuánto se ACHICÓ (peso) y cuánto se PODÓ (cantidad) del historial viejo
@@ -326,6 +326,7 @@ export type Control = {
 };
 
 export type RespuestaLab = {
+  run_id?: string;
   respuesta: string | null;
   control?: Control;
   // ⚠️ `error` viaja aparte de `respuesta`: «no contestó» y «contestó vacío»
@@ -354,6 +355,29 @@ export type RespuestaLab = {
   // el proveedor no soporta structured output (DeepSeek contesta HTTP 400 a
   // `json_schema`, medido) y la respuesta viene como prosa.
   falta?: string | null;
+};
+
+export type RunLab = {
+  run_id: string;
+  sesion: string;
+  estado: "queued" | "running" | "waiting_approval" | "succeeded" | "failed"
+    | "cancel_requested" | "cancelled" | "timed_out";
+  resultado?: RespuestaLab | null;
+  error?: string | null;
+};
+
+export type MetricasRuns = {
+  dias: number;
+  resumen: {
+    total: number;
+    succeeded: number;
+    failed: number;
+    cancelled: number;
+    timed_out: number;
+    atascadas: number;
+    control_fallido: number;
+    p95_ms: number;
+  };
 };
 
 // ── LAS CONVERSACIONES GUARDADAS (backend: `asistente/sesiones.py`) ────────

@@ -113,6 +113,8 @@ export interface ProxyOpts {
    * objeto con clave (`{serie}`, `{docs}`, `{cuentas}`, `{ops}`). No deriva nada.
    */
   envolverEn?: string;
+  /** Devuelve el ReadableStream del backend sin bufferizarlo (SSE). */
+  stream?: boolean;
 }
 
 export async function proxyBackend(req: Request, opts: ProxyOpts): Promise<NextResponse> {
@@ -126,6 +128,8 @@ export async function proxyBackend(req: Request, opts: ProxyOpts): Promise<NextR
 
   try {
     const headers = await backendHeaders((n) => req.headers.get(n));
+    const lastEventId = req.headers.get("last-event-id");
+    if (lastEventId) headers["last-event-id"] = lastEventId;
 
     let body: BodyInit | null | undefined = opts.body;
     if (body === undefined && !esLectura) {
@@ -162,6 +166,10 @@ export async function proxyBackend(req: Request, opts: ProxyOpts): Promise<NextR
     });
     const disp = res.headers.get("content-disposition");
     if (disp) out.set("content-disposition", disp);
+    if (opts.stream || out.get("content-type")?.includes("text/event-stream")) {
+      out.set("x-accel-buffering", "no");
+      return new NextResponse(res.body, { status: res.status, headers: out });
+    }
 
     if (opts.envolverEn && res.ok) {
       const data: unknown = await res.json();
