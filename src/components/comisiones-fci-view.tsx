@@ -165,6 +165,8 @@ export function ComisionesFciView() {
   const [llegó, setLlegó] = useState<{ mes: string; data: Resumen | null; error: string | null }>(
     { mes: "", data: null, error: null });
   const [serie, setSerie] = useState<SerieMes[]>([]);
+  const [serieContexto, setSerieContexto] = useState("");
+  const [errorSerie, setErrorSerie] = useState<{ contexto: string; mensaje: string } | null>(null);
   const [operador, setOperador] = usePersistedState<string>("backoffice.comisionesFci.operador", "");
   const [nivelSel, setNivelSel] = usePersistedState<NivelSel>(
     "backoffice.comisionesFci.niveles", NIVELES_VACIO);
@@ -181,6 +183,8 @@ export function ComisionesFciView() {
   const data = llegó.mes === mes ? llegó.data : null;
   const error = llegó.mes === mes ? llegó.error : null;
   const filtrosKey = JSON.stringify({ operador, nivelSel, gerente });
+  const errorSerieActual = errorSerie?.contexto === filtrosKey ? errorSerie.mensaje : null;
+  const cargandoSerie = serieContexto !== filtrosKey && !errorSerieActual;
   const setNivel = (key: NivelKey) => (next: string[]) =>
     setNivelSel((prev) => ({ ...prev, [key]: next }));
 
@@ -237,12 +241,21 @@ export function ComisionesFciView() {
   }, []);
 
   useEffect(() => {
+    let vivo = true;
     const query = new URLSearchParams();
     appendFiltros(query, nivelSel, operador, gerente);
     const suffix = query.toString() ? `?${query}` : "";
     fetchJson<{ meses: SerieMes[] }>(`${BASE}/serie${suffix}`)
-      .then((d) => setSerie(d.meses || []))
-      .catch(() => setSerie([]));
+      .then((d) => {
+        if (!vivo) return;
+        setSerie(d.meses || []);
+        setSerieContexto(filtrosKey);
+        setErrorSerie(null);
+      })
+      .catch((e) => {
+        if (vivo) setErrorSerie({ contexto: filtrosKey, mensaje: String(e) });
+      });
+    return () => { vivo = false; };
   }, [filtrosKey, gerente, nivelSel, operador]);
 
   useEffect(() => {
@@ -445,13 +458,44 @@ export function ComisionesFciView() {
         {/* DERECHA — 50 % arriba / 50 % abajo */}
         <div className="w-1/2 min-w-0 flex flex-col min-h-0">
           <div className="h-1/2 min-h-0 flex flex-col border-b border-[var(--t-border)]">
-            <Titulo>Acumulado mensual · histórico</Titulo>
-            <div className="flex-1 min-h-0 p-2">
+            <Titulo>
+              <span className="flex items-center justify-between gap-2">
+                <span>Acumulado mensual · histórico</span>
+                {cargandoSerie && (
+                  <span className="normal-case tracking-normal text-[var(--t-text-muted)]">
+                    actualizando…
+                  </span>
+                )}
+                {!cargandoSerie && errorSerieActual && (
+                  <span className="normal-case tracking-normal text-[var(--t-neg,red)]">
+                    no se pudo actualizar
+                  </span>
+                )}
+              </span>
+            </Titulo>
+            <div className={"flex-1 min-h-0 p-2 transition-opacity "
+              + (cargandoSerie && chart.length > 0 ? "opacity-60" : "")}>
               {chart.length === 0 ? (
-                <Vacio>sin historia todavía</Vacio>
+                <Vacio>
+                  {cargandoSerie
+                    ? "actualizando histórico…"
+                    : errorSerieActual
+                      ? "no se pudo cargar el histórico"
+                      : gerente
+                        ? "sin histórico para esta sociedad gerente"
+                        : "sin histórico para los filtros seleccionados"}
+                </Vacio>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chart} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <div className="h-full relative">
+                  {!cargandoSerie && errorSerieActual && serieContexto !== filtrosKey && (
+                    <div className="absolute z-10 top-1 right-1 bg-[var(--t-panel)]
+                                    border border-[var(--t-neg,red)] px-2 py-1 text-[9px]
+                                    text-[var(--t-neg,red)]">
+                      Se muestra el histórico anterior
+                    </div>
+                  )}
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chart} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="2 3" stroke="var(--t-border)" vertical={false} />
                     <XAxis dataKey="label" tick={{ fontSize: 9, fill: "var(--t-text-muted)" }}
                            axisLine={false} tickLine={false} />
@@ -470,8 +514,9 @@ export function ComisionesFciView() {
                         un número que no es plata de ninguna moneda. */}
                     <Bar dataKey="ARS" fill="var(--t-accent)" />
                     <Bar dataKey="USD" fill="var(--t-data-arancel, #7bb0d8)" />
-                  </BarChart>
-                </ResponsiveContainer>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               )}
             </div>
           </div>
