@@ -93,7 +93,7 @@ export function OpsView() {
   const [carteras, setCarteras] = useState<string[]>([]);
   const [operador, setOperador] = usePersistedState<string[]>("ops.operadorM", []);
   const [operadores, setOperadores] = useState<{ operador_email: string; operador_nombre: string | null; n_cuentas?: number }[]>([]);
-  const [search, setSearch] = usePersistedState<string>("ops.search", "");
+  const [search, setSearch] = useState("");
   // Cuentas ocultas (por denominación). localStorage → preferencia que persiste
   // entre sesiones, no un filtro transitorio. Se excluyen server-side: tablas,
   // gráfico y totales descuentan estas cuentas.
@@ -105,11 +105,10 @@ export function OpsView() {
   const [rHasta, setRHasta] = usePersistedState<string>("ops.hasta", "");
   const [fechas, setFechas] = useState<FechaRow[]>([]);
   const [selOp, setSelOp] = useState<string | null>(null);
-  // PERSISTIDO: `search` es solo el texto del buscador; el filtro REAL es
-  // este (viaja como &denominacion= a la API). Sin persistirlo, la navegación
-  // asistida escribía el nombre pero no filtraba nada (bug cazado por el user
-  // 2026-07-21). Ahora el guía puede dejar la cuenta ya seleccionada.
-  const [selDenom, setSelDenom] = usePersistedState<string | null>("ops.denominacion", null);
+  // El buscador persiste la FICHA (`id_cuenta`), no la denominación histórica
+  // grabada en cada boleto. La denominación queda para el cross-filter de la tabla.
+  const [selCuenta, setSelCuenta] = usePersistedState<string | null>("ops.cuenta", null);
+  const [selDenom, setSelDenom] = useState<string | null>(null);
   const [selInstr, setSelInstr] = useState<string | null>(null);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [serie, setSerie] = useState<SerieRow[]>([]);
@@ -143,6 +142,7 @@ export function OpsView() {
   };
 
   const selQS = (selOp ? `&operacion=${encodeURIComponent(selOp)}` : "")
+    + (selCuenta ? `&cuenta=${encodeURIComponent(selCuenta)}` : "")
     + (selDenom ? `&denominacion=${encodeURIComponent(selDenom)}` : "")
     + (selInstr ? `&instrumento=${encodeURIComponent(selInstr)}` : "")
     + qsMulti("segmento", segmento)
@@ -218,9 +218,8 @@ export function OpsView() {
     })();
   }, [modo, fecha, moneda, rangoFecha.desde, rangoFecha.hasta, selQS, fechas.length]);
 
-  // Elegir una cuenta = TODO se adapta a esa cuenta. "Por operación", "Por título"
-  // y el gráfico ya filtran por denominacion (backend); acá colapsamos "Por cuenta"
-  // a esa sola fila para que quede a la vista (antes se perdía en el scroll).
+  // El cross-filter por denominación colapsa "Por cuenta" a la fila elegida.
+  // El buscador por ficha puede devolver varias filas si el nombre cambió en el histórico.
   const denomRows = useMemo(
     () => (selDenom ? porDenom.filter((r) => r.denominacion === selDenom) : porDenom),
     [porDenom, selDenom],
@@ -228,6 +227,10 @@ export function OpsView() {
   const denomTotal = useMemo(
     () => (selDenom ? denomRows.reduce((a, r) => a + r.bruto, 0) : total),
     [denomRows, selDenom, total],
+  );
+  const cuentaSeleccionada = useMemo(
+    () => cuentasList.find((c) => c.cuenta === selCuenta),
+    [cuentasList, selCuenta],
   );
   // ¿Se muestra la columna TASA? Se decide por los DATOS (¿alguna fila trae tasa?),
   // no comparando el filtro de mercado contra el string "MAV". Así también aparece
@@ -263,7 +266,13 @@ export function OpsView() {
         )}
         {/* Filtros cruzados activos: se ACUMULAN (cuenta + op + título). Cada chip
             se saca solo, sin borrar los otros → podés ver "qué operó tal cuenta". */}
-        {selDenom && <FiltroChip label={`cuenta: ${selDenom}`} onClear={() => { setSelDenom(null); setSearch(""); }} />}
+        {selCuenta && (
+          <FiltroChip
+            label={`cuenta: [${selCuenta}]${cuentaSeleccionada ? ` ${cuentaSeleccionada.denominacion}` : ""}`}
+            onClear={() => { setSelCuenta(null); setSearch(""); }}
+          />
+        )}
+        {selDenom && <FiltroChip label={`denominación: ${selDenom}`} onClear={() => setSelDenom(null)} />}
         {cartera.length > 0 && <FiltroChip label={`cartera: ${cartera.join(", ")}`} onClear={() => setCartera([])} />}
         {selOp && <FiltroChip label={`op: ${selOp}`} onClear={() => setSelOp(null)} />}
         {selInstr && <FiltroChip label={`título: ${selInstr}`} onClear={() => setSelInstr(null)} />}
@@ -284,13 +293,16 @@ export function OpsView() {
         <input list="ops-cuentas" value={search}
           onChange={(e) => {
             const v = e.target.value; setSearch(v);
-            const hit = cuentasList.find((c) => c.denominacion === v || c.cuenta === v);
-            if (hit) setSelDenom(hit.denominacion);  // acumula con el resto de filtros
+            const hit = cuentasList.find(
+              (c) => c.cuenta === v || `[${c.cuenta}] ${c.denominacion}` === v,
+            );
+            setSelCuenta(hit?.cuenta ?? null);
+            if (hit) setSelDenom(null);
           }}
           placeholder="Buscar cuenta…"
           className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] font-mono text-[var(--t-text)] outline-none w-[170px]" />
         <datalist id="ops-cuentas">
-          {cuentasList.map((c) => <option key={c.cuenta} value={c.denominacion}>{c.cuenta}</option>)}
+          {cuentasList.map((c) => <option key={c.cuenta} value={`[${c.cuenta}] ${c.denominacion}`} />)}
         </datalist>
         {/* Filtros MULTI-SELECT (mismo componente que /operadores): cada uno acepta
             varios valores y baja separado por comas → `= ANY(...)` en SQL. */}
@@ -391,7 +403,7 @@ export function OpsView() {
           {/* ARRIBA: por cuenta */}
           <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
             <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
-              <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Por cuenta{selDenom ? " (filtrada)" : ""}</span>
+              <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Por cuenta{selCuenta || selDenom ? " (filtrada)" : ""}</span>
               <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">{denomRows.length} · Σ {fmtCompact(denomTotal)} {MONEDA_UNIDAD[moneda]}</span>
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
