@@ -8,10 +8,10 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { PanelLabIA } from "@/components/agente/panel-lab";
+import { TrazaDiagnostico } from "@/components/agente/traza-diagnostico";
+import { VerEvento } from "@/components/agente/ver-evento";
 import {
-  ICONO_EVENTO,
-  type ConversacionLab, type ConversacionResumen, type EstadoLab, type EventoLab,
-  type MetricasRuns, type RespuestaLab, type SesionLab, type TablaDeclarada, type TurnoGuardado,
+  type ConversacionLab, type ConversacionResumen, type EstadoLab,   type MetricasRuns, type RespuestaLab, type SesionLab, type TablaDeclarada, type TurnoGuardado,
 } from "@/components/agente/tipos";
 
 // Un turno como se dibuja. `r` es la respuesta viva (con su ciclo) de una
@@ -22,7 +22,8 @@ type Turno = { pregunta: string; r?: RespuestaLab; g?: TurnoGuardado; error?: st
 const fecha = (iso: string) =>
   new Date(iso).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
-export function TabLab({ preguntar, leer, guardar, cancelarRun }: {
+export function TabLab({ preguntar, leer, guardar, cancelarRun, diagnostico, cerrarDiagnostico,
+                         pedirDiagnostico }: {
   // Manda la pregunta y el id de la conversación (vacío = nueva).
   preguntar: (pregunta: string, sesion: string,
               actualizar: (respuesta: RespuestaLab) => void) => Promise<RespuestaLab>;
@@ -30,6 +31,11 @@ export function TabLab({ preguntar, leer, guardar, cancelarRun }: {
   // Para el panel de arriba (gasto y modelo) y la lista de conversaciones.
   leer: <T>(url: string) => Promise<T>;
   guardar: <T>(url: string, body?: unknown) => Promise<T>;
+  // EL DIAGNÓSTICO de un hallazgo abierto desde AHORA: acá se ve su ciclo. La
+  // pantalla lo abre y lo cierra; el contenido lo sirve el backend.
+  diagnostico?: number | null;
+  cerrarDiagnostico?: () => void;
+  pedirDiagnostico?: (id: number) => Promise<{ ok: boolean; run_id?: string; error?: string }>;
 }) {
   const [texto, setTexto] = useState("");
   const [turnos, setTurnos] = useState<Turno[]>([]);
@@ -139,6 +145,12 @@ export function TabLab({ preguntar, leer, guardar, cancelarRun }: {
   return (
     <div className="flex flex-col gap-3">
       <PanelLabIA leer={leer} guardar={guardar} />
+
+      {/* ── EL CICLO DE UN DIAGNÓSTICO (viene de AHORA) ─────────────────── */}
+      {diagnostico != null && (
+        <TrazaDiagnostico hallazgoId={diagnostico} leer={leer} pedir={pedirDiagnostico}
+                          cerrar={cerrarDiagnostico} />
+      )}
 
       {metricas && (
         <div className="flex items-center gap-x-4 gap-y-1 flex-wrap border-y border-[var(--t-border)] py-1 text-[9px] tabular-nums text-[var(--t-text-dim)]">
@@ -404,62 +416,6 @@ function VerTurno({ t }: { t: Turno }) {
       )}
     </div>
   );
-}
-
-
-// Cada paso del ciclo en una línea. El resultado de una herramienta se muestra
-// como JSON crudo a propósito: es EXACTAMENTE lo que vio el modelo, y
-// resumirlo acá sería mirar otra cosa que la que él miró.
-function VerEvento({ e }: { e: EventoLab }) {
-  const icono = ICONO_EVENTO[e.tipo] ?? "·";
-  const quien = e.agente ? <span className="text-[var(--t-text-dim)] mr-1">[{e.agente}]</span> : null;
-  const linea = (cuerpo: React.ReactNode, tono = "text-[var(--t-text-muted)]") => (
-    <p className={`text-[9px] leading-relaxed ${tono}`}>
-      <span className="mr-1">{icono}</span>{quien}{cuerpo}
-    </p>
-  );
-
-  switch (e.tipo) {
-    case "pregunta":
-      return linea(<>herramientas: <b className="text-[var(--t-text)]">{e.herramientas.join(", ")}</b></>);
-    case "ruteo":
-      return linea(<>agentes: <b className="text-[var(--t-text)]">{e.elegidos.join(", ") || "ninguno"}</b>{" "}
-        <span className="text-[var(--t-text-dim)]">({e.motivo})</span></>, "text-[var(--t-accent)]");
-    case "junta":
-      return linea(<>cruza {e.agentes.join(" + ")}</>, "text-[var(--t-accent)]");
-    case "vuelta":
-      return linea(<>vuelta {e.n}</>, "text-[var(--t-text-dim)] mt-1");
-    case "pide":
-      return linea(
-        <><b className="text-[var(--t-text)]">pide {e.herramienta}</b>{" "}
-          {JSON.stringify(e.argumentos)}</>,
-        "text-[var(--t-accent)]");
-    case "resultado":
-      return (
-        <pre className="text-[9px] text-[var(--t-text-muted)] whitespace-pre-wrap break-all max-h-40 overflow-y-auto pl-4">
-          {JSON.stringify(e.resultado, null, 1)}
-        </pre>
-      );
-    case "texto":
-      return linea(<>contestó</>, "text-[var(--t-pos)]");
-    case "corte":
-      return linea(<>{e.motivo}</>, "text-[var(--t-neg)]");
-    case "achicado":
-      return linea(<>achicado: {e.chars.toLocaleString("es-AR")} caracteres de resultados viejos</>,
-                   "text-[var(--t-text-dim)]");
-    case "podado":
-      return linea(<>podado: {e.turnos} turno(s) viejo(s), {e.mensajes} mensaje(s)</>,
-                   "text-[var(--t-text-dim)]");
-    case "estado":
-      return linea(
-        <>en foco: {Object.entries(e.estado).map(([k, v]) => `${k} = ${v}`).join(", ")}
-          {Object.keys(e.antes).length > 0 && (
-            <span className="text-[var(--t-text-dim)]">
-              {" "}(antes {Object.entries(e.antes).map(([k, v]) => `${k} = ${v}`).join(", ")})
-            </span>
-          )}</>,
-        "text-[var(--t-accent)]");
-  }
 }
 
 

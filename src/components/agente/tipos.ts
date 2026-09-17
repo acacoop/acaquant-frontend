@@ -21,6 +21,12 @@ export type Diagnostico = {
   validado?: { cambios: string[] };
   control?: { ok: boolean; hallazgos: { que_paso: string }[] };
   at?: string;
+  // De qué run salió (para abrir su ciclo en el LAB) y con qué corrió cada etapa.
+  run_id?: string;
+  vueltas?: number;
+  tokens_in?: number;
+  tokens_out?: number;
+  modelos?: Record<string, string>;
 };
 
 export type Hallazgo = {
@@ -277,7 +283,40 @@ export type EventoLab = { agente?: string; id?: number; ts?: string } & (
   // Cambió lo que queda en foco (backend: `asistente/estado.py`). Sale sólo
   // cuando cambia: en diez preguntas sobre la misma cuenta, aparece una vez.
   | { tipo: "estado"; estado: EstadoLab; antes: EstadoLab }
+  // Lo que el modelo DIJO en cada vuelta y lo que costó (backend: grafo.py).
+  // El texto que acompaña a un pedido de herramienta es su razonamiento en
+  // voz alta; sin esto el ciclo mostraba qué pidió pero no por qué.
+  | { tipo: "modelo"; n: number; texto: string; tokens_in: number; tokens_out: number; pide: string[] }
+  // Las etapas de EL DIAGNÓSTICO que no son el bucle (asistente/diagnostico.py).
+  | { tipo: "diagnostico_dosier"; hallazgo_id: number; episodios: number; cronico: boolean }
+  | { tipo: "diagnostico_concluir"; texto: string; parseo: boolean; tokens_in: number; tokens_out: number }
+  | { tipo: "diagnostico_conclusion"; hallazgo_id: number; causa: string; accion: string; cambios: string[] }
+  // El cierre del run, lo escribe el worker.
+  | { tipo: "final"; resultado?: unknown }
+  | { tipo: "run_error"; error: string }
+  | { tipo: "timed_out"; error: string }
+  | { tipo: "cancelled" }
 );
+
+// Un run de diagnóstico y su ciclo, como lo sirve GET /api/agente/diagnostico/{id}.
+// Los runs son del agente (`av-agent`), no de quien mira: por eso no van por
+// /lab/runs. `runs` viene el más nuevo primero; `run` es el que se está viendo.
+export type RunDiagnostico = {
+  run_id: string;
+  estado: string;
+  error?: string | null;
+  creada_at: string;
+  iniciada_at?: string | null;
+  finalizada_at?: string | null;
+  intentos?: number;
+};
+
+export type TrazaDiagnostico = {
+  hallazgo_id: number;
+  runs: RunDiagnostico[];
+  run: RunDiagnostico | null;
+  eventos: EventoLab[];
+};
 
 // Lo que el asistente SABE de la conversación, aparte de lo que se DIJO: hoy,
 // la cuenta de la que se viene hablando. Vive en el backend con la
@@ -329,7 +368,9 @@ export type TablaDeclarada = {
 export const ICONO_EVENTO: Record<EventoLab["tipo"], string> = {
   pregunta: "💬", vuelta: "↻", pide: "🔧", resultado: "📄",
   texto: "✅", corte: "⛔", estado: "📌", achicado: "🗜", podado: "✂️",
-  ruteo: "🧭", junta: "🔗",
+  ruteo: "🧭", junta: "🔗", modelo: "🧠",
+  diagnostico_dosier: "📁", diagnostico_concluir: "🧾", diagnostico_conclusion: "🏁",
+  final: "■", run_error: "✖", timed_out: "⏱", cancelled: "⏹",
 };
 
 // El veredicto del control determinístico (`asistente/control.py`). Viaja AL

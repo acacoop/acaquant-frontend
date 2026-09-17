@@ -33,6 +33,8 @@ type Tab = "ahora" | "encontro" | "patrones" | "historial" | "habilidades" | "la
 export default function AgenteModal() {
   const [abierto, setAbierto] = useState(false);
   const [tab, setTab] = useState<Tab>("ahora");
+  // El hallazgo cuyo diagnóstico se está mirando en el LAB (viene de AHORA).
+  const [diagnostico, setDiagnostico] = useState<number | null>(null);
   const d = useAgente(abierto);
   const v = d.vista;
 
@@ -226,6 +228,7 @@ export default function AgenteModal() {
                   ignorar={async (id) => {
                     await d.escribir("/api/agente/ignorar", { id }, ["vista"]);
                   }}
+                  verDiagnostico={(id) => { setDiagnostico(id); setTab("lab"); }}
                 />
               )}
               {v && tab === "encontro" && (
@@ -253,7 +256,12 @@ export default function AgenteModal() {
                   // `calcular` y no `escribir`: elegir un modelo no invalida
                   // ninguna de las vistas del agente, y el panel se refresca
                   // solo cuando la elección vuelve OK.
-                  guardar={(url, body) => d.calcular(url, body)} />
+                  guardar={(url, body) => d.calcular(url, body)}
+                  diagnostico={diagnostico}
+                  cerrarDiagnostico={() => setDiagnostico(null)}
+                  // Pedirlo ESCRIBE (encola un run) pero no cambia ninguna vista
+                  // hasta que termine: la traza se relee sola mientras corre.
+                  pedirDiagnostico={(id) => d.escribir(`/api/agente/diagnostico/${id}/pedir`, {}, [])} />
               )}
               {v && tab === "habilidades" && (
                 <PanelHabilidades habilidades={v.habilidades}

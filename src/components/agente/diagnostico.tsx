@@ -34,7 +34,12 @@ function fechaHora(iso?: string | null): string {
   });
 }
 
-export function Diagnostico({ d, at }: { d?: D | null; at?: string | null }) {
+export function Diagnostico({ d, at, verCiclo }: {
+  d?: D | null; at?: string | null;
+  // Abre en el LAB el ciclo que produjo esta conclusión (qué miró, qué dijo,
+  // qué le costó). La conclusión sola no alcanza para confiar en ella.
+  verCiclo?: () => void;
+}) {
   if (!d) return null;
   const sinVerificar = d.causa === "sin_verificar" || d.accion === "no_se";
   const tono = sinVerificar ? "text-[var(--t-text-dim)]" : "text-[var(--t-accent)]";
@@ -46,6 +51,15 @@ export function Diagnostico({ d, at }: { d?: D | null; at?: string | null }) {
         <span className="text-[var(--t-text-dim)]">→</span>
         <b className="text-[var(--t-text)]">{ACCION[d.accion] ?? d.accion}</b>
         {at && <span className="text-[var(--t-text-dim)] tabular-nums">{fechaHora(at)}</span>}
+        {verCiclo && (
+          <button
+            onClick={verCiclo}
+            title="Ver en el LAB cada vuelta: qué miró, qué dijo el modelo y cuánto costó"
+            className="text-[var(--t-text-dim)] hover:text-[var(--t-accent)] uppercase tracking-widest"
+          >
+            ver cómo lo pensó → LAB
+          </button>
+        )}
       </div>
       {d.resumen && (
         <p className="text-[10px] text-[var(--t-text-muted)] mt-0.5">{d.resumen}</p>

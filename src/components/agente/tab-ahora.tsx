@@ -21,7 +21,7 @@ import { COLOR, fechaHora, type Hallazgo } from "@/components/agente/tipos";
 import { Recurrencia, Confirmado, Evidencia, Detalle } from "./evidencia";
 import { Diagnostico } from "./diagnostico";
 
-export function TabAhora({ filas, marcarLeidos, ignorar }: {
+export function TabAhora({ filas, marcarLeidos, ignorar, verDiagnostico }: {
   filas: Hallazgo[];
   marcarLeidos: (ids: number[]) => Promise<void>;
   // ⚠️ **«LEÍDO» NO ALCANZA, Y ESA ERA LA MITAD QUE FALTABA.** Marcar leído
@@ -33,6 +33,9 @@ export function TabAhora({ filas, marcarLeidos, ignorar }: {
   // el botón sólo estaba en ENCONTRÓ, así que los avisos —que son la mayoría
   // de AHORA— no tenían forma de callarse. Es reversible.
   ignorar?: (id: number) => Promise<void>;
+  // Abre el LAB con el ciclo del diagnóstico de ese hallazgo (o para pedirlo
+  // si todavía no corrió). No es una acción sobre el hallazgo: es mirar.
+  verDiagnostico?: (id: number) => void;
 }) {
   const [enviando, setEnviando] = useState(false);
 
@@ -120,7 +123,17 @@ export function TabAhora({ filas, marcarLeidos, ignorar }: {
               {/* Lo que concluyó EL DIAGNÓSTICO, si ya corrió: causa, acción y
                   qué NO hacer. El `que_hacer` de arriba es el del detector; esto
                   es lo investigado. */}
-              <Diagnostico d={f.diagnostico} at={f.diagnosticado_at} />
+              <Diagnostico d={f.diagnostico} at={f.diagnosticado_at}
+                           verCiclo={verDiagnostico ? () => verDiagnostico(f.id) : undefined} />
+              {!f.diagnostico && verDiagnostico && (
+                <button
+                  onClick={() => verDiagnostico(f.id)}
+                  title="Todavía no tiene diagnóstico: abre el LAB para pedirlo y ver el ciclo"
+                  className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)] mt-0.5 text-left"
+                >
+                  diagnosticar → LAB
+                </button>
+              )}
               <Evidencia ev={f.evidencia} />
             </div>
             <div className="flex flex-col gap-1 shrink-0">
