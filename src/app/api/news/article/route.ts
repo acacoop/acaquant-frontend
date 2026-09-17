@@ -1,20 +1,18 @@
 import { NextResponse } from "next/server";
-import { apiFetch } from "@/lib/api";
+import { proxyBackend } from "@/lib/proxy-backend";
 
+// Lectura de un artículo (el backend lo baja y lo limpia): tarda más que un
+// endpoint de datos, por eso `maxDuration`.
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 export const maxDuration = 30;
 
-export async function GET(req: Request) {
-  try {
-    const url = new URL(req.url);
-    const target = url.searchParams.get("url");
-    if (!target) {
-      return NextResponse.json({ ok: false, error: "url requerida" }, { status: 400 });
-    }
-    const data = await apiFetch(`/api/news/article?url=${encodeURIComponent(target)}`, {
-      revalidate: 0,
-    });
-    return NextResponse.json(data);
-  } catch (e) {
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 502 });
-  }
+export function GET(req: Request) {
+  const target = new URL(req.url).searchParams.get("url");
+  if (!target) return NextResponse.json({ ok: false, error: "url requerida" }, { status: 400 });
+  return proxyBackend(req, {
+    path: `/api/news/article?url=${encodeURIComponent(target)}`,
+    timeoutMs: 28_000,
+  });
 }

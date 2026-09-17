@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { headers } from "next/headers";
-import { isGuestRequest, trustedEmail } from "./cf-access";
+import { backendHeaders, backendUrl } from "./proxy-backend";
 
 export type Me = {
   email: string;
@@ -23,36 +23,13 @@ export type Me = {
 // render (ej. /manager, /derivados) → sin esto son 2 round-trips a /api/me.
 // cache() los deduplica dentro del mismo request server.
 export const getMe = cache(async function getMe(): Promise<Me | null> {
-  const API_URL = process.env.API_URL || "https://api.acaquant.com";
-  const API_KEY = process.env.API_KEY || "";
-  const CF_ID = process.env.CF_ACCESS_CLIENT_ID || "";
-  const CF_SECRET = process.env.CF_ACCESS_CLIENT_SECRET || "";
-
   const hdrs = await headers();
-  // Email de confianza desde el sello firmado de CF (no spoofeable). Ver cf-access.ts.
-  const email = await trustedEmail((n) => hdrs.get(n));
-
-  const authHeaders: Record<string, string> = {};
-  // CF Access estripa cf-access-authenticated-user-email cuando el origin
-  // recibe el request autenticado por service token (Vercel SSR →
-  // api.acaquant.com). x-acaquant-user-email no es CF-controlled, pasa
-  // intacto y el backend lo lee con prioridad. Mandamos los dos por compat.
-  if (email) {
-    authHeaders["cf-access-authenticated-user-email"] = email;
-    authHeaders["x-acaquant-user-email"] = email;
-  }
-  if (API_KEY) authHeaders["Authorization"] = `Bearer ${API_KEY}`;
-  if (CF_ID && CF_SECRET) {
-    authHeaders["CF-Access-Client-Id"] = CF_ID;
-    authHeaders["CF-Access-Client-Secret"] = CF_SECRET;
-  }
-  // Portal invitado (www): el backend devuelve rol `invitado` + nav de mercado.
-  if (await isGuestRequest((n) => hdrs.get(n))) {
-    authHeaders["x-acaquant-portal"] = "guest";
-  }
+  // Auth + identidad de confianza + marca de invitado: la única implementación
+  // (lib/proxy-backend.ts), la misma que usan los route handlers.
+  const authHeaders = await backendHeaders((n) => hdrs.get(n));
 
   try {
-    const res = await fetch(`${API_URL}/api/me`, {
+    const res = await fetch(backendUrl("/api/me"), {
       headers: authHeaders,
       cache: "no-store",
     });

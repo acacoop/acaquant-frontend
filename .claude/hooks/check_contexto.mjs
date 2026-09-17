@@ -8,9 +8,13 @@
 //   2. Una regla de .claude/rules/ supera 250 líneas / 32 kB.
 //   3. Un glob de `paths:` no matchea ningún archivo (la regla quedó muerta en silencio).
 //   4. Una regla no figura en .claude/INDEX.md.
+//   5. Un route handler de src/app/api/** rompe el trinquete del proxy (lee
+//      process.env, llama fetch o importa apiFetch): corre el lint de esa
+//      carpeta, que es donde vive la regla (eslint.config.mjs).
 // Los techos SOLO BAJAN. Si no es un push, sale en silencio. Si algo del propio
 // hook falla, deja pasar con aviso: fallar cerrado por un hook roto ya bloqueó
 // todos los comandos una vez en el backend.
+import { spawnSync } from "node:child_process";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -76,6 +80,13 @@ function verificar() {
     const nombre = f.replace(/\.md$/, "");
     if (!index.includes("`" + nombre + "`")) errores.push(`rules/${f}: no figura en .claude/INDEX.md`);
   }
+  // El trinquete del proxy: la regla vive en eslint.config.mjs; acá solo se corre
+  // sobre los handlers para que un push no la saltee. Sin node_modules (npm
+  // install pendiente) no se puede verificar → se avisa, no se bloquea.
+  const lint = spawnSync(process.platform === "win32" ? "npx.cmd" : "npx",
+    ["eslint", "--no-warn-ignored", "src/app/api"], { cwd: RAIZ, encoding: "utf8", shell: process.platform === "win32" });
+  if (lint.error) errores.push(`trinquete del proxy sin verificar (no pude correr eslint: ${lint.error.message})`);
+  else if (lint.status !== 0) errores.push(`un route handler rompe el trinquete del proxy:\n${(lint.stdout || lint.stderr || "").trim()}`);
   return errores;
 }
 
@@ -85,5 +96,5 @@ const cmd = ["command", "cmd", "script"].map((k) => payload?.tool_input?.[k]).fi
 if (!GIT_PUSH.test(cmd)) salir();
 let errores;
 try { errores = verificar(); } catch (e) { allow(`Techo del contexto sin validar (el hook falló: ${e.message}).`); }
-if (errores.length) deny("PUSH BLOQUEADO — el contexto de Claude superó su techo (o una regla quedó muerta). Movelo a .claude/rules/<dominio>.md, no achiques la letra.\n\n- " + errores.join("\n- "));
+if (errores.length) deny("PUSH BLOQUEADO — falló una verificación del repo (techo del contexto, regla muerta o trinquete del proxy). Si es el techo: movelo a .claude/rules/<dominio>.md, no achiques la letra. Si es el proxy: el handler va por lib/proxy-backend.ts.\n\n- " + errores.join("\n- "));
 salir();

@@ -5,11 +5,12 @@ paths:
 ---
 # Capa de red del cliente y patrones de UI compartidos
 
-## Capa de red del cliente — cuatro helpers con contratos distintos
+## Capa de red — cinco helpers con contratos distintos
 
 | Helper | Dónde | Contrato |
 |---|---|---|
-| `lib/api.ts::apiFetch` / `safeFetch` | **SSR** (pages, route handlers) | Habla directo con FastAPI: mete Bearer + CF service token + identidad. `safeFetch` devuelve fallback si el backend está caído. Timeout 15s. |
+| `lib/proxy-backend.ts::proxyBackend` / `proxyCatchAll` | **route handlers** (`src/app/api/**/route.ts`), los 77 | EL ÚNICO camino handler → backend. Bearer + CF service token + identidad de confianza (`trustedEmail`) + marca de invitado; **status y cuerpo del backend tal cual** (bytes crudos, un 403 llega como 403); fallo de red → 502 JSON, techo vencido → 504 JSON. **Techo 20 s en lecturas, ninguno en escrituras** (abortar un POST no deshace nada). `envolverEn` para los 4 endpoints donde el cliente espera `{clave: lista}`. Lo hace estructural el lint: un handler que lea `process.env`, llame `fetch` o importe `apiFetch` no pasa. |
+| `lib/api.ts::apiFetch` / `safeFetch` | **SSR** (page.tsx / layout.tsx) | Devuelve el JSON parseado y **tira** ante un error (la page decide). Los headers salen de `backendHeaders` del helper de arriba: una sola implementación. `safeFetch` devuelve fallback si el backend está caído. Timeout 15s. |
 | `lib/fetch-json.ts::fetchJson` | cliente, carga de vista | **TIRA** con status + detalle del backend. La vista atrapa y muestra el error. **Sin techo propio**: pasarle `{ signal: conTecho(ms) }` si es un GET que se repite. |
 | `lib/fetch-json.ts::getJSON` | cliente, polls/refetch | Devuelve `null` ante cualquier fallo. **Nunca** para decidir "no hay datos": un 403/502 se ve idéntico a vacío — así se perdió una semana la tab ESTRATEGIA. |
 | `lib/fetch-shared.ts::fetchShared` | listas de filtros | Dedupea en vuelo + cachea 5min. Un fallo no se cachea. |

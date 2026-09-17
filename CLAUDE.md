@@ -35,7 +35,7 @@ Dos portales sobre el MISMO deploy, separados por Cloudflare Access:
 | Al tocar… | Se carga |
 |---|---|
 | `src/proxy.ts`, `lib/cf-access.ts`, `lib/me.ts`, `header.tsx`, `src/app/api/**` | `rules/rbac.md` — identidad firmada, sanitización, pre-gate, portal invitado |
-| `src/lib/**`, `src/components/**` | `rules/red-cliente.md` — los 4 helpers de red, `usePoll` y su techo, patrones de UI |
+| `src/lib/**`, `src/components/**` | `rules/red-cliente.md` — los helpers de red (`proxyBackend` es el único camino de un route handler), `usePoll` y su techo, patrones de UI |
 | `components/trading*.tsx`, `src/app/trading/**` | `rules/trading.md` — la vista TRADING: nada auto-asigna un chart |
 | `components/agente/**`, `src/app/api/agente/**` | `rules/agente.md` — el modal del AV AGENT: la red se toca desde UN lugar |
 
@@ -58,12 +58,15 @@ Vercel lo va a correr igual. Sub-agente `pre-push-check` lo corre en contexto li
 - **`export const dynamic = "force-dynamic"` en TODA page.** El `layout.tsx` también, y ahí es
   **crítico para RBAC**: el nav se renderiza por usuario (`getMe()`); sin `force-dynamic` Vercel
   puede servirle a un trader el HTML cacheado de un admin con el link de MANAGER a la vista.
-- **Route handlers que proxean data live**: `export const revalidate = 0` + `cache: "no-store"` en
-  el `fetch`. Sin eso Next sirve una respuesta vieja de un endpoint que cambia cada 5s.
-- **`maxDuration`** en los proxies de endpoints lentos (Manager 90s, órdenes/riesgo 30s). El
-  default de Vercel corta antes de que el backend conteste.
-- **El proxy nunca devuelve el error como excepción**: reenvía status y cuerpo del backend tal cual,
-  y mapea un fallo de red a 502 JSON. Un handler que tira rompe la vista con un error sin mensaje.
+- **Un route handler habla con el backend SOLO por `lib/proxy-backend.ts`** (`proxyBackend` /
+  `proxyCatchAll`): bearer, service token, identidad de confianza, marca de invitado, status y
+  cuerpo tal cual, 502 en fallo de red, techo de 20 s en lecturas. El lint lo hace estructural: un
+  `route.ts` que lea `process.env`, llame `fetch` o importe `apiFetch` no pasa. `apiFetch` es SSR.
+- **Route handlers que proxean data live**: `export const dynamic = "force-dynamic"` +
+  `export const revalidate = 0` en el archivo (config del segmento: Next no la lee de un import).
+- **`maxDuration`** en los proxies de endpoints lentos (Manager 90s, órdenes/riesgo 30s), y el
+  `timeoutMs` del helper dos segundos por debajo. El default de Vercel corta antes de que el backend
+  conteste, y ese corte se ve igual que un backend caído.
 - **Polls con techo**: toda lectura repetida lleva `conTecho(ms)` de `lib/fetch-json.ts`. El
   navegador no le pone timeout a `fetch`, y una promesa colgada en `usePoll` (request compartido por
   URL) bloquea ese endpoint para toda la vida de la pestaña, sin marcar error. Escrituras no: abortar
@@ -79,8 +82,9 @@ Vercel lo va a correr igual. Sub-agente `pre-push-check` lo corre en contexto li
 ```
 browser → (Cloudflare Access) → Vercel
             ├─ src/proxy.ts            ← pre-gate por módulo + SANITIZA identidad
-            ├─ page.tsx (SSR)          → lib/api.ts   (apiFetch/safeFetch) ─┐
-            └─ componente cliente      → src/app/api/**/route.ts (proxy)  ──┤
+            ├─ page.tsx (SSR)          → lib/api.ts (apiFetch) ──────────────┐
+            └─ componente cliente      → src/app/api/**/route.ts ──┐         │
+                                          lib/proxy-backend.ts ◄───┘ (headers de los dos)
                                                                             ↓
                                                           api.acaquant.com (FastAPI)
 ```

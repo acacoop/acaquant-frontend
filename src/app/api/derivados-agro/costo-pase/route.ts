@@ -1,17 +1,10 @@
-import { NextResponse } from "next/server";
-import { apiFetch } from "@/lib/api";
+import { proxyBackend } from "@/lib/proxy-backend";
 
-// Costo Pase (gastos MATBA + ALyC) — panel automático de la tab DATOS:
-// desglose del 0,45% que se le resta al Pase Lleno + costo US$/Tn por
-// commodity. No-store: el costo por commodity sigue al precio de la Cámara.
-export async function GET() {
-  try {
-    const data = await apiFetch<unknown>("/api/derivados/agro/costo-pase");
-    return NextResponse.json(data, {
-      headers: { "Cache-Control": "no-store" },
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "unknown error";
-    return NextResponse.json({ error: msg }, { status: 502 });
-  }
+// Costo Pase (gastos MATBA + ALyC) — panel automático de la tab DATOS.
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+export function GET(req: Request) {
+  return proxyBackend(req, { path: "/api/derivados/agro/costo-pase" });
 }

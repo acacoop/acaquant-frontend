@@ -28,6 +28,35 @@ const eslintConfig = defineConfig([
       }],
     },
   },
+  // ── El trinquete del proxy ────────────────────────────────────────────────
+  // Un route handler (src/app/api/**/route.ts) habla con el backend SOLO por
+  // lib/proxy-backend.ts. Antes 26 handlers armaban a mano el bearer, el
+  // service token y la identidad, y 51 usaban apiFetch con otro contrato de
+  // errores; ninguno tenía techo. Cuando uno se escribía distinto no fallaba
+  // nada: la pantalla cargaba y el backend auditaba al usuario como anónimo.
+  // La regla lo hace estructural: leer process.env, llamar fetch o importar
+  // apiFetch en un handler no pasa el lint. (Espejo de test_capas.py del backend.)
+  {
+    files: ["src/app/api/**/route.ts"],
+    rules: {
+      "no-restricted-syntax": ["error", {
+        selector: "MemberExpression[object.object.name='process'][object.property.name='env']",
+        message: "Un route handler no lee env vars: las credenciales hacia el backend "
+          + "viven en lib/proxy-backend.ts (proxyBackend / proxyCatchAll).",
+      }, {
+        selector: "CallExpression[callee.name='fetch']",
+        message: "Un route handler no llama fetch: usá proxyBackend / proxyCatchAll de "
+          + "lib/proxy-backend.ts, que reenvía status y cuerpo tal cual y pone techo.",
+      }],
+      "no-restricted-imports": ["error", {
+        paths: [{
+          name: "@/lib/api",
+          message: "apiFetch es para SSR (page.tsx). En un route handler usá "
+            + "proxyBackend / proxyCatchAll de lib/proxy-backend.ts.",
+        }],
+      }],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

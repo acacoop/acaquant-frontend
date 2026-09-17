@@ -1,16 +1,10 @@
-import { NextResponse } from "next/server";
-import { apiFetch } from "@/lib/api";
+import { proxyBackend } from "@/lib/proxy-backend";
 
-// Proxy live de la tabla de sintéticos. No-store para que el polling del
-// cliente vea los precios actualizados (los del bono / del futuro / SPOT).
-export async function GET() {
-  try {
-    const data = await apiFetch<unknown>("/api/derivados/sinteticos");
-    return NextResponse.json(data, {
-      headers: { "Cache-Control": "no-store" },
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "unknown error";
-    return NextResponse.json({ error: msg }, { status: 502 });
-  }
+// Tabla de sintéticos, live (precios del bono / del futuro / SPOT).
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+export function GET(req: Request) {
+  return proxyBackend(req, { path: "/api/derivados/sinteticos" });
 }
