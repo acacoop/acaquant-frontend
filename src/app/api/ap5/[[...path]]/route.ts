@@ -10,6 +10,6 @@ import { proxyCatchAll } from "@/lib/proxy-backend";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const h = proxyCatchAll("/api/ap5");
+const h = proxyCatchAll("/api/ap5", { cacheControl: "no-store, no-cache, must-revalidate" });
 export const GET = h;
 export const POST = h;

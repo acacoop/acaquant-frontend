@@ -7,7 +7,7 @@ import { proxyCatchAll } from "@/lib/proxy-backend";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const h = proxyCatchAll("/api/operaciones");
+const h = proxyCatchAll("/api/operaciones", { cacheControl: "no-store, no-cache, must-revalidate" });
 export const GET = h;
 export const POST = h;
 export const PUT = h;

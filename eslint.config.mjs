@@ -49,8 +49,10 @@ const eslintConfig = defineConfig([
           + "lib/proxy-backend.ts, que reenvía status y cuerpo tal cual y pone techo.",
       }],
       "no-restricted-imports": ["error", {
-        paths: [{
-          name: "@/lib/api",
+        // `patterns` y no `paths`: un import relativo (`../../lib/api`) esquiva
+        // `paths`, que solo matchea el especificador exacto.
+        patterns: [{
+          group: ["@/lib/api", "**/lib/api", "**/lib/api.ts"],
           message: "apiFetch es para SSR (page.tsx). En un route handler usá "
             + "proxyBackend / proxyCatchAll de lib/proxy-backend.ts.",
         }],

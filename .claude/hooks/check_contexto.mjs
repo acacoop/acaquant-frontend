@@ -55,6 +55,11 @@ function pathsDe(texto) {
   return [...m[1].split("paths:")[1].matchAll(/^\s*-\s*"?([^"\n]+?)"?\s*$/gm)].map((x) => x[1].trim()).filter(Boolean);
 }
 
+// Lo que el hook NO pudo verificar (ej. eslint sin node_modules) se AVISA y se
+// deja pasar: fallar cerrado por un hook roto ya bloqueó todos los comandos
+// una vez en el backend.
+const avisos = [];
+
 function verificar() {
   const errores = [];
   const [ln, by] = medir(join(RAIZ, "CLAUDE.md"));
@@ -85,7 +90,7 @@ function verificar() {
   // install pendiente) no se puede verificar → se avisa, no se bloquea.
   const lint = spawnSync(process.platform === "win32" ? "npx.cmd" : "npx",
     ["eslint", "--no-warn-ignored", "src/app/api"], { cwd: RAIZ, encoding: "utf8", shell: process.platform === "win32" });
-  if (lint.error) errores.push(`trinquete del proxy sin verificar (no pude correr eslint: ${lint.error.message})`);
+  if (lint.error) avisos.push(`trinquete del proxy sin verificar (no pude correr eslint: ${lint.error.message}). Corré npm install && npm run lint.`);
   else if (lint.status !== 0) errores.push(`un route handler rompe el trinquete del proxy:\n${(lint.stdout || lint.stderr || "").trim()}`);
   return errores;
 }
@@ -96,5 +101,6 @@ const cmd = ["command", "cmd", "script"].map((k) => payload?.tool_input?.[k]).fi
 if (!GIT_PUSH.test(cmd)) salir();
 let errores;
 try { errores = verificar(); } catch (e) { allow(`Techo del contexto sin validar (el hook falló: ${e.message}).`); }
+if (!errores.length && avisos.length) allow("Push permitido con aviso: " + avisos.join(" · "));
 if (errores.length) deny("PUSH BLOQUEADO — falló una verificación del repo (techo del contexto, regla muerta o trinquete del proxy). Si es el techo: movelo a .claude/rules/<dominio>.md, no achiques la letra. Si es el proxy: el handler va por lib/proxy-backend.ts.\n\n- " + errores.join("\n- "));
 salir();
