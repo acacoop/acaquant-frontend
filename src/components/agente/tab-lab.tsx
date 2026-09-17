@@ -11,7 +11,9 @@ import { PanelLabIA } from "@/components/agente/panel-lab";
 import { TrazaDiagnostico } from "@/components/agente/traza-diagnostico";
 import { VerEvento } from "@/components/agente/ver-evento";
 import {
-  type ConversacionLab, type ConversacionResumen, type EstadoLab,   type MetricasRuns, type RespuestaLab, type SesionLab, type TablaDeclarada, type TurnoGuardado,
+  type ConversacionLab, type ConversacionResumen, type DiagnosticoAbierto, type DiagnosticoResumen,
+  type EstadoLab, type MetricasRuns, type RespuestaLab, type SesionLab, type TablaDeclarada,
+  type TurnoGuardado,
 } from "@/components/agente/tipos";
 
 // Un turno como se dibuja. `r` es la respuesta viva (con su ciclo) de una
@@ -22,8 +24,8 @@ type Turno = { pregunta: string; r?: RespuestaLab; g?: TurnoGuardado; error?: st
 const fecha = (iso: string) =>
   new Date(iso).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
-export function TabLab({ preguntar, leer, guardar, cancelarRun, diagnostico, cerrarDiagnostico,
-                         pedirDiagnostico }: {
+export function TabLab({ preguntar, leer, guardar, cancelarRun, diagnostico, abrirDiagnostico,
+                         pedirDiagnostico, cancelarDiagnostico }: {
   // Manda la pregunta y el id de la conversación (vacío = nueva).
   preguntar: (pregunta: string, sesion: string,
               actualizar: (respuesta: RespuestaLab) => void) => Promise<RespuestaLab>;
@@ -31,11 +33,13 @@ export function TabLab({ preguntar, leer, guardar, cancelarRun, diagnostico, cer
   // Para el panel de arriba (gasto y modelo) y la lista de conversaciones.
   leer: <T>(url: string) => Promise<T>;
   guardar: <T>(url: string, body?: unknown) => Promise<T>;
-  // EL DIAGNÓSTICO de un hallazgo abierto desde AHORA: acá se ve su ciclo. La
-  // pantalla lo abre y lo cierra; el contenido lo sirve el backend.
-  diagnostico?: number | null;
-  cerrarDiagnostico?: () => void;
+  // EL DIAGNÓSTICO abierto (desde AHORA o desde la lista de acá): se ve su
+  // ciclo. Qué está abierto vive en el modal, para que AHORA y el LAB hablen
+  // del mismo; el contenido lo sirve el backend.
+  diagnostico?: DiagnosticoAbierto | null;
+  abrirDiagnostico?: (d: DiagnosticoAbierto | null) => void;
   pedirDiagnostico?: (id: number) => Promise<{ ok: boolean; run_id?: string; error?: string }>;
+  cancelarDiagnostico?: (runId: string) => Promise<{ ok: boolean; error?: string }>;
 }) {
   const [texto, setTexto] = useState("");
   const [turnos, setTurnos] = useState<Turno[]>([]);
@@ -50,6 +54,30 @@ export function TabLab({ preguntar, leer, guardar, cancelarRun, diagnostico, cer
   const [errorLista, setErrorLista] = useState("");
   const [verLista, setVerLista] = useState(false);
   const [metricas, setMetricas] = useState<MetricasRuns | null>(null);
+  // LOS DIAGNÓSTICOS: una fila por corrida, creada sola cuando se encola. Es la
+  // cola y el historial a la vista; mientras hay alguno activo se relee.
+  const [diagnosticos, setDiagnosticos] = useState<DiagnosticoResumen[]>([]);
+  const [activosDiag, setActivosDiag] = useState(0);
+  const [errorDiag, setErrorDiag] = useState("");
+  const [verDiagnosticos, setVerDiagnosticos] = useState(true);
+
+  const refrescarDiagnosticos = useCallback(async () => {
+    try {
+      const r = await leer<{ diagnosticos: DiagnosticoResumen[]; activos: number }>(
+        "/api/agente/diagnostico?limite=50");
+      setDiagnosticos(r.diagnosticos ?? []);
+      setActivosDiag(r.activos ?? 0);
+      setErrorDiag("");
+    } catch (e) {
+      setErrorDiag(String(e));
+    }
+  }, [leer]);
+
+  useEffect(() => {
+    if (activosDiag === 0) return;
+    const id = setInterval(() => void refrescarDiagnosticos(), 5000);
+    return () => clearInterval(id);
+  }, [activosDiag, refrescarDiagnosticos]);
 
   const refrescarLista = useCallback(async () => {
     try {
@@ -74,9 +102,10 @@ export function TabLab({ preguntar, leer, guardar, cancelarRun, diagnostico, cer
     const id = setTimeout(() => {
       void refrescarLista();
       void refrescarMetricas();
+      void refrescarDiagnosticos();
     }, 0);
     return () => clearTimeout(id);
-  }, [refrescarLista, refrescarMetricas]);
+  }, [refrescarLista, refrescarMetricas, refrescarDiagnosticos]);
 
   function nueva() {
     setTurnos([]);
@@ -147,10 +176,73 @@ export function TabLab({ preguntar, leer, guardar, cancelarRun, diagnostico, cer
       <PanelLabIA leer={leer} guardar={guardar} />
 
       {/* ── EL CICLO DE UN DIAGNÓSTICO (viene de AHORA) ─────────────────── */}
-      {diagnostico != null && (
-        <TrazaDiagnostico hallazgoId={diagnostico} leer={leer} pedir={pedirDiagnostico}
-                          cerrar={cerrarDiagnostico} />
+      {diagnostico && (
+        <TrazaDiagnostico key={`${diagnostico.hallazgo}:${diagnostico.run ?? ""}`}
+                          hallazgoId={diagnostico.hallazgo} runInicial={diagnostico.run} leer={leer}
+                          pedir={pedirDiagnostico} cancelar={cancelarDiagnostico}
+                          cerrar={() => abrirDiagnostico?.(null)}
+                          cambio={() => void refrescarDiagnosticos()} />
       )}
+
+      {/* ── LOS DIAGNÓSTICOS ────────────────────────────────────────────
+          Una fila por corrida del diagnóstico (backend: ia.ejecuciones,
+          tipo = diagnostico). Se crea sola al encolarse; abrirla muestra su
+          ciclo arriba. Lo que está «en cola» con hora vieja es lo que el
+          contador de atascados contaba sin decir qué era. */}
+      <div className="border border-[var(--t-border)]">
+        <div className="flex items-baseline gap-3 px-2 py-1 flex-wrap">
+          <button
+            onClick={() => setVerDiagnosticos(!verDiagnosticos)}
+            className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
+          >
+            {verDiagnosticos ? "▾" : "▸"} diagnósticos ({diagnosticos.length})
+            {activosDiag > 0 && <span className="text-[var(--t-accent)]"> · {activosDiag} en curso</span>}
+          </button>
+          <button
+            onClick={() => void refrescarDiagnosticos()}
+            className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
+          >
+            ↻
+          </button>
+        </div>
+        {verDiagnosticos && (
+          <div className="border-t border-[var(--t-border)] max-h-56 overflow-y-auto">
+            {errorDiag && <p className="text-[10px] text-[var(--t-neg)] px-2 py-1">{errorDiag}</p>}
+            {diagnosticos.length === 0 && !errorDiag && (
+              <p className="text-[10px] text-[var(--t-text-dim)] px-2 py-1">todavía no corrió ninguno</p>
+            )}
+            {diagnosticos.map((x) => (
+              <button
+                key={x.run_id}
+                onClick={() => x.hallazgo_id != null && abrirDiagnostico?.({ hallazgo: x.hallazgo_id, run: x.run_id })}
+                className={`w-full text-left flex items-baseline gap-2 px-2 py-1 text-[10px] border-t border-[var(--t-border)] hover:bg-[var(--t-surface)] ${
+                  x.run_id === diagnostico?.run ? "bg-[var(--t-surface)]" : ""}`}
+              >
+                <span className="text-[9px] text-[var(--t-text-dim)] tabular-nums whitespace-nowrap">
+                  {fecha(x.creada_at)}
+                </span>
+                <span className={`text-[9px] uppercase tracking-widest whitespace-nowrap ${
+                  x.estado === "succeeded" ? "text-[var(--t-pos)]"
+                    : x.estado === "queued" || x.estado === "running" ? "text-[var(--t-accent)]"
+                    : "text-[var(--t-neg)]"}`}>
+                  {x.estado === "queued" ? "en cola" : x.estado === "running" ? "corriendo"
+                    : x.estado === "succeeded" ? "ok" : x.estado}
+                </span>
+                <span className="flex-1 truncate text-[var(--t-text)]" title={x.problema ?? undefined}>
+                  #{x.hallazgo_id ?? "?"} {x.habilidad ?? ""} · {x.sujeto ?? ""}
+                  {x.causa && <span className="text-[var(--t-text-muted)]"> → {x.causa} / {x.accion}</span>}
+                  {x.error && <span className="text-[var(--t-neg)]"> · {x.error}</span>}
+                </span>
+                {x.tokens_in != null && (
+                  <span className="text-[9px] text-[var(--t-text-dim)] tabular-nums whitespace-nowrap">
+                    {x.vueltas ?? 0} v · {x.tokens_in.toLocaleString("es-AR")} in / {(x.tokens_out ?? 0).toLocaleString("es-AR")} out
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {metricas && (
         <div className="flex items-center gap-x-4 gap-y-1 flex-wrap border-y border-[var(--t-border)] py-1 text-[9px] tabular-nums text-[var(--t-text-dim)]">

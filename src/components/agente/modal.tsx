@@ -25,7 +25,7 @@ import { TabCronicos } from "./tab-cronicos";
 import { TabHistorial } from "@/components/agente/tab-historial";
 import { PanelHabilidades } from "@/components/agente/panel-habilidades";
 import { TabLab } from "@/components/agente/tab-lab";
-import { fechaHora, hace } from "@/components/agente/tipos";
+import { type DiagnosticoAbierto, fechaHora, hace } from "@/components/agente/tipos";
 
 type Tab = "ahora" | "encontro" | "patrones" | "historial" | "habilidades" | "lab";
 
@@ -34,7 +34,7 @@ export default function AgenteModal() {
   const [abierto, setAbierto] = useState(false);
   const [tab, setTab] = useState<Tab>("ahora");
   // El hallazgo cuyo diagnóstico se está mirando en el LAB (viene de AHORA).
-  const [diagnostico, setDiagnostico] = useState<number | null>(null);
+  const [diagnostico, setDiagnostico] = useState<DiagnosticoAbierto | null>(null);
   const d = useAgente(abierto);
   const v = d.vista;
 
@@ -228,7 +228,7 @@ export default function AgenteModal() {
                   ignorar={async (id) => {
                     await d.escribir("/api/agente/ignorar", { id }, ["vista"]);
                   }}
-                  verDiagnostico={(id) => { setDiagnostico(id); setTab("lab"); }}
+                  verDiagnostico={(id) => { setDiagnostico({ hallazgo: id }); setTab("lab"); }}
                 />
               )}
               {v && tab === "encontro" && (
@@ -258,10 +258,12 @@ export default function AgenteModal() {
                   // solo cuando la elección vuelve OK.
                   guardar={(url, body) => d.calcular(url, body)}
                   diagnostico={diagnostico}
-                  cerrarDiagnostico={() => setDiagnostico(null)}
-                  // Pedirlo ESCRIBE (encola un run) pero no cambia ninguna vista
-                  // hasta que termine: la traza se relee sola mientras corre.
-                  pedirDiagnostico={(id) => d.escribir(`/api/agente/diagnostico/${id}/pedir`, {}, [])} />
+                  abrirDiagnostico={setDiagnostico}
+                  // Pedir y cancelar ESCRIBEN (encolan o cortan un run) pero no
+                  // cambian ninguna vista del agente: la lista y la traza del LAB
+                  // se releen solas.
+                  pedirDiagnostico={(id) => d.escribir(`/api/agente/diagnostico/${id}/pedir`, {}, [])}
+                  cancelarDiagnostico={(run) => d.escribir(`/api/agente/diagnostico/runs/${run}/cancelar`, {}, [])} />
               )}
               {v && tab === "habilidades" && (
                 <PanelHabilidades habilidades={v.habilidades}

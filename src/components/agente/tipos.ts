@@ -311,6 +311,33 @@ export type RunDiagnostico = {
   intentos?: number;
 };
 
+// Una corrida del diagnóstico, como fila de la lista del LAB (backend:
+// `diagnostico.listado`, GET /api/agente/diagnostico). Es la cola y el
+// historial a la vista: la fuente es la tabla de runs, no una copia.
+export type DiagnosticoResumen = {
+  run_id: string;
+  estado: string;
+  error?: string | null;
+  creada_at: string;
+  iniciada_at?: string | null;
+  finalizada_at?: string | null;
+  hallazgo_id: number | null;
+  habilidad?: string | null;
+  sujeto?: string | null;
+  severidad?: string | null;
+  estado_hallazgo?: string | null;
+  problema?: string | null;
+  causa?: string | null;
+  accion?: string | null;
+  resumen?: string | null;
+  vueltas?: number | null;
+  tokens_in?: number | null;
+  tokens_out?: number | null;
+};
+
+// Qué diagnóstico está abierto en el LAB: el hallazgo y, si se eligió, el run.
+export type DiagnosticoAbierto = { hallazgo: number; run?: string };
+
 export type TrazaDiagnostico = {
   hallazgo_id: number;
   runs: RunDiagnostico[];

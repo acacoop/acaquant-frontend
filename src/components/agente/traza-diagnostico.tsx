@@ -24,14 +24,20 @@ const fecha = (iso?: string | null) => {
   });
 };
 
-export function TrazaDiagnostico({ hallazgoId, leer, pedir, cerrar }: {
+export function TrazaDiagnostico({ hallazgoId, runInicial, leer, pedir, cancelar, cerrar, cambio }: {
   hallazgoId: number;
+  runInicial?: string;
   leer: <T>(url: string) => Promise<T>;
   pedir?: (id: number) => Promise<{ ok: boolean; run_id?: string; error?: string }>;
+  cancelar?: (runId: string) => Promise<{ ok: boolean; error?: string }>;
   cerrar?: () => void;
+  // Avisa que pidió o canceló algo, para que la lista de arriba se relea.
+  cambio?: () => void;
 }) {
   const [t, setT] = useState<Traza | null>(null);
-  const [runId, setRunId] = useState("");
+  // El padre remonta el componente (key) cuando cambia el hallazgo o el run
+  // pedido: por eso el inicial va derecho al estado y no hace falta un effect.
+  const [runId, setRunId] = useState(runInicial ?? "");
   const [error, setError] = useState("");
   const [pidiendo, setPidiendo] = useState(false);
 
@@ -64,6 +70,7 @@ export function TrazaDiagnostico({ hallazgoId, leer, pedir, cerrar }: {
       const r = await pedir(hallazgoId);
       if (r.ok && r.run_id) {
         setRunId(r.run_id);
+        cambio?.();
       } else {
         setError(r.error ?? "no se pudo pedir el diagnóstico");
       }
@@ -75,6 +82,19 @@ export function TrazaDiagnostico({ hallazgoId, leer, pedir, cerrar }: {
   }
 
   const run = t?.run ?? null;
+
+  async function cancelarAhora() {
+    if (!cancelar || !run) return;
+    try {
+      const r = await cancelar(run.run_id);
+      if (!r.ok) setError(r.error ?? "no se pudo cancelar");
+      cambio?.();
+      void cargar();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
   return (
     <div className="border border-[var(--t-accent)] p-2 flex flex-col gap-1.5">
       <div className="flex items-baseline gap-3 flex-wrap">
@@ -102,6 +122,15 @@ export function TrazaDiagnostico({ hallazgoId, leer, pedir, cerrar }: {
             className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-40"
           >
             {run?.estado === "queued" ? "en cola…" : activo ? "diagnosticando…" : "diagnosticar de nuevo"}
+          </button>
+        )}
+        {cancelar && activo && (
+          <button
+            onClick={() => void cancelarAhora()}
+            title="En cola: muere ya. Corriendo: el worker corta en el próximo paso."
+            className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-neg)]"
+          >
+            cancelar
           </button>
         )}
         {cerrar && (
