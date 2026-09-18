@@ -266,7 +266,11 @@ export default function AgenteModal() {
                   // cambian ninguna vista del agente: la lista y la traza del LAB
                   // se releen solas.
                   pedirDiagnostico={(id) => d.escribir(`/api/agente/diagnostico/${id}/pedir`, {}, [])}
-                  cancelarDiagnostico={(run) => d.escribir(`/api/agente/diagnostico/runs/${run}/cancelar`, {}, [])} />
+                  cancelarDiagnostico={(run) => d.escribir(`/api/agente/diagnostico/runs/${run}/cancelar`, {}, [])}
+                  // El interruptor del automático también ESCRIBE (una fila de
+                  // ia.config) y tampoco toca ninguna vista del agente: la
+                  // lista del LAB se relee sola con el estado nuevo.
+                  ponerAutomatico={(prendido) => d.escribir("/api/agente/diagnostico/automatico", { prendido }, [])} />
               )}
               {v && tab === "habilidades" && (
                 <PanelHabilidades habilidades={v.habilidades}

@@ -11,9 +11,9 @@ import { PanelLabIA } from "@/components/agente/panel-lab";
 import { TrazaDiagnostico } from "@/components/agente/traza-diagnostico";
 import { VerEvento } from "@/components/agente/ver-evento";
 import {
-  type ConversacionLab, type ConversacionResumen, type DiagnosticoAbierto, type DiagnosticoResumen,
-  type EstadoLab, type MetricasRuns, type RespuestaLab, type SesionLab, type TablaDeclarada,
-  type TurnoGuardado,
+  type AutomaticoDiagnostico, type ConversacionLab, type ConversacionResumen, type DiagnosticoAbierto,
+  type DiagnosticoResumen, type EstadoLab, type MetricasRuns, type RespuestaLab, type SesionLab,
+  type TablaDeclarada, type TurnoGuardado,
 } from "@/components/agente/tipos";
 
 // Un turno como se dibuja. `r` es la respuesta viva (con su ciclo) de una
@@ -27,7 +27,7 @@ const fecha = (iso: string) =>
 export type SubTabLab = "conversaciones" | "diagnosticos" | "modelo";
 
 export function TabLab({ preguntar, leer, guardar, cancelarRun, diagnostico, abrirDiagnostico,
-                         pedirDiagnostico, cancelarDiagnostico, sub, setSub }: {
+                         pedirDiagnostico, cancelarDiagnostico, ponerAutomatico, sub, setSub }: {
   // Manda la pregunta y el id de la conversación (vacío = nueva).
   preguntar: (pregunta: string, sesion: string,
               actualizar: (respuesta: RespuestaLab) => void) => Promise<RespuestaLab>;
@@ -42,6 +42,9 @@ export function TabLab({ preguntar, leer, guardar, cancelarRun, diagnostico, abr
   abrirDiagnostico?: (d: DiagnosticoAbierto | null) => void;
   pedirDiagnostico?: (id: number) => Promise<{ ok: boolean; run_id?: string; error?: string }>;
   cancelarDiagnostico?: (runId: string) => Promise<{ ok: boolean; error?: string }>;
+  // El interruptor del AUTOMÁTICO: prendido, el daemon encola solo; apagado
+  // (como nace), sólo a pedido. El estado vuelve con la lista.
+  ponerAutomatico?: (prendido: boolean) => Promise<{ ok: boolean; automatico?: boolean; error?: string }>;
   // Las tres pantallas del LAB. Cuál está abierta vive en el modal: AHORA
   // manda a «diagnósticos» al abrir un ciclo.
   sub: SubTabLab;
@@ -65,18 +68,40 @@ export function TabLab({ preguntar, leer, guardar, cancelarRun, diagnostico, abr
   const [diagnosticos, setDiagnosticos] = useState<DiagnosticoResumen[]>([]);
   const [activosDiag, setActivosDiag] = useState(0);
   const [errorDiag, setErrorDiag] = useState("");
+  // EL INTERRUPTOR del automático viene con la lista (misma lectura, no puede
+  // quedar desfasado de ella). `null` = todavía no se leyó.
+  const [automatico, setAutomatico] = useState<AutomaticoDiagnostico | null>(null);
+  const [cambiandoAuto, setCambiandoAuto] = useState(false);
 
   const refrescarDiagnosticos = useCallback(async () => {
     try {
-      const r = await leer<{ diagnosticos: DiagnosticoResumen[]; activos: number }>(
+      const r = await leer<{ diagnosticos: DiagnosticoResumen[]; activos: number;
+                             automatico?: AutomaticoDiagnostico }>(
         "/api/agente/diagnostico?limite=50");
       setDiagnosticos(r.diagnosticos ?? []);
       setActivosDiag(r.activos ?? 0);
+      setAutomatico(r.automatico ?? null);
       setErrorDiag("");
     } catch (e) {
       setErrorDiag(String(e));
     }
   }, [leer]);
+
+  // Prender o apagar el automático. Escribe y RELEE la lista: el estado que se
+  // dibuja es el que devolvió el backend, nunca el que el botón supone.
+  async function alternarAutomatico() {
+    if (!ponerAutomatico || !automatico || cambiandoAuto) return;
+    setCambiandoAuto(true);
+    try {
+      const r = await ponerAutomatico(!automatico.automatico);
+      if (!r.ok) setErrorDiag(r.error ?? "no pude cambiar el automático");
+    } catch (e) {
+      setErrorDiag(String(e));
+    } finally {
+      setCambiandoAuto(false);
+      void refrescarDiagnosticos();
+    }
+  }
 
   useEffect(() => {
     if (activosDiag === 0) return;
@@ -185,7 +210,8 @@ export function TabLab({ preguntar, leer, guardar, cancelarRun, diagnostico, abr
       <div className="flex gap-1 border-b border-[var(--t-border)]">
         {([
           ["conversaciones", `conversaciones (${lista.length})`],
-          ["diagnosticos", `diagnósticos (${diagnosticos.length})` + (activosDiag > 0 ? ` · ${activosDiag} en curso` : "")],
+          ["diagnosticos", `diagnósticos (${diagnosticos.length})` + (activosDiag > 0 ? ` · ${activosDiag} en curso` : "")
+            + (automatico?.automatico ? " · auto" : "")],
           ["modelo", "modelo y gasto"],
         ] as [SubTabLab, string][]).map(([k, etiqueta]) => (
           <button key={k} onClick={() => setSub(k)}
@@ -213,6 +239,38 @@ export function TabLab({ preguntar, leer, guardar, cancelarRun, diagnostico, abr
           ciclo arriba. Lo que está «en cola» con hora vieja es lo que el
           contador de atascados contaba sin decir qué era. */}
       <div className="border border-[var(--t-border)]">
+        {/* ── EL INTERRUPTOR ─────────────────────────────────────────────
+            Nace APAGADO (manual). Prendido, el daemon del AV AGENT encola un
+            diagnóstico por cada hallazgo abierto sin diagnóstico vigente, con
+            topes; apagado, sólo corre lo que pide una persona (el botón de
+            AHORA, «diagnosticar de nuevo», la consola). Cada corrida gasta
+            tokens: por eso el default es manual. El estado y los contadores
+            vienen del backend con la lista; acá no se deriva nada. */}
+        <div className="flex items-baseline gap-2 px-2 py-1 border-b border-[var(--t-border)] flex-wrap">
+          <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">automático</span>
+          {automatico ? (<>
+            <button
+              onClick={() => void alternarAutomatico()}
+              disabled={cambiandoAuto || !ponerAutomatico}
+              title={automatico.automatico
+                ? "apagar: el daemon deja de encolar diagnósticos solo (lo que ya está en cola sigue)"
+                : "prender: el daemon encola solo, con los topes de config.py"}
+              className={`text-[9px] uppercase tracking-widest border px-2 py-0.5 disabled:opacity-50 hover:text-[var(--t-accent)] ${
+                automatico.automatico
+                  ? "border-[var(--t-pos)] text-[var(--t-pos)]"
+                  : "border-[var(--t-border)] text-[var(--t-text-dim)]"}`}
+            >
+              {cambiandoAuto ? "…" : automatico.automatico ? "prendido" : "apagado"}
+            </button>
+            <span className="text-[9px] text-[var(--t-text-dim)]">
+              {automatico.automatico
+                ? <>el daemon encola solo · hoy {automatico.hoy ?? "?"} de {automatico.tope_dia} · hasta {automatico.tope_pasada} por pasada</>
+                : <>manual: sólo lo que pide una persona</>}
+            </span>
+          </>) : (
+            <span className="text-[9px] text-[var(--t-text-dim)]">…</span>
+          )}
+        </div>
         <div className="flex items-baseline gap-3 px-2 py-1 flex-wrap">
           <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
             una fila por corrida · clic abre su ciclo

@@ -335,6 +335,19 @@ export type DiagnosticoResumen = {
   tokens_out?: number | null;
 };
 
+// El interruptor del diagnóstico AUTOMÁTICO, como viaja con la lista
+// (`automatico` en GET /api/agente/diagnostico; se cambia con
+// POST /api/agente/diagnostico/automatico). Prendido = el daemon del AV AGENT
+// encola solo, con topes; apagado = sólo a pedido de una persona. Nace apagado.
+// `hoy` de `tope_dia`: cuántos se encolaron hoy, contados por el backend.
+export type AutomaticoDiagnostico = {
+  automatico: boolean;
+  hoy: number | null;
+  tope_dia: number;
+  tope_pasada: number;
+  refresco_h: number;
+};
+
 // Qué diagnóstico está abierto en el LAB: el hallazgo y, si se eligió, el run.
 export type DiagnosticoAbierto = { hallazgo: number; run?: string };
 
