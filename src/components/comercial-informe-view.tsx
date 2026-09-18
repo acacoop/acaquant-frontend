@@ -726,14 +726,24 @@ export function ComercialInforme({
                     <td className="text-right pl-2 pr-16 text-[var(--t-text)]">{fmtFull(s.ticket_promedio)}</td>
                   </tr>
                   {expanded && (
-                    <tr className="bg-[var(--t-surface)]/60">
-                      <td colSpan={4} className="px-3 py-1.5">
-                        <div className="flex items-center justify-end gap-5 text-[10px] uppercase tracking-wider">
-                          <span className="text-[var(--t-text-muted)]">Operaciones <b className="text-[var(--t-data-arancel)]">{fmtFull(s.ar_operaciones_total ?? 0)}</b> · mes {fmtFull(s.ar_operaciones_mes ?? 0)}</span>
-                          <span className="text-[var(--t-text-muted)]">FCI <b className="text-[var(--t-data-arancel)]">{fmtFull(s.ar_fci_total ?? 0)}</b> · mes {fmtFull(s.ar_fci_mes ?? 0)}</span>
-                        </div>
-                      </td>
-                    </tr>
+                    /* Desglose apilado bajo las mismas columnas de ARANC. TOTAL / ARANC. MES
+                       del padre: Operaciones arriba, FCI abajo (en ese orden), para que se
+                       lea como "el total de arriba se compone de estas dos partes" en vez de
+                       un texto suelto sin relación visual con las columnas. */
+                    <>
+                      <tr className="bg-[var(--t-surface)]/60 text-[10px]">
+                        <td className="pl-7 pr-3 py-1 text-[var(--t-text-muted)] uppercase tracking-wider">↳ Operaciones</td>
+                        <td className="text-right px-2 text-[var(--t-text-muted)]">{fmtFull(s.ar_operaciones_total ?? 0)}</td>
+                        <td className="text-right px-2 text-[var(--t-text-muted)]">{fmtFull(s.ar_operaciones_mes ?? 0)}</td>
+                        <td className="pl-2 pr-16" />
+                      </tr>
+                      <tr className="bg-[var(--t-surface)]/60 text-[10px] border-b border-[var(--t-border)]">
+                        <td className="pl-7 pr-3 py-1 text-[var(--t-text-muted)] uppercase tracking-wider">↳ FCI</td>
+                        <td className="text-right px-2 text-[var(--t-text-muted)]">{fmtFull(s.ar_fci_total ?? 0)}</td>
+                        <td className="text-right px-2 text-[var(--t-text-muted)]">{fmtFull(s.ar_fci_mes ?? 0)}</td>
+                        <td className="pl-2 pr-16" />
+                      </tr>
+                    </>
                   )}
                 </Fragment>
               );
