@@ -9,6 +9,15 @@ export type Severidad = "alta" | "media" | "baja";
 // causa y acción de listas cerradas, afirmaciones con su marca, qué no hacer, y
 // qué ajustó el validador. Viene resuelto: acá no se deriva nada.
 export type Diagnostico = {
+  // Ausente = las cinco etapas. `implica` = un hallazgo de PROCESO con el
+  // error adentro (`asistente/implica.py`): sin investigar, una llamada que
+  // deja qué implica y un prompt para una IA de código.
+  tipo?: "implica";
+  que_implica?: string | null;
+  prompt?: string | null;
+  huella?: string | null;
+  firma?: string | null;
+  categoria?: string | null;
   causa: string;
   resumen: string;
   verificado?: { afirmacion: string; cita?: string; estado: "verificado" | "hipotesis" }[];
@@ -291,6 +300,13 @@ export type EventoLab = { agente?: string; id?: number; ts?: string } & (
   | { tipo: "diagnostico_dosier"; hallazgo_id: number; episodios: number; cronico: boolean }
   | { tipo: "diagnostico_concluir"; texto: string; parseo: boolean; tokens_in: number; tokens_out: number }
   | { tipo: "diagnostico_conclusion"; hallazgo_id: number; causa: string; accion: string; cambios: string[] }
+  // EL IMPLICA (`asistente/implica.py`): qué entró (la firma determinista, cuántos
+  // errores, la huella) y qué devolvió el modelo (si parseó, qué implica, el prompt;
+  // `texto` sólo cuando no parseó, para ver qué dijo).
+  | { tipo: "implica_entrada"; hallazgo_id: number; firma?: string | null; cuantos?: number | null;
+      huella?: string | null }
+  | { tipo: "implica"; hallazgo_id: number; parseo: boolean; que_implica?: string | null;
+      prompt?: string | null; texto?: string | null; tokens_in: number; tokens_out: number }
   // El cierre del run, lo escribe el worker.
   | { tipo: "final"; resultado?: unknown }
   | { tipo: "run_error"; error: string }
@@ -358,6 +374,10 @@ export type TrazaDiagnostico = {
   runs: RunDiagnostico[];
   run: RunDiagnostico | null;
   eventos: EventoLab[];
+  // La conclusión VIGENTE (la fila del hallazgo), la única que se dibuja
+  // desde que AHORA muestra sólo el aviso.
+  diagnostico?: Diagnostico | null;
+  diagnosticado_at?: string | null;
 };
 
 // Lo que el asistente SABE de la conversación, aparte de lo que se DIJO: hoy,
@@ -412,6 +432,7 @@ export const ICONO_EVENTO: Record<EventoLab["tipo"], string> = {
   texto: "✅", corte: "⛔", estado: "📌", achicado: "🗜", podado: "✂️",
   ruteo: "🧭", junta: "🔗", modelo: "🧠",
   diagnostico_dosier: "📁", diagnostico_concluir: "🧾", diagnostico_conclusion: "🏁",
+  implica_entrada: "📥", implica: "📝",
   final: "■", run_error: "✖", timed_out: "⏱", cancelled: "⏹",
 };
 

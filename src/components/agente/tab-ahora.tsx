@@ -15,11 +15,16 @@
 // backend. En el agente viejo el «AHORA 92» lo sumaba el navegador juntando
 // cuatro cosas de dos endpoints con frescuras distintas, contadas sobre listas
 // ya cortadas en 200 filas y leídas de otra tabla.
+//
+// ⚠️ **AHORA es el AVISO del AV AGENT y nada más** (pedido del user,
+// 2026-09-18: «no quiero mezclar AHORA con la parte de IA»). La conclusión de
+// EL DIAGNÓSTICO —o el prompt del IMPLICA para un proceso que reventó— vive en
+// LAB → DIAGNÓSTICOS, arriba del ciclo que la produjo. Acá queda un solo botón
+// que lleva ahí.
 import { useState } from "react";
 
 import { COLOR, fechaHora, type Hallazgo } from "@/components/agente/tipos";
 import { Recurrencia, Confirmado, Evidencia, Detalle } from "./evidencia";
-import { Diagnostico } from "./diagnostico";
 
 export function TabAhora({ filas, marcarLeidos, ignorar, verDiagnostico }: {
   filas: Hallazgo[];
@@ -120,18 +125,16 @@ export function TabAhora({ filas, marcarLeidos, ignorar, verDiagnostico }: {
               <p className="text-[9px] text-[var(--t-text-dim)] mt-0.5">
                 {f.que_hacer}
               </p>
-              {/* Lo que concluyó EL DIAGNÓSTICO, si ya corrió: causa, acción y
-                  qué NO hacer. El `que_hacer` de arriba es el del detector; esto
-                  es lo investigado. */}
-              <Diagnostico d={f.diagnostico} at={f.diagnosticado_at}
-                           verCiclo={verDiagnostico ? () => verDiagnostico(f.id) : undefined} />
-              {!f.diagnostico && verDiagnostico && (
+              {/* Un solo botón hacia el LAB: la conclusión no se dibuja acá. */}
+              {verDiagnostico && (
                 <button
                   onClick={() => verDiagnostico(f.id)}
-                  title="Todavía no tiene diagnóstico: abre el LAB para pedirlo y ver el ciclo"
+                  title={f.diagnostico
+                    ? "Ya tiene diagnóstico: abre el LAB con la conclusión y el ciclo que la produjo"
+                    : "Todavía no tiene diagnóstico: abre el LAB para pedirlo y ver el ciclo"}
                   className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)] mt-0.5 text-left"
                 >
-                  diagnosticar → LAB
+                  {f.diagnostico ? "ver diagnóstico → LAB" : "diagnosticar → LAB"}
                 </button>
               )}
               <Evidencia ev={f.evidencia} />

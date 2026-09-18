@@ -1,16 +1,20 @@
 "use client";
 
 // EL CICLO de un diagnóstico, en el LAB (backend: `GET /api/agente/diagnostico/{id}`,
-// `asistente/diagnostico.traza`, doc `AvAgentAI.md` §15). AHORA muestra la
-// conclusión; esto es lo que la produjo: cada vuelta, qué dijo el modelo y
-// cuánto le costó, qué pidió, qué le volvió, y la conclusión cruda. Todo sale
-// de `ia.eventos_ejecucion` tal cual quedó: acá no se resume ni se suma nada.
+// `asistente/diagnostico.traza`, doc `AvAgentAI.md` §15). Arriba, la
+// conclusión VIGENTE (la fila del hallazgo, que el backend manda junto con los
+// runs) — desde que AHORA muestra sólo el aviso, este es el único lugar que la
+// dibuja; para un proceso que reventó es el IMPLICA con su prompt para copiar.
+// Debajo, lo que la produjo: cada vuelta, qué dijo el modelo y cuánto le
+// costó, qué pidió, qué le volvió, y la conclusión cruda. Todo sale de
+// `ia.eventos_ejecucion` tal cual quedó: acá no se resume ni se suma nada.
 //
 // Mientras el run está activo se relee cada 3 s (la lectura lleva techo en
 // `datos.tsx`). «Diagnosticar de nuevo» encola por la misma puerta que el
 // disparo automático; lo que hace el botón lo dice el backend.
 import { useCallback, useEffect, useState } from "react";
 
+import { Diagnostico } from "@/components/agente/diagnostico";
 import type { TrazaDiagnostico as Traza } from "@/components/agente/tipos";
 import { VerEvento } from "@/components/agente/ver-evento";
 
@@ -156,6 +160,10 @@ export function TrazaDiagnostico({ hallazgoId, runInicial, leer, pedir, cancelar
           {run.error && <span className="text-[var(--t-neg)]"> · {run.error}</span>}
         </p>
       )}
+      {/* La conclusión vigente del hallazgo (o el IMPLICA con su prompt). Es la
+          fila del hallazgo, no el run elegido: si se mira un run viejo, esto
+          sigue siendo lo último que se concluyó. */}
+      <Diagnostico d={t?.diagnostico} at={t?.diagnosticado_at} />
       {run && (
         <div className="bg-[var(--t-surface)] p-1.5 max-h-[28rem] overflow-y-auto flex flex-col gap-0.5">
           {t!.eventos.length === 0 && (

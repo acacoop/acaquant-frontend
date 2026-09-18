@@ -94,6 +94,35 @@ export function VerEvento({ e }: { e: EventoLab }) {
           )}
         </div>
       );
+    case "implica_entrada":
+      return linea(
+        <>implica · hallazgo #{e.hallazgo_id} · {e.cuantos ?? "?"} error(es) en el log ·{" "}
+          firma: <b className="text-[var(--t-text)]">{e.firma ?? "sin firma"}</b></>,
+        "text-[var(--t-accent)]");
+    case "implica":
+      return (
+        <div>
+          {linea(
+            <>implica · <span className="tabular-nums">{e.tokens_in.toLocaleString("es-AR")}</span> in /{" "}
+              <span className="tabular-nums">{e.tokens_out.toLocaleString("es-AR")}</span> out
+              {!e.parseo && <b className="text-[var(--t-neg)]"> · no devolvió el JSON</b>}</>,
+            "text-[var(--t-accent)]")}
+          {e.que_implica && (
+            <p className="text-[9px] text-[var(--t-text)] pl-4">{e.que_implica}</p>
+          )}
+          {e.prompt ? (
+            <pre className="text-[9px] text-[var(--t-text)] whitespace-pre-wrap break-words max-h-60 overflow-y-auto pl-4">
+              {e.prompt}
+            </pre>
+          ) : e.texto ? (
+            <pre className="text-[9px] text-[var(--t-text-muted)] whitespace-pre-wrap break-words max-h-60 overflow-y-auto pl-4">
+              {e.texto}
+            </pre>
+          ) : (
+            <p className="text-[9px] text-[var(--t-neg)] pl-4">(sin texto: el modelo devolvió vacío)</p>
+          )}
+        </div>
+      );
     case "diagnostico_conclusion":
       return linea(<><b className="text-[var(--t-text)]">{e.causa} → {e.accion}</b>
         {e.cambios.length > 0 && <span className="text-[var(--t-text-dim)]"> · el validador ajustó: {e.cambios.join(" · ")}</span>}</>,

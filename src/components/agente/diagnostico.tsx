@@ -4,6 +4,14 @@
 // AvAgentAI.md §15). La conclusión viene resuelta del backend: causa, acción,
 // qué no hacer, las afirmaciones con su marca de verificado o hipótesis, y qué
 // ajustó el validador. Acá se dibuja, no se opina (invariante 11).
+//
+// Vive en LAB → DIAGNÓSTICOS, arriba del ciclo (`traza-diagnostico.tsx`), y
+// NO en AHORA: ahí va el aviso del AV AGENT y nada más (pedido del user,
+// 2026-09-18). Para un hallazgo de PROCESO la conclusión es el IMPLICA
+// (`asistente/implica.py`): qué implica el error, y un prompt listo para pegar
+// en una IA de código — con el botón para copiarlo, que es para lo que existe.
+
+import { useState } from "react";
 
 import type { Diagnostico as D } from "./tipos";
 
@@ -40,7 +48,60 @@ export function Diagnostico({ d, at, verCiclo }: {
   // qué le costó). La conclusión sola no alcanza para confiar en ella.
   verCiclo?: () => void;
 }) {
+  const [copiado, setCopiado] = useState(false);
   if (!d) return null;
+
+  if (d.tipo === "implica") {
+    const copiar = async () => {
+      if (!d.prompt) return;
+      try {
+        await navigator.clipboard.writeText(d.prompt);
+        setCopiado(true);
+        setTimeout(() => setCopiado(false), 2000);
+      } catch {
+        setCopiado(false);
+      }
+    };
+    return (
+      <div className="mt-1 border-l-2 border-[var(--t-accent)] pl-2">
+        <div className="flex flex-wrap items-baseline gap-x-2 text-[9px]">
+          <span className="uppercase tracking-widest text-[var(--t-accent)]">implica</span>
+          <b className="text-[var(--t-text)]">{d.firma ?? CAUSA[d.causa] ?? d.causa}</b>
+          {d.categoria && <span className="text-[var(--t-text-dim)]">({d.categoria})</span>}
+          {at && <span className="text-[var(--t-text-dim)] tabular-nums">{fechaHora(at)}</span>}
+          {verCiclo && (
+            <button
+              onClick={verCiclo}
+              className="text-[var(--t-text-dim)] hover:text-[var(--t-accent)] uppercase tracking-widest"
+            >
+              ver el ciclo → LAB
+            </button>
+          )}
+        </div>
+        {d.que_implica && (
+          <p className="text-[10px] text-[var(--t-text)] mt-0.5">{d.que_implica}</p>
+        )}
+        {d.prompt && (<>
+          <div className="flex items-baseline gap-2 mt-1">
+            <span className="text-[8px] uppercase tracking-widest text-[var(--t-text-dim)]">
+              prompt para una IA de código
+            </span>
+            <button
+              onClick={() => void copiar()}
+              title="Copia el prompt entero al portapapeles, para pegarlo en la IA que va a corregir el código"
+              className="text-[8px] uppercase tracking-widest border border-[var(--t-border)] px-1.5 py-0.5 text-[var(--t-text-dim)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
+            >
+              {copiado ? "copiado ✓" : "copiar prompt"}
+            </button>
+          </div>
+          <pre className="text-[9px] text-[var(--t-text)] whitespace-pre-wrap break-words bg-[var(--t-surface)] px-1.5 py-1 mt-0.5 max-h-72 overflow-y-auto font-mono">
+            {d.prompt}
+          </pre>
+        </>)}
+      </div>
+    );
+  }
+
   const sinVerificar = d.causa === "sin_verificar" || d.accion === "no_se";
   const tono = sinVerificar ? "text-[var(--t-text-dim)]" : "text-[var(--t-accent)]";
   return (
