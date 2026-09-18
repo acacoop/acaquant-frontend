@@ -305,6 +305,13 @@ export function TabLab({ preguntar, leer, guardar, cancelarRun, diagnostico, abr
                   {x.estado === "queued" ? "en cola" : x.estado === "running" ? "corriendo"
                     : x.estado === "succeeded" ? "ok" : x.estado}
                 </span>
+                {/* Quién lo pidió, tal cual lo dice el backend: «auto» es el
+                    daemon; lo demás es una persona o la consola. */}
+                <span className="text-[9px] text-[var(--t-text-dim)] whitespace-nowrap"
+                      title={x.origen ?? undefined}>
+                  {!x.origen || x.origen === "daemon" ? "auto" : x.origen === "consola" ? "consola"
+                    : x.origen.split("@")[0]}
+                </span>
                 <span className="flex-1 truncate text-[var(--t-text)]" title={x.problema ?? undefined}>
                   #{x.hallazgo_id ?? "?"} {x.habilidad ?? ""} · {x.sujeto ?? ""}
                   {x.causa && <span className="text-[var(--t-text-muted)]"> → {x.causa} / {x.accion}</span>}

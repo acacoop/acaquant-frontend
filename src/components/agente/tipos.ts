@@ -318,6 +318,8 @@ export type DiagnosticoResumen = {
   run_id: string;
   estado: string;
   error?: string | null;
+  // Quién lo pidió: `daemon`, el email de la persona, o `consola`.
+  origen?: string | null;
   creada_at: string;
   iniciada_at?: string | null;
   finalizada_at?: string | null;
